@@ -1,7 +1,7 @@
 import { useEffect,useState } from 'react';
 import type { CSSProperties } from 'react';
-import { Activity,Apple,BarChart3,Download,Dumbbell,Home,LogOut,Plus,Scale,Target,X } from 'lucide-react';
-import { api,Entry,EntryType,User } from './api';
+import { Activity,Apple,BarChart3,Download,Dumbbell,FileUp,Home,LogOut,Plus,Scale,Target,X } from 'lucide-react';
+import { api,API_BASE,Entry,EntryType,ImportPreview,trainingApi,User } from './api';
 
 const meta:Record<EntryType,{label:string;icon:typeof Activity;unit:string;color:string}>={
   WORKOUT:{label:'Entreno',icon:Dumbbell,unit:'min',color:'lime'}, MEAL:{label:'Comida',icon:Apple,unit:'kcal',color:'orange'},
@@ -13,6 +13,7 @@ export function App(){
   const [user,setUser]=useState<User|null>(()=>{try{return JSON.parse(localStorage.getItem('anura-user')||'null')}catch{return null}});
   const [entries,setEntries]=useState<Entry[]>([]); const [tab,setTab]=useState<'HOME'|EntryType>('HOME');
   const [modal,setModal]=useState(false); const [loading,setLoading]=useState(false);
+  const [importOpen,setImportOpen]=useState(false);
   const load=()=>{if(user) void api.entries().then(setEntries).catch(()=>logout())};
   useEffect(()=>{load()},[user]);
   function logout(){localStorage.removeItem('anura-token');localStorage.removeItem('anura-user');setUser(null)}
@@ -26,15 +27,20 @@ export function App(){
         <div className="hello"><p>HOLA, {user.displayName.toUpperCase()}</p><h1>Hoy cuenta.<br/><em>Muévete.</em></h1><span>{new Intl.DateTimeFormat('es',{weekday:'long',day:'numeric',month:'long'}).format(new Date())}</span></div>
         <div className="score"><div><small>RITMO DE HOY</small><strong>{Math.min(100,todayItems.length*25)}%</strong></div><div className="ring" style={{'--score':`${Math.min(100,todayItems.length*25)*3.6}deg`} as CSSProperties}><span>{todayItems.length}</span></div></div>
         <h2>Tu día</h2><div className="quick-grid">{(['WORKOUT','MEAL','WEIGHT','GOAL'] as EntryType[]).map(type=><Quick key={type} type={type} entries={todayItems} onClick={()=>setTab(type)}/>)}</div>
+        <button className="import-card" onClick={()=>setImportOpen(true)}><FileUp/><span><strong>Importar planificación</strong><small>Valida y previsualiza tu CSV</small></span><b>→</b></button>
         <h2>Actividad reciente</h2>
       </>:<div className="section-title"><button onClick={()=>setTab('HOME')}>← Inicio</button><p>{meta[tab].label}</p><h1>{meta[tab].label}s</h1></div>}
       <EntryList entries={visible.slice(0,12)} onDelete={async id=>{await api.remove(id);load()}}/>
+      {tab==='WORKOUT'&&<button className="import-card" onClick={()=>setImportOpen(true)}><FileUp/><span><strong>Importar planificación</strong><small>Plantilla entrenamiento v1</small></span><b>→</b></button>}
     </section>
     <button className="fab" onClick={()=>setModal(true)}><Plus/></button>
     <nav>{[{id:'HOME' as const,icon:Home,label:'Inicio'},{id:'WORKOUT' as const,icon:Dumbbell,label:'Entreno'},{id:'MEAL' as const,icon:Apple,label:'Nutrición'},{id:'WEIGHT' as const,icon:Activity,label:'Evolución'}].map(n=><button className={tab===n.id?'active':''} onClick={()=>setTab(n.id)} key={n.id}><n.icon/><span>{n.label}</span></button>)}</nav>
     {modal&&<EntryModal busy={loading} onClose={()=>setModal(false)} onSave={async e=>{setLoading(true);try{await api.create(e);setModal(false);load()}finally{setLoading(false)}}}/>} 
+    {importOpen&&<TrainingImport onClose={()=>setImportOpen(false)}/>}
   </main>
 }
+
+function TrainingImport({onClose}:{onClose:()=>void}){const [file,setFile]=useState<File|null>(null);const [preview,setPreview]=useState<ImportPreview|null>(null);const [busy,setBusy]=useState(false);const [done,setDone]=useState(false);const [error,setError]=useState('');async function validate(){if(!file)return;setBusy(true);setError('');try{setPreview(await trainingApi.preview(file))}catch{setError('No se pudo validar el archivo')}finally{setBusy(false)}}return <div className="overlay"><section className="modal import-modal"><div className="modal-head"><div><small>ENTRENAMIENTO · CSV V1</small><h2>Importar planificación</h2></div><button onClick={onClose}><X/></button></div>{done?<div className="import-success"><Target/><h3>Plan importado</h3><p>Ya está disponible en tu histórico.</p><button className="primary" onClick={onClose}>Terminar</button></div>:<><a className="template-link" href={`${API_BASE}/import-schemas/training-plan/v1/template`}><Download/> Descargar plantilla oficial</a><label className="file-drop"><FileUp/><strong>{file?file.name:'Selecciona el CSV'}</strong><small>UTF-8 · Separador ; · Máximo 1 MB</small><input type="file" accept=".csv,text/csv" onChange={e=>{setFile(e.target.files?.[0]||null);setPreview(null)}}/></label>{error&&<div className="error">{error}</div>}{preview&&<div className="preview-card"><span className={preview.confirmable?'valid':'invalid'}>{preview.confirmable?'Archivo válido':'Requiere correcciones'}</span><h3>{preview.planName||'Sin nombre'} · v{preview.version||'?'}</h3><div className="preview-stats"><b>{preview.weeks}<small>semanas</small></b><b>{preview.days}<small>días</small></b><b>{preview.exercises}<small>ejercicios</small></b></div>{preview.issues.map((i,n)=><details key={n}><summary>Fila {i.row||'—'} · {i.column||'archivo'}</summary><p>{i.message}</p></details>)}</div>}{!preview?<button className="primary" disabled={!file||busy} onClick={validate}>{busy?'Validando...':'Validar y previsualizar'}</button>:<button className="primary" disabled={!preview.confirmable||busy} onClick={async()=>{setBusy(true);try{await trainingApi.confirm(preview.importJobId);setDone(true)}catch{setError('No se pudo confirmar la importación')}finally{setBusy(false)}}}>{busy?'Importando...':'Confirmar importación'}</button>}</>}</section></div>}
 
 function Quick({type,entries,onClick}:{type:EntryType;entries:Entry[];onClick:()=>void}){const m=meta[type],Icon=m.icon,item=entries.find(e=>e.type===type);return <button className={`quick ${m.color}`} onClick={onClick}><Icon/><span>{m.label}</span><strong>{item?item.value?`${item.value} ${item.unit||m.unit}`:'Hecho':'Pendiente'}</strong></button>}
 function EntryList({entries,onDelete}:{entries:Entry[];onDelete:(id:string)=>void}){if(!entries.length)return <div className="empty">Nada registrado todavía.<br/>Pulsa + para empezar.</div>;return <div className="entries">{entries.map(e=>{const m=meta[e.type],Icon=m.icon;return <article key={e.id}><div className={`entry-icon ${m.color}`}><Icon/></div><div><small>{m.label} · {new Date(`${e.entryDate}T12:00`).toLocaleDateString('es')}</small><h3>{e.title}</h3><p>{e.details||e.notes||'Registro completado'}</p></div>{e.value!=null&&<strong>{e.value}<small>{e.unit||m.unit}</small></strong>}<button onClick={()=>onDelete(e.id)} aria-label="Eliminar"><X/></button></article>})}</div>}
