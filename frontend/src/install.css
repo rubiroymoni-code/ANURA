@@ -1,0 +1,2 @@
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.install-btn { border: 0; border-radius: 10px; background: var(--acid); color: var(--ink); padding: 8px 11px; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; }
