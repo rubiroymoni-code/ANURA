@@ -6,6 +6,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import io.jsonwebtoken.JwtException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import app.anura.user.UserRepository;
@@ -34,8 +35,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 users.findById(id).filter(user -> user.enabled).ifPresent(user ->
                     SecurityContextHolder.getContext().setAuthentication(
                         new UsernamePasswordAuthenticationToken(user.id.toString(), null, java.util.List.of())));
-            } catch (RuntimeException ignored) {
-                // Invalid tokens are treated as unauthenticated.
+            } catch (JwtException | IllegalArgumentException ignored) {
+                // Invalid credentials remain unauthenticated. Infrastructure failures propagate.
             }
         }
         chain.doFilter(request, response);

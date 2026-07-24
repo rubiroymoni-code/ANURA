@@ -1,0 +1,4 @@
+package app.anura.workout;
+import java.util.List;import java.util.UUID;import org.springframework.web.bind.annotation.*;import app.anura.workout.WorkoutPlanService.*;
+@RestController @RequestMapping("/api/v1/workout-plans")
+public class WorkoutPlanController {private final WorkoutPlanService service;WorkoutPlanController(WorkoutPlanService service){this.service=service;}@GetMapping List<Plan> list(){return service.list();}@GetMapping("/active") Plan active(){return service.active();}@GetMapping("/{id}") Plan one(@PathVariable UUID id){return service.one(id);}@GetMapping("/{id}/days") List<Day> days(@PathVariable UUID id){return service.days(id);}@PostMapping("/{id}/activate") Plan activate(@PathVariable UUID id){return service.activate(id);}@PostMapping("/{id}/archive") Plan archive(@PathVariable UUID id){return service.archive(id);}}

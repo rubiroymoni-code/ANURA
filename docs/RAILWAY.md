@@ -12,6 +12,9 @@ Crear un proyecto con PostgreSQL y dos servicios desde este repositorio.
   - `SPRING_DATASOURCE_PASSWORD=${{Postgres.PGPASSWORD}}`
   - `JWT_SECRET`: secreto aleatorio de 32 caracteres o más
   - `APP_CORS_ALLOWED_ORIGINS`: dominio público del frontend, sin barra final
+  - `IMPORT_MAX_FILE_SIZE=1048576`
+  - `IMPORT_MAX_ROWS=2000`
+  - `IMPORT_JOB_TTL_HOURS=24`
 
 Flyway crea y actualiza las tablas durante el arranque.
 
