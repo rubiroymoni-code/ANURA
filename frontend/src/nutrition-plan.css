@@ -1,0 +1,24 @@
+.meal-card {
+  background: white;
+  border: 1px solid #dfe3da;
+  border-radius: 16px;
+  padding: 15px;
+  margin: 10px 0;
+}
+.meal-card h3 {
+  margin: 4px 0;
+}
+.meal-card p {
+  color: #687168;
+}
+.portion {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px;
+  border-top: 1px solid #e6e8e3;
+  padding: 10px 0;
+}
+.portion small {
+  grid-column: 1 / 3;
+  color: #778078;
+}

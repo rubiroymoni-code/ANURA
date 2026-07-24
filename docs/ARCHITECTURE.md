@@ -29,3 +29,9 @@ La columna `user_id` y las consultas con usuario autenticado garantizan el aisla
 - `GET /api/v1/health`
 
 Swagger está disponible en `/swagger-ui.html`.
+
+## Nutrición compartida
+
+`Household` comparte exclusivamente recetas, planes nutricionales y compra. Los recursos físicos y deportivos conservan propietario individual. `RecipeIngredient` usa valores por 100 g/ml y `UserMealPortion` normaliza cualquier número de miembros. Los CSV de dos personas son solo adaptadores de entrada.
+
+Las confirmaciones nutricionales son transaccionales. Los planes nacen `DRAFT`; al activar una versión, la anterior pasa a `SUPERSEDED`. El histórico nunca se sobrescribe.

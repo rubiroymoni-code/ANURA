@@ -45,6 +45,10 @@ Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para las decisiones técni
 - Resumen diario e historial.
 - PWA mobile-first instalable.
 - API documentada con Swagger.
+- Unidades domésticas con invitaciones y nutrición compartida.
+- Recetas, cantidades individuales, macros deterministas y planes versionados.
+- Importación CSV individual, compartida y de recetas con preview.
+- Lista de compra semanal consolidada.
 
 ## Railway
 
