@@ -12,10 +12,19 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 
 import app.anura.config.SecurityConfig;
+import app.anura.config.JwtService;
+import app.anura.user.UserRepository;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 @WebMvcTest(HealthController.class)
 @Import(SecurityConfig.class)
 class HealthControllerTest {
+
+    @MockitoBean
+    private JwtService jwtService;
+
+    @MockitoBean
+    private UserRepository userRepository;
 
     @Autowired
     private MockMvc mockMvc;
