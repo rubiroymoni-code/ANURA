@@ -27,6 +27,7 @@ Los errores incluyen `status`, `code`, `message`, `correlationId` y violaciones 
 - `POST /api/v1/households/invitations/accept`
 - `GET /api/v1/nutrition/recipes`
 - `GET /api/v1/nutrition/plans`
+- `GET|PUT /api/v1/nutrition/targets`
 - `GET /api/v1/nutrition/plans/{id}/week`
 - `POST /api/v1/nutrition/plans/{id}/activate`
 - `POST /api/v1/nutrition/plans/{id}/shopping-list`

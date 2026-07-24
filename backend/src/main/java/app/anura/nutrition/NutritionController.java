@@ -3,6 +3,7 @@ package app.anura.nutrition;
 import app.anura.config.CurrentUser;
 import app.anura.error.ApiException;
 import java.util.*;
+import java.time.LocalDate;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,16 @@ public class NutritionController {
 
   NutritionController(JdbcTemplate db) {
     this.db = db;
+  }
+
+  @GetMapping("/targets")
+  List<Map<String, Object>> targets() {
+    return db.queryForList("SELECT valid_from,calories,protein,carbohydrates,fat,fiber FROM nutrition_target WHERE user_id=? ORDER BY valid_from DESC", CurrentUser.id());
+  }
+
+  @PutMapping("/targets")
+  void target(@RequestBody NutritionTarget body) {
+    db.update("INSERT INTO nutrition_target(id,user_id,valid_from,calories,protein,carbohydrates,fat,fiber) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(user_id,valid_from) DO UPDATE SET calories=EXCLUDED.calories,protein=EXCLUDED.protein,carbohydrates=EXCLUDED.carbohydrates,fat=EXCLUDED.fat,fiber=EXCLUDED.fiber", UUID.randomUUID(), CurrentUser.id(), body.validFrom(), body.calories(), body.protein(), body.carbohydrates(), body.fat(), body.fiber());
   }
 
   @GetMapping("/recipes")
@@ -271,3 +282,4 @@ public class NutritionController {
 }
 
 record Item(String name, String category, java.math.BigDecimal quantity, String unit) {}
+record NutritionTarget(LocalDate validFrom, java.math.BigDecimal calories, java.math.BigDecimal protein, java.math.BigDecimal carbohydrates, java.math.BigDecimal fat, java.math.BigDecimal fiber) {}
