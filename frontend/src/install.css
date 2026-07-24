@@ -1,2 +1,11 @@
 .header-actions { display: flex; align-items: center; gap: 8px; }
 .install-btn { border: 0; border-radius: 10px; background: var(--acid); color: var(--ink); padding: 8px 11px; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; }
+.auth-install { min-height: 34px; display: flex; justify-content: flex-end; margin-bottom: 18px; }
+
+@media (max-width: 720px) {
+  .auth input,
+  .modal input,
+  .modal textarea {
+    font-size: 16px;
+  }
+}
