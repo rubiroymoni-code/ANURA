@@ -37,4 +37,17 @@ docs/             arquitectura, API y experiencia
 
 Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para las decisiones técnicas y el alcance cerrado de Fase 1.
 
+## Funcionalidad disponible
+
+- Registro e inicio de sesión con JWT.
+- Perfil multiusuario y datos aislados por usuario.
+- Seguimiento de entrenamientos, comidas, peso, medidas y objetivos.
+- Resumen diario e historial.
+- PWA mobile-first instalable.
+- API documentada con Swagger.
+
+## Railway
+
+Consulta [docs/RAILWAY.md](docs/RAILWAY.md). El backend y el frontend se despliegan como servicios separados con directorios raíz `/backend` y `/frontend`.
+
 > ANURA no sustituye el asesoramiento médico, nutricional o deportivo profesional.
