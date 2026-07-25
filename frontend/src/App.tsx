@@ -4,6 +4,7 @@ import {
   Activity,
   Apple,
   BarChart3,
+  ChevronDown,
   Download,
   Dumbbell,
   FileUp,
@@ -24,6 +25,7 @@ import {
   User,
 } from "./api";
 import { NutritionHub } from "./NutritionHub";
+import { EvolutionDashboard } from "./EvolutionDashboard";
 
 const meta: Record<
   EntryType,
@@ -162,13 +164,19 @@ export function App() {
             <h1>{meta[tab].label}s</h1>
           </div>
         )}
-        <EntryList
-          entries={visible.slice(0, 12)}
-          onDelete={async (id) => {
-            await api.remove(id);
-            load();
-          }}
-        />
+        {tab === "WEIGHT" && <EvolutionDashboard entries={entries} />}
+        {tab === "WEIGHT" && entries.some((entry) => entry.type === "WEIGHT") && (
+          <h2 className="subsection-title">Últimos registros</h2>
+        )}
+        {(tab !== "WEIGHT" || visible.length > 0) && (
+          <EntryList
+            entries={visible.slice(0, 12)}
+            onDelete={async (id) => {
+              await api.remove(id);
+              load();
+            }}
+          />
+        )}
         {tab === "WORKOUT" && (
           <button className="import-card" onClick={() => setImportOpen(true)}>
             <FileUp />
@@ -399,6 +407,7 @@ function EntryList({
   entries: Entry[];
   onDelete: (id: string) => void;
 }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
   if (!entries.length)
     return (
       <div className="empty">
@@ -413,27 +422,47 @@ function EntryList({
         const m = meta[e.type],
           Icon = m.icon;
         return (
-          <article key={e.id}>
+          <article
+            key={e.id}
+            className={`entry-card ${expanded === e.id ? "expanded" : ""}`}
+          >
             <div className={`entry-icon ${m.color}`}>
               <Icon />
             </div>
-            <div>
+            <button
+              className="entry-content"
+              onClick={() => setExpanded(expanded === e.id ? null : e.id)}
+              aria-expanded={expanded === e.id}
+            >
               <small>
                 {m.label} ·{" "}
                 {new Date(`${e.entryDate}T12:00`).toLocaleDateString("es")}
               </small>
               <h3>{e.title}</h3>
-              <p>{e.details || e.notes || "Registro completado"}</p>
-            </div>
+              <p className="entry-preview">
+                {e.details || e.notes || "Registro completado"}
+              </p>
+              <span className="entry-action">
+                {expanded === e.id ? "Ocultar detalle" : e.type === "MEAL" ? "Ver comida" : "Ver detalle"}
+                <ChevronDown size={15} />
+              </span>
+            </button>
             {e.value != null && (
-              <strong>
+              <strong className="entry-value">
                 {e.value}
                 <small>{e.unit || m.unit}</small>
               </strong>
             )}
-            <button onClick={() => onDelete(e.id)} aria-label="Eliminar">
+            <button className="entry-delete" onClick={() => onDelete(e.id)} aria-label="Eliminar">
               <X />
             </button>
+            <div className="entry-detail">
+              <div>
+                <small>DETALLE</small>
+                <p>{e.details || e.notes || "Registro completado sin notas adicionales."}</p>
+              </div>
+              <span className="status-pill">Completado</span>
+            </div>
           </article>
         );
       })}

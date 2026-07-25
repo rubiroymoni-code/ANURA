@@ -7,6 +7,7 @@ import {
   NutritionImportPreview,
 } from "./api";
 import {
+  ChevronDown,
   Download,
   FileUp,
   Home,
@@ -367,6 +368,7 @@ function RecipeView({ id }: { id: string }) {
 function PlanView({ id }: { id: string }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [mode, setMode] = useState<"mine" | "both" | "total">("both");
+  const [expanded, setExpanded] = useState<number | null>(0);
   const currentUser = JSON.parse(localStorage.getItem("anura-user") || "{}");
   useEffect(() => {
     void nutritionApi.week(id).then(setRows);
@@ -415,33 +417,30 @@ function PlanView({ id }: { id: string }) {
         </button>
       </div>
       {grouped.map((g, n) => (
-        <article className="meal-card" key={n}>
-          <small>DÍA {String(g.people[0]?.day_number)}</small>
-          <h3>{g.meal}</h3>
-          <p>{g.recipe}</p>
-          {mode === "total" ? (
-            <b>
-              {g.people
-                .reduce((s, p) => s + Number(p.calories || 0), 0)
-                .toFixed(0)}{" "}
-              kcal totales
-            </b>
-          ) : (
-            g.people.map((p, i) => (
-              <div className="portion" key={i}>
-                <b>{String(p.display_name)}</b>
-                <span>
-                  × {String(p.portion_multiplier)} ·{" "}
-                  {Number(p.calories || 0).toFixed(0)} kcal
-                </span>
-                <small>
-                  P {Number(p.protein || 0).toFixed(0)} · C{" "}
-                  {Number(p.carbohydrates || 0).toFixed(0)} · G{" "}
-                  {Number(p.fat || 0).toFixed(0)}
-                </small>
-              </div>
-            ))
-          )}
+        <article className={`meal-card ${expanded === n ? "expanded" : ""}`} key={n}>
+          <button className="meal-card-head" onClick={() => setExpanded(expanded === n ? null : n)} aria-expanded={expanded === n}>
+            <span className="meal-index">{String(g.people[0]?.day_number).padStart(2, "0")}</span>
+            <span>
+              <small>DÍA {String(g.people[0]?.day_number)}</small>
+              <h3>{g.meal}</h3>
+              <p>{g.recipe}</p>
+            </span>
+            <span className="meal-kcal">{g.people.reduce((s, p) => s + Number(p.calories || 0), 0).toFixed(0)}<small>kcal</small></span>
+            <ChevronDown className="meal-chevron" />
+          </button>
+          <div className="meal-card-body">
+            {mode === "total" ? (
+              <div className="portion-total"><b>Total de la receta</b><strong>{g.people.reduce((s, p) => s + Number(p.calories || 0), 0).toFixed(0)} kcal</strong></div>
+            ) : (
+              g.people.map((p, i) => (
+                <div className="portion" key={i}>
+                  <b>{String(p.display_name)}</b>
+                  <span>× {String(p.portion_multiplier)} · {Number(p.calories || 0).toFixed(0)} kcal</span>
+                  <small>P {Number(p.protein || 0).toFixed(0)} · C {Number(p.carbohydrates || 0).toFixed(0)} · G {Number(p.fat || 0).toFixed(0)}</small>
+                </div>
+              ))
+            )}
+          </div>
         </article>
       ))}
       <button className="primary" onClick={() => nutritionApi.activate(id)}>
