@@ -45,6 +45,7 @@ public class TrainingPlanImportService {
     this.ttlHours = ttlHours;
   }
 
+  @Transactional
   public Preview preview(MultipartFile file) {
     if (file.isEmpty() || file.getSize() > maxSize)
       throw new ApiException(
@@ -66,13 +67,17 @@ public class TrainingPlanImportService {
     catch (Exception e) { throw new IllegalStateException("SHA-256 no disponible", e); }
     UUID user = CurrentUser.id();
     List<UUID> previous = db.query(
-        "SELECT id FROM import_job WHERE user_id=? AND import_type='TRAINING_PLAN' AND checksum=? ORDER BY created_at DESC",
+        "SELECT id FROM import_job WHERE user_id=? AND import_type='TRAINING_PLAN' AND checksum=? AND expires_at>CURRENT_TIMESTAMP ORDER BY created_at DESC",
         (rs, n) -> rs.getObject(1, UUID.class), user, checksum);
     if (!previous.isEmpty()) return parsed.preview(previous.getFirst());
     UUID job = UUID.randomUUID();
-    db.update(
-        "INSERT INTO import_job(id,user_id,import_type,schema_version,status,original_filename,checksum,file_size,content,external_id,plan_version,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+    int inserted=db.update(
+        "INSERT INTO import_job(id,user_id,import_type,schema_version,status,original_filename,checksum,file_size,content,external_id,plan_version,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING",
         job,user,"TRAINING_PLAN","v1",parsed.issues.isEmpty()?"VALID":"INVALID",safeName(file.getOriginalFilename()),checksum,file.getSize(),content,parsed.externalId,parsed.version,Instant.now().plusSeconds(ttlHours*3600));
+    if(inserted==0){
+      UUID existing=db.query("SELECT id FROM import_job WHERE user_id=? AND import_type='TRAINING_PLAN' AND checksum=? ORDER BY created_at DESC LIMIT 1",(rs,n)->rs.getObject(1,UUID.class),user,checksum).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.CONFLICT,"IMPORT_CONFLICT","La previsualización ya se está procesando"));
+      return parsed.preview(existing);
+    }
     parsed.issues.forEach(i -> db.update(
         "INSERT INTO import_error(id,import_job_id,row_number,column_name,error_code,message,severity) VALUES(?,?,?,?,?,?,?)",
         UUID.randomUUID(),job,i.row(),i.column(),i.code(),i.message(),i.severity()));
@@ -194,27 +199,10 @@ public class TrainingPlanImportService {
             row.sessionName,
             days.size());
       }
-      UUID exercise =
-          db
-              .query(
-                  "SELECT id FROM exercise WHERE code=?",
-                  (rs, n) -> rs.getObject(1, UUID.class),
-                  row.exerciseCode)
-              .stream()
-              .findFirst()
-              .orElseGet(
-                  () -> {
-                    UUID id = UUID.randomUUID();
-                    db.update(
-                        "INSERT INTO exercise(id,code,name,muscle_group,equipment)"
-                            + " VALUES(?,?,?,?,?)",
-                        id,
-                        row.exerciseCode,
-                        row.exerciseName,
-                        row.muscleGroup,
-                        row.equipment);
-                    return id;
-                  });
+      UUID exercise = db.queryForObject(
+          "INSERT INTO exercise(id,code,name,muscle_group,equipment) VALUES(?,?,?,?,?)"
+              + " ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,muscle_group=EXCLUDED.muscle_group,equipment=EXCLUDED.equipment,updated_at=CURRENT_TIMESTAMP RETURNING id",
+          UUID.class, UUID.randomUUID(), row.exerciseCode, row.exerciseName, row.muscleGroup, row.equipment);
       db.update(
           "INSERT INTO"
               + " planned_exercise(id,workout_plan_day_id,exercise_id,exercise_order,sets,reps_min,reps_max,target_rir,target_rpe,rest_seconds,tempo,warmup_required,superset_group,alternative_exercise_code,instructions,notes)"

@@ -49,6 +49,8 @@ Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para las decisiones técni
 - Recetas, cantidades individuales, macros deterministas y planes versionados.
 - Importación CSV individual, compartida y de recetas con preview.
 - Lista de compra semanal consolidada.
+- Ejecución real de entrenamientos: plan del día, sesiones libres, series, descanso, dolor, métricas e histórico.
+- Registro offline de series con IndexedDB y sincronización idempotente.
 
 ## Railway
 
