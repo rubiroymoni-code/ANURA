@@ -19,8 +19,28 @@ Todos los endpoints requieren JWT salvo lectura de esquema y plantilla.
 
 Los errores incluyen `status`, `code`, `message`, `correlationId` y violaciones de campo.
 
+## Ejecución de entrenamientos
+
+- `GET /api/v1/workouts/today`
+- `GET /api/v1/workout-sessions/active`
+- `GET|POST /api/v1/workout-sessions`
+- `GET /api/v1/workout-sessions/{id}`
+- `POST /api/v1/workout-sessions/{id}/pause|resume|complete|abandon`
+- `POST /api/v1/workout-sessions/{id}/exercises`
+- `POST /api/v1/workout-sessions/{id}/exercises/{exerciseId}/substitute|complete`
+- `PATCH /api/v1/workout-sessions/{id}/exercises/{exerciseId}/pain`
+- `POST|PATCH|DELETE /api/v1/workout-sessions/{id}/exercises/{exerciseId}/sets[/{setId}]`
+- `GET /api/v1/exercises/{id}/history|last-performance`
+- `GET /api/v1/workout-sessions/{id}/metrics`
+- `GET /api/v1/training/summary`
+- `POST /api/v1/workout-sessions/{id}/sync`
+
+Todos requieren JWT. Los recursos se filtran por el usuario del contexto; una sesión ajena responde como inexistente.
+
 ## Nutrición compartida
 
+- `GET /api/v1/nutrition/today`
+- `POST /api/v1/nutrition/today/{plannedMealId}/complete`
 - `GET|POST /api/v1/households`
 - `GET /api/v1/households/{id}/members`
 - `POST /api/v1/households/{id}/invitations`

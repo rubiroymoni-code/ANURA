@@ -22,10 +22,16 @@ import {
   EntryType,
   ImportPreview,
   trainingApi,
+  nutritionApi,
+  TodayMeal,
+  TodayWorkout,
+  workoutApi,
   User,
 } from "./api";
 import { NutritionHub } from "./NutritionHub";
 import { EvolutionDashboard } from "./EvolutionDashboard";
+import { WorkoutHub } from "./WorkoutHub";
+import { clearWorkoutOffline } from "./workoutOffline";
 
 const meta: Record<
   EntryType,
@@ -57,6 +63,11 @@ export function App() {
   const [loading, setLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [nutritionOpen, setNutritionOpen] = useState(false);
+  const [workoutOpen, setWorkoutOpen] = useState(false);
+  const [todayMeals, setTodayMeals] = useState<TodayMeal[]>([]);
+  const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null>(null);
+  const [todayWorkoutDone, setTodayWorkoutDone] = useState(false);
+  const [dailyLoading, setDailyLoading] = useState(false);
   const load = () => {
     if (user)
       void api
@@ -67,9 +78,18 @@ export function App() {
   useEffect(() => {
     load();
   }, [user]);
+  useEffect(() => {
+    if (!user) return;
+    void Promise.all([nutritionApi.today().catch(() => []), workoutApi.today().catch(() => null), workoutApi.history().catch(() => [])]).then(([meals, workout, sessions]) => {
+      setTodayMeals(meals);
+      setTodayWorkout(workout);
+      setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0,10) && session.status === "COMPLETED"));
+    });
+  }, [user]);
   function logout() {
     localStorage.removeItem("anura-token");
     localStorage.removeItem("anura-user");
+    void clearWorkoutOffline();
     setUser(null);
   }
   if (!user)
@@ -118,6 +138,22 @@ export function App() {
                 }).format(new Date())}
               </span>
             </div>
+            <div className="daily-plan-head"><span>PLAN DE HOY</span><button onClick={() => setNutritionOpen(true)}>Nutrición compartida</button></div>
+            <div className="daily-plan-grid">
+              <button className="daily-focus workout" onClick={() => setWorkoutOpen(true)}>
+                <span className="daily-focus-icon"><Dumbbell /></span>
+                <span><small>ENTRENAMIENTO</small><strong>{todayWorkout?.sessionName || "Sesión libre"}</strong><b>{todayWorkout ? `${todayWorkout.exerciseCount} ejercicios · ~${todayWorkout.estimatedMinutes || 45} min` : "No hay plan asignado hoy"}</b></span>
+                <em>{todayWorkoutDone || todayItems.some((e) => e.type === "WORKOUT") ? "Hecho" : "Pendiente"}</em>
+              </button>
+              <div className="daily-focus nutrition">
+                <button className="daily-focus-main" onClick={() => setNutritionOpen(true)}>
+                  <span className="daily-focus-icon"><Apple /></span>
+                  <span><small>COMIDAS</small><strong>{todayMeals.length ? `${todayMeals.filter(m => !m.completed).length} pendientes` : "Sin plan para hoy"}</strong><b>{todayMeals.length ? `${todayMeals.reduce((sum,m) => sum + Number(m.calories || 0),0).toFixed(0)} kcal planificadas` : "Añade una comida o abre tus planes"}</b></span>
+                  <em>{todayMeals.length && todayMeals.every(m => m.completed) ? "Hecho" : "Ver plan"}</em>
+                </button>
+                {todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.completed ? "completed" : ""}><button onClick={() => setNutritionOpen(true)}><span><b>{meal.meal_name}</b><small>{meal.recipe} · {Number(meal.calories || 0).toFixed(0)} kcal</small></span></button><button className="meal-complete" disabled={meal.completed || dailyLoading} onClick={async () => {setDailyLoading(true);try{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(rows => rows.map(row => row.planned_meal_id === meal.planned_meal_id ? {...row,completed:true} : row));load();}finally{setDailyLoading(false)}}}>{meal.completed ? "✓" : "Completar"}</button></div>)}</div>}
+              </div>
+            </div>
             <div className="score">
               <div>
                 <small>RITMO DE HOY</small>
@@ -134,9 +170,9 @@ export function App() {
                 <span>{todayItems.length}</span>
               </div>
             </div>
-            <h2>Tu día</h2>
+            <h2>Otros seguimientos</h2>
             <div className="quick-grid">
-              {(["WORKOUT", "MEAL", "WEIGHT", "GOAL"] as EntryType[]).map(
+              {(["WEIGHT", "GOAL"] as EntryType[]).map(
                 (type) => (
                   <Quick
                     key={type}
@@ -147,14 +183,7 @@ export function App() {
                 ),
               )}
             </div>
-            <button className="import-card" onClick={() => setImportOpen(true)}>
-              <FileUp />
-              <span>
-                <strong>Importar planificación</strong>
-                <small>Valida y previsualiza tu CSV</small>
-              </span>
-              <b>→</b>
-            </button>
+            <div className="plan-tools"><span><b>Gestionar planes</b><small>Plantillas, CSV y nuevas versiones</small></span><button onClick={() => setImportOpen(true)}><FileUp />Importar entreno</button><button onClick={() => setNutritionOpen(true)}><Apple />Dietas y hogar</button></div>
             <h2>Actividad reciente</h2>
           </>
         ) : (
@@ -165,6 +194,12 @@ export function App() {
           </div>
         )}
         {tab === "WEIGHT" && <EvolutionDashboard entries={entries} />}
+        {tab === "WORKOUT" && (
+          <button className="workout-launch" onClick={() => setWorkoutOpen(true)}>
+            <span><small>ENTRENAMIENTO DE HOY</small><strong>Entrenar ahora</strong><b>Plan, series, descanso y progreso</b></span>
+            <Dumbbell />
+          </button>
+        )}
         {tab === "WEIGHT" && entries.some((entry) => entry.type === "WEIGHT") && (
           <h2 className="subsection-title">Últimos registros</h2>
         )}
@@ -213,7 +248,13 @@ export function App() {
         ].map((n) => (
           <button
             className={tab === n.id ? "active" : ""}
-            onClick={() => setTab(n.id)}
+            onClick={() =>
+              n.id === "WORKOUT"
+                ? setWorkoutOpen(true)
+                : n.id === "MEAL"
+                  ? setNutritionOpen(true)
+                  : setTab(n.id)
+            }
             key={n.id}
           >
             <n.icon />
@@ -241,6 +282,23 @@ export function App() {
       {nutritionOpen && (
         <NutritionHub onClose={() => setNutritionOpen(false)} />
       )}
+      {workoutOpen && (
+        <WorkoutHub
+          onClose={() => {
+            setWorkoutOpen(false);
+            load();
+            void workoutApi.history().then((sessions) =>
+              setTodayWorkoutDone(
+                sessions.some(
+                  (session) =>
+                    session.date === new Date().toISOString().slice(0, 10) &&
+                    session.status === "COMPLETED",
+                ),
+              ),
+            );
+          }}
+        />
+      )}
     </main>
   );
 }
@@ -257,8 +315,8 @@ function TrainingImport({ onClose }: { onClose: () => void }) {
     setError("");
     try {
       setPreview(await trainingApi.preview(file));
-    } catch {
-      setError("No se pudo validar el archivo");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo validar el archivo");
     } finally {
       setBusy(false);
     }
@@ -357,8 +415,8 @@ function TrainingImport({ onClose }: { onClose: () => void }) {
                   try {
                     await trainingApi.confirm(preview.importJobId);
                     setDone(true);
-                  } catch {
-                    setError("No se pudo confirmar la importación");
+                  } catch (cause) {
+                    setError(cause instanceof Error ? cause.message : "No se pudo confirmar la importación");
                   } finally {
                     setBusy(false);
                   }

@@ -15,6 +15,11 @@ Crear un proyecto con PostgreSQL y dos servicios desde este repositorio.
   - `IMPORT_MAX_FILE_SIZE=1048576`
   - `IMPORT_MAX_ROWS=2000`
   - `IMPORT_JOB_TTL_HOURS=24`
+  - `WORKOUT_MAX_ACTIVE_SESSIONS=1`
+  - `WORKOUT_COMPLETED_EDIT_WINDOW_MINUTES=15`
+  - `WORKOUT_SYNC_MAX_OPERATIONS=100`
+  - `WORKOUT_OFFLINE_OPERATION_RETENTION_DAYS=30`
+  - `WORKOUT_ESTIMATED_1RM_MAX_REPS=12`
 
 Flyway crea y actualiza las tablas durante el arranque.
 

@@ -60,6 +60,39 @@ public class NutritionController {
         CurrentUser.id());
   }
 
+  @GetMapping("/today")
+  List<Map<String, Object>> today() {
+    return db.queryForList(
+        "SELECT pm.id planned_meal_id,p.id plan_id,p.name plan_name,p.version,d.day_name,pm.meal_type,pm.meal_name,r.name recipe,"
+            + " ump.calories,ump.protein,ump.carbohydrates,ump.fat,ump.portion_multiplier,"
+            + " EXISTS(SELECT 1 FROM tracker_entry te WHERE te.user_id=? AND te.entry_date=CURRENT_DATE AND te.planned_meal_id=pm.id) completed"
+            + " FROM nutrition_plan p LEFT JOIN household_member access ON access.household_id=p.household_id"
+            + " JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id"
+            + " JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=?"
+            + " WHERE p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?) AND d.day_number=?"
+            + " ORDER BY pm.meal_order",
+        CurrentUser.id(),CurrentUser.id(),CurrentUser.id(),CurrentUser.id(),LocalDate.now().getDayOfWeek().getValue());
+  }
+
+  @PostMapping("/today/{mealId}/complete")
+  @Transactional
+  Map<String,Object> completeTodayMeal(@PathVariable UUID mealId) {
+    UUID user=CurrentUser.id();
+    Map<String,Object> meal=db.queryForList(
+        "SELECT pm.id,pm.meal_name,r.name recipe,ump.calories,ump.protein,ump.carbohydrates,ump.fat"
+            + " FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id JOIN nutrition_plan p ON p.id=d.nutrition_plan_id"
+            + " LEFT JOIN household_member access ON access.household_id=p.household_id JOIN recipe r ON r.id=pm.recipe_id"
+            + " JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=?"
+            + " WHERE pm.id=? AND p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?)",
+        user,mealId,user,user).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"MEAL_NOT_FOUND","Comida planificada no encontrada"));
+    UUID entry=UUID.randomUUID();
+    db.update("INSERT INTO tracker_entry(id,user_id,type,title,entry_date,value,unit,details,notes,completed,planned_meal_id) VALUES(?,?,'MEAL',?,CURRENT_DATE,?,'kcal',?,? ,TRUE,?) ON CONFLICT(user_id,entry_date,planned_meal_id) WHERE planned_meal_id IS NOT NULL DO NOTHING",
+        entry,user,meal.get("meal_name"),meal.get("calories"),meal.get("recipe"),"Comida completada desde el plan",mealId);
+    Map<String,Object> result=new LinkedHashMap<>();
+    result.put("plannedMealId",mealId);result.put("completed",true);result.put("calories",meal.get("calories"));
+    return result;
+  }
+
   @GetMapping("/plans/{id}/week")
   List<Map<String, Object>> week(
       @PathVariable UUID id, @RequestParam(defaultValue = "1") int week) {

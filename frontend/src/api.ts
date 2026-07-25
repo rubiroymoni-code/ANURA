@@ -13,7 +13,7 @@ export type Entry = {
 };
 export type User = { id: string; email: string; displayName: string };
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("anura-token");
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -27,7 +27,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || "No se pudo completar la operación");
+    try {
+      const problem=JSON.parse(text) as {message?:string;correlationId?:string};
+      throw new Error(`${problem.message || "No se pudo completar la operación"}${problem.correlationId ? ` · Ref. ${problem.correlationId}` : ""}`);
+    } catch (error) {
+      if (error instanceof SyntaxError) throw new Error(text || "No se pudo completar la operación");
+      throw error;
+    }
   }
   return response.status === 204 ? (undefined as T) : response.json();
 }
@@ -82,6 +88,32 @@ export const trainingApi = {
       Array<{ id: string; name: string; version: number; status: string }>
     >("/workout-plans"),
 };
+
+export type WorkoutSet = { id:string; setNumber:number; setType:string; weight?:number; repetitions?:number; rir?:number; rpe?:number; restSeconds?:number; completed:boolean; clientExternalId:string };
+export type WorkoutExercise = { id:string; exerciseId:string; name:string; muscleGroup?:string; equipment?:string; order:number; targetSets?:number; targetRepsMin?:number; targetRepsMax?:number; targetRir?:number; targetRestSeconds?:number; instructions?:string; completed:boolean; painReported:boolean; painIntensity?:number; sets:WorkoutSet[] };
+export type WorkoutSession = { header:{id:string;name:string;plannedDate:string;status:string;startedAt:string;durationSeconds?:number;globalRpe?:number;painLevel?:number;clientExternalId:string;workoutPlanVersion?:number}; exercises:WorkoutExercise[]; metrics:{exercises:number;sets:number;repetitions:number;volume:number;maxPain:number;personalRecords:number} };
+export type TodayWorkout = { planId:string;planName:string;planVersion:number;dayId:string;sessionName:string;dayName:string;weekNumber:number;dayNumber:number;estimatedMinutes:number;exerciseCount:number;exercises:Array<{exerciseId:string;name:string;muscleGroup?:string;sets:number;repsMin:number;repsMax:number;targetRir?:number;restSeconds?:number}> };
+export type WorkoutSummary = {id:string;name:string;date:string;status:string;durationSeconds?:number;globalRpe?:number;exercises:number;sets:number;volume:number};
+export const workoutApi = {
+  today:()=>request<TodayWorkout|null>("/workouts/today"),
+  active:()=>request<WorkoutSession|null>("/workout-sessions/active"),
+  history:()=>request<WorkoutSummary[]>("/workout-sessions?size=30"),
+  one:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}`),
+  start:(body:{workoutPlanDayId?:string;name?:string;clientExternalId:string})=>request<WorkoutSession>("/workout-sessions",{method:"POST",body:JSON.stringify(body)}),
+  pause:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/pause`,{method:"POST"}),
+  resume:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/resume`,{method:"POST"}),
+  complete:(id:string,body:object)=>request<WorkoutSession>(`/workout-sessions/${id}/complete`,{method:"POST",body:JSON.stringify(body)}),
+  addExercise:(session:string,body:object)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises`,{method:"POST",body:JSON.stringify(body)}),
+  addSet:(session:string,exercise:string,body:object)=>request<WorkoutSet>(`/workout-sessions/${session}/exercises/${exercise}/sets`,{method:"POST",body:JSON.stringify(body)}),
+  updateSet:(session:string,exercise:string,set:string,body:object)=>request<WorkoutSet>(`/workout-sessions/${session}/exercises/${exercise}/sets/${set}`,{method:"PATCH",body:JSON.stringify(body)}),
+  deleteSet:(session:string,exercise:string,set:string)=>request<void>(`/workout-sessions/${session}/exercises/${exercise}/sets/${set}`,{method:"DELETE"}),
+  finishExercise:(session:string,exercise:string)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises/${exercise}/complete`,{method:"POST"}),
+  pain:(session:string,exercise:string,body:object)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises/${exercise}/pain`,{method:"PATCH",body:JSON.stringify(body)}),
+  exercises:()=>request<Array<{id:string;name:string;muscleGroup?:string;equipment?:string}>>("/exercises"),
+  substitute:(session:string,exercise:string,body:object)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises/${exercise}/substitute`,{method:"POST",body:JSON.stringify(body)}),
+  lastPerformance:(exercise:string)=>request<{weight?:number;repetitions?:number;rir?:number;rpe?:number}|null>(`/exercises/${exercise}/last-performance`),
+  sync:(session:string,body:object[])=>request<Array<{operationId:string;result:string;entityId?:string;errorCode?:string}>>(`/workout-sessions/${session}/sync`,{method:"POST",body:JSON.stringify(body)}),
+};
 export type Household = { id: string; name: string; role: string };
 export type NutritionImportPreview = {
   importJobId: string;
@@ -95,6 +127,7 @@ export type NutritionImportPreview = {
   users: string[];
   issues: Array<{ row?: number; column?: string; message: string }>;
 };
+export type TodayMeal = { planned_meal_id:string;plan_id:string;plan_name:string;version:number;day_name:string;meal_type:string;meal_name:string;recipe:string;calories:number;protein:number;carbohydrates:number;fat:number;portion_multiplier:number;completed:boolean };
 export const householdApi = {
   list: () => request<Household[]>("/households"),
   create: (name: string) =>
@@ -118,6 +151,8 @@ export const householdApi = {
     }),
 };
 export const nutritionApi = {
+  today:()=>request<TodayMeal[]>("/nutrition/today"),
+  completeToday:(id:string)=>request<{completed:boolean;calories:number}>(`/nutrition/today/${id}/complete`,{method:"POST"}),
   recipes: () =>
     request<
       Array<{ id: string; code: string; name: string; servings: number }>

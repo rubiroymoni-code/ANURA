@@ -31,6 +31,7 @@ public class NutritionImportService {
     this.maxRows = maxRows;
   }
 
+  @Transactional
   public Map<String, Object> preview(String type, MultipartFile file) {
     if (file.isEmpty() || file.getSize() > maxSize)
       throw bad("INVALID_FILE_SIZE", "Archivo vacío o demasiado grande");
@@ -41,7 +42,7 @@ public class NutritionImportService {
           HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(file.getBytes()));
       List<UUID> previous =
           db.query(
-              "SELECT id FROM import_job WHERE user_id=? AND import_type=? AND checksum=? ORDER BY"
+              "SELECT id FROM import_job WHERE user_id=? AND import_type=? AND checksum=? AND expires_at>CURRENT_TIMESTAMP ORDER BY"
                   + " created_at DESC",
               (rs, n) -> rs.getObject(1, UUID.class),
               CurrentUser.id(),
@@ -49,10 +50,10 @@ public class NutritionImportService {
               hash);
       if (!previous.isEmpty()) return p.view(previous.getFirst());
       UUID id = UUID.randomUUID();
-      db.update(
+      int inserted=db.update(
           "INSERT INTO"
               + " import_job(id,user_id,import_type,schema_version,status,original_filename,checksum,file_size,content,external_id,plan_version,expires_at,import_scope)"
-              + " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              + " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING",
           id,
           CurrentUser.id(),
           type,
@@ -66,6 +67,10 @@ public class NutritionImportService {
           p.version,
           Instant.now().plusSeconds(86400),
           p.scope);
+      if(inserted==0){
+        UUID existing=db.query("SELECT id FROM import_job WHERE user_id=? AND import_type=? AND checksum=? ORDER BY created_at DESC LIMIT 1",(rs,n)->rs.getObject(1,UUID.class),CurrentUser.id(),type,hash).stream().findFirst().orElseThrow(()->bad("IMPORT_CONFLICT","La previsualización ya se está procesando"));
+        return p.view(existing);
+      }
       for (Issue e : p.errors)
         db.update(
             "INSERT INTO"

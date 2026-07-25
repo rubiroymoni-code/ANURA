@@ -35,3 +35,9 @@ Swagger está disponible en `/swagger-ui.html`.
 `Household` comparte exclusivamente recetas, planes nutricionales y compra. Los recursos físicos y deportivos conservan propietario individual. `RecipeIngredient` usa valores por 100 g/ml y `UserMealPortion` normaliza cualquier número de miembros. Los CSV de dos personas son solo adaptadores de entrada.
 
 Las confirmaciones nutricionales son transaccionales. Los planes nacen `DRAFT`; al activar una versión, la anterior pasa a `SUPERSEDED`. El histórico nunca se sobrescribe.
+
+## Ejecución de entrenamientos
+
+`WorkoutSession → ExercisePerformance → SetPerformance` modela la ejecución real. La sesión pertenece siempre al usuario autenticado y conserva versión del plan y objetivos planificados como snapshot. PostgreSQL impide más de una sesión activa por usuario. `WorkoutPersonalRecord` almacena hitos con referencia a la serie fuente; el resto de métricas se deriva.
+
+La PWA mantiene una cola específica en IndexedDB. `WorkoutSyncOperation` aporta idempotencia por usuario y `operationId`; los conflictos son explícitos. Véanse [TRAINING.md](TRAINING.md) y [OFFLINE.md](OFFLINE.md).

@@ -29,6 +29,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
   const [plans, setPlans] = useState<
     Array<{ id: string; name: string; version: number; status: string }>
   >([]);
+  const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
   useEffect(() => {
     void Promise.all([
       householdApi.list(),
@@ -62,6 +63,22 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
         </div>
         {section === "home" && (
           <>
+            {activePlan && (
+              <button
+                className="active-nutrition-plan"
+                onClick={() => {
+                  setSelectedPlan(activePlan.id);
+                  setSection("plan");
+                }}
+              >
+                <span>
+                  <small>PLAN ACTUAL</small>
+                  <b>{activePlan.name}</b>
+                  <em>Versión {activePlan.version}</em>
+                </span>
+                <strong>Ver mis comidas →</strong>
+              </button>
+            )}
             <div className="nutrition-menu">
               <button onClick={() => setSection("household")}>
                 <Users />
@@ -230,6 +247,7 @@ function NutritionImport() {
   const [p, setP] = useState<NutritionImportPreview | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
   if (done)
     return (
       <div className="import-success">
@@ -306,17 +324,25 @@ function NutritionImport() {
           ))}
         </div>
       )}
+      {error && <div className="error">{error}</div>}
       <button
         className="primary"
         disabled={!file || busy || (!!p && !p.confirmable)}
         onClick={async () => {
           setBusy(true);
+          setError("");
           try {
             if (!p) setP(await nutritionApi.preview(type, file!));
             else {
               await nutritionApi.confirm(p.importJobId);
               setDone(true);
             }
+          } catch (cause) {
+            setError(
+              cause instanceof Error
+                ? cause.message
+                : "No se pudo completar la importación",
+            );
           } finally {
             setBusy(false);
           }
@@ -367,7 +393,7 @@ function RecipeView({ id }: { id: string }) {
 
 function PlanView({ id }: { id: string }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
-  const [mode, setMode] = useState<"mine" | "both" | "total">("both");
+  const [mode, setMode] = useState<"mine" | "both" | "total">("mine");
   const [expanded, setExpanded] = useState<number | null>(0);
   const currentUser = JSON.parse(localStorage.getItem("anura-user") || "{}");
   useEffect(() => {
