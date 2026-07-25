@@ -35,3 +35,9 @@ app:
     max-file-size: ${IMPORT_MAX_FILE_SIZE:1048576}
     max-rows: ${IMPORT_MAX_ROWS:2000}
     job-ttl-hours: ${IMPORT_JOB_TTL_HOURS:24}
+  workout:
+    max-active-sessions: ${WORKOUT_MAX_ACTIVE_SESSIONS:1}
+    completed-edit-window-minutes: ${WORKOUT_COMPLETED_EDIT_WINDOW_MINUTES:15}
+    sync-max-operations: ${WORKOUT_SYNC_MAX_OPERATIONS:100}
+    offline-operation-retention-days: ${WORKOUT_OFFLINE_OPERATION_RETENTION_DAYS:30}
+    estimated-1rm-max-reps: ${WORKOUT_ESTIMATED_1RM_MAX_REPS:12}
