@@ -52,17 +52,20 @@ public class HouseholdController {
     owner(id);
     String token = UUID.randomUUID().toString();
     UUID invitation = UUID.randomUUID();
+    String email =
+        body.email == null || body.email.isBlank() ? null : body.email.trim().toLowerCase();
+    Instant expiresAt = Instant.now().plusSeconds(86400);
     db.update(
         "INSERT INTO"
             + " household_invitation(id,household_id,email,token_hash,status,expires_at,invited_by)"
             + " VALUES(?,?,?,?,'PENDING',?,?)",
         invitation,
         id,
-        body.email.toLowerCase(),
+        email,
         encoder.encode(token),
-        Instant.now().plusSeconds(86400),
+        expiresAt,
         CurrentUser.id());
-    return Map.of("id", invitation, "code", token, "expiresAt", Instant.now().plusSeconds(86400));
+    return Map.of("id", invitation, "code", token, "expiresAt", expiresAt);
   }
 
   @PostMapping("/invitations/accept")
@@ -74,7 +77,8 @@ public class HouseholdController {
     var user = db.queryForMap("SELECT email FROM app_user WHERE id=?", CurrentUser.id());
     for (var row : pending)
       if (encoder.matches(body.code, (String) row.get("token_hash"))
-          && user.get("email").toString().equalsIgnoreCase(row.get("email").toString())) {
+          && (row.get("email") == null
+              || user.get("email").toString().equalsIgnoreCase(row.get("email").toString()))) {
         db.update(
             "INSERT INTO household_member(household_id,user_id,role) VALUES(?,?,'MEMBER') ON"
                 + " CONFLICT DO NOTHING",

@@ -5,10 +5,12 @@ import {
   Apple,
   BarChart3,
   ChevronDown,
+  Copy,
   Download,
   Dumbbell,
   FileUp,
   Home,
+  KeyRound,
   LogOut,
   Plus,
   Scale,
@@ -64,6 +66,7 @@ export function App() {
   const [importOpen, setImportOpen] = useState(false);
   const [nutritionOpen, setNutritionOpen] = useState(false);
   const [workoutOpen, setWorkoutOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [todayMeals, setTodayMeals] = useState<TodayMeal[]>([]);
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null>(null);
   const [todayWorkoutDone, setTodayWorkoutDone] = useState(false);
@@ -112,13 +115,14 @@ export function App() {
         <div className="brand">
           <span>A</span> ANURA
         </div>
-        <button
-          className="icon-btn"
-          onClick={logout}
-          aria-label="Cerrar sesión"
-        >
-          <LogOut size={19} />
-        </button>
+        <div className="header-actions">
+          <button className="icon-btn" onClick={() => setAccountOpen(true)} aria-label="Seguridad de la cuenta">
+            <KeyRound size={19} />
+          </button>
+          <button className="icon-btn" onClick={logout} aria-label="Cerrar sesión">
+            <LogOut size={19} />
+          </button>
+        </div>
       </header>
       <section className="content">
         {tab === "HOME" ? (
@@ -299,6 +303,7 @@ export function App() {
           }}
         />
       )}
+      {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
     </main>
   );
 }
@@ -632,8 +637,9 @@ function EntryModal({
 }
 
 function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "recover">("login");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
   return (
     <main className="auth">
@@ -656,10 +662,22 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
       <form
         onSubmit={async (e) => {
           e.preventDefault();
+          const form = e.currentTarget;
           setBusy(true);
           setError("");
-          const f = new FormData(e.currentTarget);
+          const f = new FormData(form);
           try {
+            if (mode === "recover") {
+              await api.resetPassword({
+                email: String(f.get("email")),
+                code: String(f.get("code")),
+                newPassword: String(f.get("password")),
+              });
+              setSuccess("Contraseña actualizada. Ya puedes iniciar sesión.");
+              setMode("login");
+              form.reset();
+              return;
+            }
             const r = await api.auth(mode, {
               email: f.get("email"),
               password: f.get("password"),
@@ -677,7 +695,7 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
           <InstallButton />
         </div>
         <p>BIENVENIDO A ANURA</p>
-        <h2>{mode === "login" ? "Continúa tu camino" : "Empieza hoy"}</h2>
+        <h2>{mode === "login" ? "Continúa tu camino" : mode === "register" ? "Empieza hoy" : "Recupera tu acceso"}</h2>
         {mode === "register" && (
           <label>
             Nombre
@@ -689,7 +707,7 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
           <input required name="email" type="email" autoComplete="email" />
         </label>
         <label>
-          Contraseña
+          {mode === "recover" ? "Nueva contraseña" : "Contraseña"}
           <input
             required
             minLength={8}
@@ -700,19 +718,52 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
             }
           />
         </label>
+        {mode === "recover" && (
+          <label>
+            Código de recuperación
+            <input required name="code" autoComplete="one-time-code" placeholder="Tu código personal" />
+          </label>
+        )}
         {error && <div className="error">{error}</div>}
+        {success && <div className="success">{success}</div>}
         <button className="primary" disabled={busy}>
-          {busy ? "Entrando..." : mode === "login" ? "Entrar" : "Crear cuenta"}
+          {busy ? "Procesando..." : mode === "login" ? "Entrar" : mode === "register" ? "Crear cuenta" : "Cambiar contraseña"}
         </button>
+        {mode === "login" && (
+          <button type="button" className="text-btn compact" onClick={() => { setMode("recover"); setError(""); }}>
+            ¿No recuerdas tu contraseña?
+          </button>
+        )}
         <button
           type="button"
           className="text-btn"
-          onClick={() => setMode(mode === "login" ? "register" : "login")}
+          onClick={() => { setMode(mode === "login" ? "register" : "login"); setError(""); }}
         >
-          {mode === "login" ? "¿Primera vez? Crear cuenta" : "Ya tengo cuenta"}
+          {mode === "login" ? "¿Primera vez? Crear cuenta" : "Volver a iniciar sesión"}
         </button>
       </form>
     </main>
+  );
+}
+
+function AccountModal({ onClose }: { onClose: () => void }) {
+  const [result, setResult] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="overlay">
+      <section className="modal account-modal">
+        <div className="modal-head">
+          <div><small>SEGURIDAD</small><h2>Recuperación de cuenta</h2></div>
+          <button type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
+        </div>
+        <p>Guarda este código fuera de ANURA. Podrás usarlo si olvidas tu contraseña; al generar otro, el anterior deja de funcionar.</p>
+        <button className="primary" disabled={busy} onClick={async () => {
+          setBusy(true);
+          try { setResult(await api.createRecoveryCode()); } finally { setBusy(false); }
+        }}>{busy ? "Generando…" : result ? "Generar un código nuevo" : "Generar código de recuperación"}</button>
+        {result && <div className="invite-code"><small>CÓDIGO PERSONAL</small><strong>{result.code}</strong><button type="button" onClick={() => void navigator.clipboard.writeText(result.code)}><Copy /> Copiar código</button><p>Válido hasta {new Date(result.expiresAt).toLocaleDateString("es")} y para un solo cambio de contraseña.</p></div>}
+      </section>
+    </div>
   );
 }
 

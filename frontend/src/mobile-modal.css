@@ -1,0 +1,128 @@
+/* Accessible full-height sheets: keep closing controls below the iOS safe area. */
+.overlay {
+  overscroll-behavior: contain;
+}
+
+.modal {
+  max-height: 94dvh;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: max(30px, env(safe-area-inset-bottom));
+}
+
+.modal-head,
+.workout-top {
+  position: sticky;
+  z-index: 20;
+  top: -25px;
+  background: var(--paper);
+  padding-top: 25px;
+}
+
+.modal-head > button,
+.workout-top > button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 10px #14201818;
+  color: var(--ink);
+}
+
+.header-actions,
+.invite-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-actions .icon-btn {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+}
+
+.invite-code {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #d9ded5;
+  border-radius: 16px;
+  background: #fff;
+  display: grid;
+  gap: 10px;
+}
+
+.invite-code strong {
+  font: 800 18px Manrope;
+  overflow-wrap: anywhere;
+  letter-spacing: .5px;
+}
+
+.invite-actions {
+  flex-wrap: wrap;
+}
+
+.invite-actions button,
+.invite-actions a,
+.invite-code > button {
+  border: 1px solid #d9ded5;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  padding: 10px 12px;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 700;
+}
+
+.invite-actions svg,
+.invite-code > button svg {
+  width: 17px;
+}
+
+.form-note,
+.account-modal > p,
+.invite-code p {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #65705f;
+}
+
+.success {
+  background: #e8f5d0;
+  color: #365415;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.text-btn.compact {
+  padding: 12px 4px;
+}
+
+@media (max-width: 720px) {
+  .overlay {
+    align-items: stretch;
+  }
+
+  .modal {
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    padding-top: max(18px, env(safe-area-inset-top));
+    padding-bottom: max(30px, env(safe-area-inset-bottom));
+  }
+
+  .modal-head,
+  .workout-top {
+    top: 0;
+    padding-top: max(18px, env(safe-area-inset-top));
+  }
+}

@@ -43,6 +43,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  createRecoveryCode: () =>
+    request<{ code: string; expiresAt: string }>("/auth/recovery-code", {
+      method: "POST",
+    }),
+  resetPassword: (data: { email: string; code: string; newPassword: string }) =>
+    request<void>("/auth/password-reset", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   entries: (type?: EntryType) =>
     request<Entry[]>(`/entries${type ? `?type=${type}` : ""}`),
   create: (data: Omit<Entry, "id">) =>
@@ -139,10 +148,10 @@ export const householdApi = {
     request<
       Array<{ id: string; email: string; display_name: string; role: string }>
     >(`/households/${id}/members`),
-  invite: (id: string, email: string) =>
+  invite: (id: string, email?: string) =>
     request<{ code: string; expiresAt: string }>(
       `/households/${id}/invitations`,
-      { method: "POST", body: JSON.stringify({ email }) },
+      { method: "POST", body: JSON.stringify({ email: email || null }) },
     ),
   accept: (code: string) =>
     request<void>("/households/invitations/accept", {
