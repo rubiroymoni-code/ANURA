@@ -51,6 +51,7 @@ Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para las decisiones técni
 - Lista de compra semanal consolidada.
 - Ejecución real de entrenamientos: plan del día, sesiones libres, series, descanso, dolor, métricas e histórico.
 - Registro offline de series con IndexedDB y sincronización idempotente.
+- Check-in corporal semanal con peso, medidas, tendencias, racha y fotografías externas configurables.
 
 ## Railway
 

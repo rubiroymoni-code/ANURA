@@ -1,0 +1,54 @@
+package app.anura.progress;
+
+import app.anura.config.CurrentUser;
+import app.anura.error.ApiException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.WeekFields;
+import java.util.*;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class BodyProgressService {
+    private final JdbcTemplate db; private final ProgressPhotoStorage storage;
+    BodyProgressService(JdbcTemplate db,ProgressPhotoStorage storage){this.db=db;this.storage=storage;}
+
+    public List<Checkin> list(){return db.query("SELECT id,user_id,checkin_date,weight,body_fat_percentage,waist_cm,chest_cm,hip_cm,left_arm_cm,right_arm_cm,left_thigh_cm,right_thigh_cm,notes,created_at,updated_at FROM body_checkin WHERE user_id=? ORDER BY checkin_date DESC",this::map,CurrentUser.id()).stream().map(this::withPhotos).toList();}
+    public Checkin latest(){return list().stream().findFirst().orElse(null);}
+    public Checkin one(UUID id){return withPhotos(owned(id));}
+
+    @Transactional public Checkin create(CheckinRequest r){validate(r);UUID id=UUID.randomUUID();try{db.update("INSERT INTO body_checkin(id,user_id,checkin_date,weight,body_fat_percentage,waist_cm,chest_cm,hip_cm,left_arm_cm,right_arm_cm,left_thigh_cm,right_thigh_cm,notes) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",id,CurrentUser.id(),r.checkinDate(),r.weight(),r.bodyFatPercentage(),r.waistCm(),r.chestCm(),r.hipCm(),r.leftArmCm(),r.rightArmCm(),r.leftThighCm(),r.rightThighCm(),clean(r.notes()));}catch(DuplicateKeyException e){throw new ApiException(HttpStatus.CONFLICT,"CHECKIN_DATE_EXISTS","Ya existe un check-in para esa fecha");}return one(id);}
+    @Transactional public Checkin update(UUID id,CheckinRequest r){owned(id);validate(r);try{db.update("UPDATE body_checkin SET checkin_date=?,weight=?,body_fat_percentage=?,waist_cm=?,chest_cm=?,hip_cm=?,left_arm_cm=?,right_arm_cm=?,left_thigh_cm=?,right_thigh_cm=?,notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?",r.checkinDate(),r.weight(),r.bodyFatPercentage(),r.waistCm(),r.chestCm(),r.hipCm(),r.leftArmCm(),r.rightArmCm(),r.leftThighCm(),r.rightThighCm(),clean(r.notes()),id,CurrentUser.id());}catch(DuplicateKeyException e){throw new ApiException(HttpStatus.CONFLICT,"CHECKIN_DATE_EXISTS","Ya existe un check-in para esa fecha");}return one(id);}
+    @Transactional public void delete(UUID id){owned(id);db.update("DELETE FROM body_checkin WHERE id=? AND user_id=?",id,CurrentUser.id());}
+
+    @Transactional public Photo addPhoto(UUID checkinId,PhotoRequest request){owned(checkinId);if(!Set.of("FRONT","SIDE","BACK","OTHER").contains(request.photoType()))throw bad("INVALID_PHOTO_TYPE","Tipo de fotografía no válido");var stored=storage.validate(request.storageUrl(),request.thumbnailUrl());UUID id=UUID.randomUUID();db.update("INSERT INTO progress_photo(id,body_checkin_id,user_id,photo_type,storage_url,thumbnail_url,taken_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(body_checkin_id,photo_type) DO UPDATE SET storage_url=EXCLUDED.storage_url,thumbnail_url=EXCLUDED.thumbnail_url,taken_at=EXCLUDED.taken_at",id,checkinId,CurrentUser.id(),request.photoType(),stored.storageUrl(),stored.thumbnailUrl(),request.takenAt()==null?Instant.now():request.takenAt());return photos(checkinId).stream().filter(p->p.photoType().equals(request.photoType())).findFirst().orElseThrow();}
+    @Transactional public void deletePhoto(UUID checkinId,UUID photoId){owned(checkinId);if(db.update("DELETE FROM progress_photo WHERE id=? AND body_checkin_id=? AND user_id=?",photoId,checkinId,CurrentUser.id())==0)throw notFound();}
+    public boolean photoStorageEnabled(){return storage.enabled();}
+
+    public Evolution evolution(LocalDate from,LocalDate to){LocalDate end=to==null?LocalDate.now():to,start=from==null?end.minusMonths(3):from;if(start.isAfter(end))throw bad("INVALID_PERIOD","El inicio no puede ser posterior al final");List<Checkin> rows=db.query("SELECT id,user_id,checkin_date,weight,body_fat_percentage,waist_cm,chest_cm,hip_cm,left_arm_cm,right_arm_cm,left_thigh_cm,right_thigh_cm,notes,created_at,updated_at FROM body_checkin WHERE user_id=? AND checkin_date BETWEEN ? AND ? ORDER BY checkin_date",this::map,CurrentUser.id(),start,end);List<Point> points=new ArrayList<>();for(int i=0;i<rows.size();i++){Checkin c=rows.get(i);List<BigDecimal> window=rows.stream().filter(x->!x.checkinDate().isAfter(c.checkinDate())&&!x.checkinDate().isBefore(c.checkinDate().minusDays(6))).map(Checkin::weight).toList();BigDecimal moving=window.size()<2?null:window.stream().reduce(BigDecimal.ZERO,BigDecimal::add).divide(BigDecimal.valueOf(window.size()),2,RoundingMode.HALF_UP);points.add(new Point(c.checkinDate(),c.weight(),moving,c.waistCm(),c.chestCm(),c.hipCm(),c.leftArmCm(),c.rightArmCm(),c.leftThighCm(),c.rightThighCm()));}BigDecimal total=delta(rows.isEmpty()?null:rows.getFirst().weight(),rows.isEmpty()?null:rows.getLast().weight());BigDecimal previous=rows.size()<2?null:delta(rows.get(rows.size()-2).weight(),rows.getLast().weight());BigDecimal min=rows.stream().map(Checkin::weight).min(BigDecimal::compareTo).orElse(null),max=rows.stream().map(Checkin::weight).max(BigDecimal::compareTo).orElse(null);String trend=total==null||total.abs().compareTo(new BigDecimal("0.20"))<0?"STABLE":total.signum()>0?"UP":"DOWN";return new Evolution(start,end,points,total,previous,min,max,rows.size(),trend,weeklyStreak(rows));}
+
+    private int weeklyStreak(List<Checkin> rows){if(rows.isEmpty())return 0;Set<String> weeks=new HashSet<>();WeekFields wf=WeekFields.ISO;rows.forEach(c->weeks.add(c.checkinDate().get(wf.weekBasedYear())+":"+c.checkinDate().get(wf.weekOfWeekBasedYear())));LocalDate cursor=rows.getLast().checkinDate();int count=0;while(weeks.contains(cursor.get(wf.weekBasedYear())+":"+cursor.get(wf.weekOfWeekBasedYear()))){count++;cursor=cursor.minusWeeks(1);}return count;}
+    private BigDecimal delta(BigDecimal first,BigDecimal last){return first==null||last==null?null:last.subtract(first).setScale(2,RoundingMode.HALF_UP);}
+    private Checkin owned(UUID id){return db.query("SELECT id,user_id,checkin_date,weight,body_fat_percentage,waist_cm,chest_cm,hip_cm,left_arm_cm,right_arm_cm,left_thigh_cm,right_thigh_cm,notes,created_at,updated_at FROM body_checkin WHERE id=? AND user_id=?",this::map,id,CurrentUser.id()).stream().findFirst().orElseThrow(BodyProgressService::notFound);}
+    private Checkin withPhotos(Checkin c){return new Checkin(c.id(),c.userId(),c.checkinDate(),c.weight(),c.bodyFatPercentage(),c.waistCm(),c.chestCm(),c.hipCm(),c.leftArmCm(),c.rightArmCm(),c.leftThighCm(),c.rightThighCm(),c.notes(),c.createdAt(),c.updatedAt(),photos(c.id()));}
+    private List<Photo> photos(UUID id){return db.query("SELECT id,photo_type,storage_url,thumbnail_url,taken_at,created_at FROM progress_photo WHERE body_checkin_id=? AND user_id=? ORDER BY photo_type",(r,n)->new Photo(r.getObject(1,UUID.class),r.getString(2),r.getString(3),r.getString(4),r.getTimestamp(5).toInstant(),r.getTimestamp(6).toInstant()),id,CurrentUser.id());}
+    private Checkin map(ResultSet r,int n)throws SQLException{return new Checkin(r.getObject(1,UUID.class),r.getObject(2,UUID.class),r.getObject(3,LocalDate.class),r.getBigDecimal(4),r.getBigDecimal(5),r.getBigDecimal(6),r.getBigDecimal(7),r.getBigDecimal(8),r.getBigDecimal(9),r.getBigDecimal(10),r.getBigDecimal(11),r.getBigDecimal(12),r.getString(13),r.getTimestamp(14).toInstant(),r.getTimestamp(15).toInstant(),List.of());}
+    void validate(CheckinRequest r){if(r.checkinDate()==null||r.weight()==null)throw bad("REQUIRED_FIELDS","Fecha y peso son obligatorios");range(r.weight(),20,500,"peso");range(r.bodyFatPercentage(),1,80,"grasa corporal");range(r.waistCm(),10,300,"cintura");range(r.chestCm(),10,300,"pecho");range(r.hipCm(),10,300,"cadera");range(r.leftArmCm(),10,150,"brazo izquierdo");range(r.rightArmCm(),10,150,"brazo derecho");range(r.leftThighCm(),10,200,"muslo izquierdo");range(r.rightThighCm(),10,200,"muslo derecho");if(r.notes()!=null&&r.notes().length()>4000)throw bad("NOTES_TOO_LONG","Las notas son demasiado largas");}
+    private void range(BigDecimal value,int min,int max,String field){if(value!=null&&(value.compareTo(BigDecimal.valueOf(min))<0||value.compareTo(BigDecimal.valueOf(max))>0))throw bad("INVALID_MEASUREMENT","Valor no razonable para "+field);}
+    private static String clean(String s){return s==null||s.isBlank()?null:s.trim();}private static ApiException bad(String code,String message){return new ApiException(HttpStatus.BAD_REQUEST,code,message);}private static ApiException notFound(){return new ApiException(HttpStatus.NOT_FOUND,"CHECKIN_NOT_FOUND","Check-in no encontrado");}
+
+    public record CheckinRequest(LocalDate checkinDate,BigDecimal weight,BigDecimal bodyFatPercentage,BigDecimal waistCm,BigDecimal chestCm,BigDecimal hipCm,BigDecimal leftArmCm,BigDecimal rightArmCm,BigDecimal leftThighCm,BigDecimal rightThighCm,String notes){}
+    public record Checkin(UUID id,UUID userId,LocalDate checkinDate,BigDecimal weight,BigDecimal bodyFatPercentage,BigDecimal waistCm,BigDecimal chestCm,BigDecimal hipCm,BigDecimal leftArmCm,BigDecimal rightArmCm,BigDecimal leftThighCm,BigDecimal rightThighCm,String notes,Instant createdAt,Instant updatedAt,List<Photo> photos){}
+    public record PhotoRequest(String photoType,String storageUrl,String thumbnailUrl,Instant takenAt){}public record Photo(UUID id,String photoType,String storageUrl,String thumbnailUrl,Instant takenAt,Instant createdAt){}
+    public record Point(LocalDate date,BigDecimal weight,BigDecimal movingAverage7d,BigDecimal waistCm,BigDecimal chestCm,BigDecimal hipCm,BigDecimal leftArmCm,BigDecimal rightArmCm,BigDecimal leftThighCm,BigDecimal rightThighCm){}
+    public record Evolution(LocalDate from,LocalDate to,List<Point> points,BigDecimal totalWeightChange,BigDecimal previousWeightChange,BigDecimal minimumWeight,BigDecimal maximumWeight,int checkinCount,String trend,int weeklyStreak){}
+}

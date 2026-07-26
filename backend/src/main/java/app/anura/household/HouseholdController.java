@@ -7,6 +7,7 @@ import java.util.*;
 import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import app.anura.notification.EmailService;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,10 +15,12 @@ import org.springframework.web.bind.annotation.*;
 public class HouseholdController {
   private final JdbcTemplate db;
   private final PasswordEncoder encoder;
+  private final EmailService emails;
 
-  HouseholdController(JdbcTemplate db, PasswordEncoder encoder) {
+  HouseholdController(JdbcTemplate db, PasswordEncoder encoder, EmailService emails) {
     this.db = db;
     this.encoder = encoder;
+    this.emails = emails;
   }
 
   @GetMapping
@@ -55,6 +58,7 @@ public class HouseholdController {
     String email =
         body.email == null || body.email.isBlank() ? null : body.email.trim().toLowerCase();
     Instant expiresAt = Instant.now().plusSeconds(86400);
+    boolean registered=email!=null&&Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM app_user WHERE lower(email)=lower(?))",Boolean.class,email));
     db.update(
         "INSERT INTO"
             + " household_invitation(id,household_id,email,token_hash,status,expires_at,invited_by)"
@@ -65,7 +69,11 @@ public class HouseholdController {
         encoder.encode(token),
         expiresAt,
         CurrentUser.id());
-    return Map.of("id", invitation, "code", token, "expiresAt", expiresAt);
+    String delivery="NOT_REQUESTED";
+    if(email!=null){
+      if(emails.enabled()){String message=registered?"Te han invitado a una unidad doméstica de ANURA. Abre la app y usa este código: ":"Te han invitado a ANURA. Crea tu cuenta con este mismo email y después usa este código para entrar en la unidad doméstica: ";try{emails.send(email,registered?"Invitación familiar en ANURA":"Te invitan a unirte a ANURA",message+token+"\n\nCaduca en 24 horas.\n"+emails.frontendUrl());delivery="SENT";}catch(RuntimeException failure){delivery="FAILED";}}else delivery="EMAIL_DISABLED";
+    }
+    Map<String,Object> result=new LinkedHashMap<>();result.put("id",invitation);result.put("code",token);result.put("expiresAt",expiresAt);result.put("recipientStatus",email==null?"SHAREABLE_CODE":registered?"REGISTERED_USER":"NEW_USER");result.put("deliveryStatus",delivery);return result;
   }
 
   @PostMapping("/invitations/accept")

@@ -37,10 +37,30 @@ Los errores incluyen `status`, `code`, `message`, `correlationId` y violaciones 
 
 Todos requieren JWT. Los recursos se filtran por el usuario del contexto; una sesión ajena responde como inexistente.
 
+## Evolución corporal
+
+- `GET|POST /api/v1/body-checkins`
+- `GET /api/v1/body-checkins/latest`
+- `GET|PUT|DELETE /api/v1/body-checkins/{id}`
+- `GET /api/v1/body-checkins/evolution?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /api/v1/body-checkins/photo-storage`
+- `POST /api/v1/body-checkins/{id}/photos`
+- `DELETE /api/v1/body-checkins/{id}/photos/{photoId}`
+
+Todos los recursos se resuelven con el usuario autenticado. Una fotografía o check-in ajeno responde como no encontrado.
+
 ## Nutrición compartida
 
 - `GET /api/v1/nutrition/today`
 - `POST /api/v1/nutrition/today/{plannedMealId}/complete`
+
+`complete` acepta opcionalmente `title`, `calories` y `notes` para registrar cambios sobre la comida planificada sin modificar el plan original.
+
+## Recuperación e invitaciones por correo
+
+- `POST /api/v1/auth/password-recovery/request`: solicita un código temporal por email sin revelar si la cuenta existe.
+- `POST /api/v1/auth/password-reset`: acepta tanto el código personal como el código temporal enviado.
+- `POST /api/v1/households/{id}/invitations`: devuelve siempre el código compartible, estado del destinatario y estado del envío SMTP.
 - `GET|POST /api/v1/households`
 - `GET /api/v1/households/{id}/members`
 - `POST /api/v1/households/{id}/invitations`

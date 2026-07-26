@@ -32,9 +32,10 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, exception) -> response.sendError(HttpServletResponse.SC_FORBIDDEN)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.GET, "/api/v1/health", "/actuator/health").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/import-schemas/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/import-schemas/**",
+                                "/api/v1/nutrition-import-schemas/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/register",
-                                "/api/v1/auth/password-reset").permitAll()
+                                "/api/v1/auth/password-reset", "/api/v1/auth/password-recovery/request").permitAll()
                         .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
