@@ -135,7 +135,14 @@ public class WorkoutExecutionService {
     @Transactional public void deleteSet(UUID sessionId,UUID performanceId,UUID setId) { assertExercise(sessionId,performanceId); if(db.update("UPDATE set_performance SET deleted_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND exercise_performance_id=? AND deleted_at IS NULL",setId,performanceId)==0) throw notFound(); touch(sessionId); }
 
     public List<ExerciseHistory> exerciseHistory(UUID exerciseId,int limit) {
-        return db.query("""SELECT s.id,s.planned_date,s.session_name,sp.weight,sp.repetitions,sp.rir,sp.rpe,sp.set_number FROM workout_session s JOIN exercise_performance ep ON ep.workout_session_id=s.id JOIN set_performance sp ON sp.exercise_performance_id=ep.id WHERE s.user_id=? AND ep.exercise_id=? AND s.status='COMPLETED' AND sp.completed AND sp.deleted_at IS NULL ORDER BY s.completed_at DESC,sp.set_number LIMIT ?""",(r,n)->new ExerciseHistory(r.getObject(1,UUID.class),r.getObject(2,LocalDate.class),r.getString(3),decimal(r,4),integer(r,5),decimal(r,6),decimal(r,7),r.getInt(8)),CurrentUser.id(),exerciseId,Math.min(Math.max(limit,1),100));
+        return db.query("""
+            SELECT s.id,s.planned_date,s.session_name,sp.weight,sp.repetitions,sp.rir,sp.rpe,sp.set_number
+            FROM workout_session s JOIN exercise_performance ep ON ep.workout_session_id=s.id
+            JOIN set_performance sp ON sp.exercise_performance_id=ep.id
+            WHERE s.user_id=? AND ep.exercise_id=? AND s.status='COMPLETED' AND sp.completed
+              AND sp.deleted_at IS NULL
+            ORDER BY s.completed_at DESC,sp.set_number LIMIT ?
+            """,(r,n)->new ExerciseHistory(r.getObject(1,UUID.class),r.getObject(2,LocalDate.class),r.getString(3),decimal(r,4),integer(r,5),decimal(r,6),decimal(r,7),r.getInt(8)),CurrentUser.id(),exerciseId,Math.min(Math.max(limit,1),100));
     }
 
     public List<ExerciseOption> exerciseCatalog() {
@@ -144,7 +151,15 @@ public class WorkoutExecutionService {
 
     public Metrics metrics(UUID sessionId) {
         if(db.queryForObject("SELECT count(*) FROM workout_session WHERE id=? AND user_id=?",Integer.class,sessionId,CurrentUser.id())==0) throw notFound();
-        return db.queryForObject("""SELECT COUNT(DISTINCT ep.id),COUNT(sp.id),COALESCE(SUM(sp.repetitions),0),COALESCE(SUM(CASE WHEN sp.weight IS NOT NULL AND sp.repetitions IS NOT NULL THEN sp.weight*sp.repetitions ELSE 0 END),0),COALESCE(MAX(sp.pain_level),0),COUNT(pr.id) FROM exercise_performance ep LEFT JOIN set_performance sp ON sp.exercise_performance_id=ep.id AND sp.completed AND sp.deleted_at IS NULL LEFT JOIN workout_personal_record pr ON pr.source_set_performance_id=sp.id WHERE ep.workout_session_id=?""",(r,n)->new Metrics(r.getInt(1),r.getInt(2),r.getInt(3),r.getBigDecimal(4),r.getInt(5),r.getInt(6)),sessionId);
+        return db.queryForObject("""
+            SELECT COUNT(DISTINCT ep.id),COUNT(sp.id),COALESCE(SUM(sp.repetitions),0),
+              COALESCE(SUM(CASE WHEN sp.weight IS NOT NULL AND sp.repetitions IS NOT NULL THEN sp.weight*sp.repetitions ELSE 0 END),0),
+              COALESCE(MAX(sp.pain_level),0),COUNT(pr.id)
+            FROM exercise_performance ep
+            LEFT JOIN set_performance sp ON sp.exercise_performance_id=ep.id AND sp.completed AND sp.deleted_at IS NULL
+            LEFT JOIN workout_personal_record pr ON pr.source_set_performance_id=sp.id
+            WHERE ep.workout_session_id=?
+            """,(r,n)->new Metrics(r.getInt(1),r.getInt(2),r.getInt(3),r.getBigDecimal(4),r.getInt(5),r.getInt(6)),sessionId);
     }
 
     @Transactional public List<SyncResult> sync(UUID sessionId,List<SyncOperation> operations) {
@@ -184,7 +199,8 @@ public class WorkoutExecutionService {
         insertRecord(session,"MAX_WEIGHT","sp.weight","sp.weight IS NOT NULL");
         insertRecord(session,"MAX_VOLUME","sp.weight*sp.repetitions","sp.weight IS NOT NULL AND sp.repetitions IS NOT NULL");
         insertRecord(session,"MAX_REPETITIONS","sp.repetitions","sp.repetitions IS NOT NULL");
-        db.update("""INSERT INTO workout_personal_record(id,user_id,exercise_id,record_type,value,source_set_performance_id,achieved_at)
+        db.update("""
+            INSERT INTO workout_personal_record(id,user_id,exercise_id,record_type,value,source_set_performance_id,achieved_at)
             SELECT gen_random_uuid(),s.user_id,ep.exercise_id,'ESTIMATED_1RM',sp.weight*(1+sp.repetitions/30.0),sp.id,COALESCE(sp.performed_at,CURRENT_TIMESTAMP)
             FROM set_performance sp JOIN exercise_performance ep ON ep.id=sp.exercise_performance_id JOIN workout_session s ON s.id=ep.workout_session_id
             WHERE s.id=? AND sp.completed AND sp.weight IS NOT NULL AND sp.repetitions BETWEEN 1 AND ?
