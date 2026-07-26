@@ -12,6 +12,11 @@ export type Entry = {
   completed: boolean;
 };
 export type User = { id: string; email: string; displayName: string };
+export type ProgressPhoto={id:string;photoType:"FRONT"|"SIDE"|"BACK"|"OTHER";storageUrl:string;thumbnailUrl?:string;takenAt:string};
+export type BodyCheckin={id:string;checkinDate:string;weight:number;bodyFatPercentage?:number;waistCm?:number;chestCm?:number;hipCm?:number;leftArmCm?:number;rightArmCm?:number;leftThighCm?:number;rightThighCm?:number;notes?:string;createdAt:string;updatedAt:string;photos:ProgressPhoto[]};
+export type BodyCheckinInput=Omit<BodyCheckin,"id"|"createdAt"|"updatedAt"|"photos">;
+export type EvolutionPoint={date:string;weight:number;movingAverage7d?:number;waistCm?:number;chestCm?:number;hipCm?:number;leftArmCm?:number;rightArmCm?:number;leftThighCm?:number;rightThighCm?:number};
+export type BodyEvolution={from:string;to:string;points:EvolutionPoint[];totalWeightChange?:number;previousWeightChange?:number;minimumWeight?:number;maximumWeight?:number;checkinCount:number;trend:"UP"|"DOWN"|"STABLE";weeklyStreak:number};
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("anura-token");
@@ -57,6 +62,17 @@ export const api = {
   create: (data: Omit<Entry, "id">) =>
     request<Entry>("/entries", { method: "POST", body: JSON.stringify(data) }),
   remove: (id: string) => request<void>(`/entries/${id}`, { method: "DELETE" }),
+};
+export const bodyProgressApi={
+  list:()=>request<BodyCheckin[]>("/body-checkins"),
+  latest:()=>request<BodyCheckin|null>("/body-checkins/latest"),
+  evolution:(from?:string,to?:string)=>request<BodyEvolution>(`/body-checkins/evolution${from&&to?`?from=${from}&to=${to}`:""}`),
+  create:(body:BodyCheckinInput)=>request<BodyCheckin>("/body-checkins",{method:"POST",body:JSON.stringify(body)}),
+  update:(id:string,body:BodyCheckinInput)=>request<BodyCheckin>(`/body-checkins/${id}`,{method:"PUT",body:JSON.stringify(body)}),
+  remove:(id:string)=>request<void>(`/body-checkins/${id}`,{method:"DELETE"}),
+  photoStorage:()=>request<{enabled:boolean}>("/body-checkins/photo-storage"),
+  addPhoto:(id:string,body:{photoType:string;storageUrl:string;thumbnailUrl?:string;takenAt:string})=>request<ProgressPhoto>(`/body-checkins/${id}/photos`,{method:"POST",body:JSON.stringify(body)}),
+  removePhoto:(id:string,photoId:string)=>request<void>(`/body-checkins/${id}/photos/${photoId}`,{method:"DELETE"}),
 };
 export type ImportIssue = {
   row?: number;

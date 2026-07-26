@@ -31,7 +31,7 @@ import {
   User,
 } from "./api";
 import { NutritionHub } from "./NutritionHub";
-import { EvolutionDashboard } from "./EvolutionDashboard";
+import { BodyProgress } from "./BodyProgress";
 import { WorkoutHub } from "./WorkoutHub";
 import { clearWorkoutOffline } from "./workoutOffline";
 
@@ -197,16 +197,14 @@ export function App() {
             <h1>{meta[tab].label}s</h1>
           </div>
         )}
-        {tab === "WEIGHT" && <EvolutionDashboard entries={entries} />}
+        {tab === "WEIGHT" && <BodyProgress />}
         {tab === "WORKOUT" && (
           <button className="workout-launch" onClick={() => setWorkoutOpen(true)}>
             <span><small>ENTRENAMIENTO DE HOY</small><strong>Entrenar ahora</strong><b>Plan, series, descanso y progreso</b></span>
             <Dumbbell />
           </button>
         )}
-        {tab === "WEIGHT" && entries.some((entry) => entry.type === "WEIGHT") && (
-          <h2 className="subsection-title">Últimos registros</h2>
-        )}
+        {tab === "WEIGHT" && entries.some((entry) => entry.type === "WEIGHT") && <h2 className="subsection-title">Registros anteriores</h2>}
         {(tab !== "WEIGHT" || visible.length > 0) && (
           <EntryList
             entries={visible.slice(0, 12)}

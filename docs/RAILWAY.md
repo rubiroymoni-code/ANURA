@@ -20,6 +20,7 @@ Crear un proyecto con PostgreSQL y dos servicios desde este repositorio.
   - `WORKOUT_SYNC_MAX_OPERATIONS=100`
   - `WORKOUT_OFFLINE_OPERATION_RETENTION_DAYS=30`
   - `WORKOUT_ESTIMATED_1RM_MAX_REPS=12`
+  - `PROGRESS_PHOTO_STORAGE_ENABLED=false`
 
 Flyway crea y actualiza las tablas durante el arranque.
 

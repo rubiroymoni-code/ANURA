@@ -37,6 +37,18 @@ Los errores incluyen `status`, `code`, `message`, `correlationId` y violaciones 
 
 Todos requieren JWT. Los recursos se filtran por el usuario del contexto; una sesión ajena responde como inexistente.
 
+## Evolución corporal
+
+- `GET|POST /api/v1/body-checkins`
+- `GET /api/v1/body-checkins/latest`
+- `GET|PUT|DELETE /api/v1/body-checkins/{id}`
+- `GET /api/v1/body-checkins/evolution?from=YYYY-MM-DD&to=YYYY-MM-DD`
+- `GET /api/v1/body-checkins/photo-storage`
+- `POST /api/v1/body-checkins/{id}/photos`
+- `DELETE /api/v1/body-checkins/{id}/photos/{photoId}`
+
+Todos los recursos se resuelven con el usuario autenticado. Una fotografía o check-in ajeno responde como no encontrado.
+
 ## Nutrición compartida
 
 - `GET /api/v1/nutrition/today`

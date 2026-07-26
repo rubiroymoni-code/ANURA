@@ -41,3 +41,7 @@ Las confirmaciones nutricionales son transaccionales. Los planes nacen `DRAFT`; 
 `WorkoutSession → ExercisePerformance → SetPerformance` modela la ejecución real. La sesión pertenece siempre al usuario autenticado y conserva versión del plan y objetivos planificados como snapshot. PostgreSQL impide más de una sesión activa por usuario. `WorkoutPersonalRecord` almacena hitos con referencia a la serie fuente; el resto de métricas se deriva.
 
 La PWA mantiene una cola específica en IndexedDB. `WorkoutSyncOperation` aporta idempotencia por usuario y `operationId`; los conflictos son explícitos. Véanse [TRAINING.md](TRAINING.md) y [OFFLINE.md](OFFLINE.md).
+
+## Evolución corporal
+
+`BodyCheckin` es el agregado semanal de peso y perímetros. `ProgressPhoto` solo conserva referencias HTTPS y depende de `ProgressPhotoStorage`; no persiste binarios. El módulo convive con `tracker_entry`, que permanece como histórico legacy. Véase [BODY_PROGRESS.md](BODY_PROGRESS.md).
