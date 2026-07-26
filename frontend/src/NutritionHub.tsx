@@ -12,6 +12,8 @@ import {
   FileUp,
   Home,
   ShoppingBasket,
+  Copy,
+  MessageCircle,
   Users,
   Utensils,
   X,
@@ -165,6 +167,7 @@ function HouseholdView({
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [generated, setGenerated] = useState("");
+  const [message, setMessage] = useState("");
   const h = households[0];
   return (
     <div>
@@ -180,7 +183,7 @@ function HouseholdView({
           {h.role === "OWNER" && (
             <>
               <label>
-                Email a invitar
+                Email de la persona (opcional; no se envía)
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -192,16 +195,30 @@ function HouseholdView({
                 onClick={async () => {
                   const r = await householdApi.invite(h.id, email);
                   setGenerated(r.code);
+                  setMessage(email ? `Código creado para ${email}. Compártelo por un canal seguro.` : "Código listo para compartir.");
                 }}
               >
-                Crear invitación
+                {email ? "Crear invitación para este email" : "Generar código para compartir"}
               </button>
               {generated && (
                 <div className="invite-code">
-                  <small>Código temporal</small>
+                  <small>CÓDIGO TEMPORAL · 24 HORAS</small>
                   <strong>{generated}</strong>
+                  <div className="invite-actions">
+                    <button type="button" onClick={() => void navigator.clipboard.writeText(generated)}>
+                      <Copy /> Copiar
+                    </button>
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(`Únete a mi unidad doméstica en ANURA con este código: ${generated}`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <MessageCircle /> WhatsApp
+                    </a>
+                  </div>
                 </div>
               )}
+              {message && <p className="form-note">{message} ANURA todavía no envía emails.</p>}
             </>
           )}
         </>
@@ -214,12 +231,32 @@ function HouseholdView({
           <button
             className="primary"
             onClick={async () => {
-              await householdApi.create(name);
+              const household = await householdApi.create(name);
+              const invitation = await householdApi.invite(household.id);
+              setGenerated(invitation.code);
               refresh();
             }}
           >
             Crear unidad doméstica
           </button>
+          {generated && (
+            <div className="invite-code">
+              <small>CÓDIGO DE TU NUEVA UNIDAD · 24 HORAS</small>
+              <strong>{generated}</strong>
+              <div className="invite-actions">
+                <button type="button" onClick={() => void navigator.clipboard.writeText(generated)}>
+                  <Copy /> Copiar
+                </button>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`Únete a mi unidad doméstica en ANURA con este código: ${generated}`)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <MessageCircle /> Compartir por WhatsApp
+                </a>
+              </div>
+            </div>
+          )}
           <div className="or">o aceptar invitación</div>
           <label>
             Código
