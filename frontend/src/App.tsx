@@ -34,6 +34,7 @@ import { NutritionHub } from "./NutritionHub";
 import { BodyProgress } from "./BodyProgress";
 import { WorkoutHub } from "./WorkoutHub";
 import { clearWorkoutOffline } from "./workoutOffline";
+import { MealFlow } from "./MealFlow";
 
 const meta: Record<
   EntryType,
@@ -71,6 +72,8 @@ export function App() {
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null>(null);
   const [todayWorkoutDone, setTodayWorkoutDone] = useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
+  const [mealFlowOpen, setMealFlowOpen] = useState(false);
+  const [editingMeal, setEditingMeal] = useState<Entry | null>(null);
   const load = () => {
     if (user)
       void api
@@ -155,7 +158,8 @@ export function App() {
                   <span><small>COMIDAS</small><strong>{todayMeals.length ? `${todayMeals.filter(m => !m.completed).length} pendientes` : "Sin plan para hoy"}</strong><b>{todayMeals.length ? `${todayMeals.reduce((sum,m) => sum + Number(m.calories || 0),0).toFixed(0)} kcal planificadas` : "Añade una comida o abre tus planes"}</b></span>
                   <em>{todayMeals.length && todayMeals.every(m => m.completed) ? "Hecho" : "Ver plan"}</em>
                 </button>
-                {todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.completed ? "completed" : ""}><button onClick={() => setNutritionOpen(true)}><span><b>{meal.meal_name}</b><small>{meal.recipe} · {Number(meal.calories || 0).toFixed(0)} kcal</small></span></button><button className="meal-complete" disabled={meal.completed || dailyLoading} onClick={async () => {setDailyLoading(true);try{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(rows => rows.map(row => row.planned_meal_id === meal.planned_meal_id ? {...row,completed:true} : row));load();}finally{setDailyLoading(false)}}}>{meal.completed ? "✓" : "Completar"}</button></div>)}</div>}
+                {todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.completed ? "completed" : ""}><button onClick={() => setMealFlowOpen(true)}><span><b>{meal.meal_name}</b><small>{meal.recipe} · {Number(meal.calories || 0).toFixed(0)} kcal</small></span></button><button className="meal-complete" disabled={meal.completed || dailyLoading} onClick={async () => {setDailyLoading(true);try{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(rows => rows.map(row => row.planned_meal_id === meal.planned_meal_id ? {...row,completed:true} : row));load();}finally{setDailyLoading(false)}}}>{meal.completed ? "✓" : "Completar"}</button></div>)}</div>}
+                <button className="daily-add-meal" onClick={() => {setEditingMeal(null);setMealFlowOpen(true)}}><Plus/>Revisar dieta o añadir comida</button>
               </div>
             </div>
             <div className="score">
@@ -208,6 +212,7 @@ export function App() {
         {(tab !== "WEIGHT" || visible.length > 0) && (
           <EntryList
             entries={visible.slice(0, 12)}
+            onEdit={(entry) => {if(entry.type === "MEAL"){setEditingMeal(entry);setMealFlowOpen(true)}}}
             onDelete={async (id) => {
               await api.remove(id);
               load();
@@ -238,7 +243,7 @@ export function App() {
           </button>
         )}
       </section>
-      <button className="fab" onClick={() => setModal(true)}>
+      <button className="fab" onClick={() => tab === "MEAL" ? (setEditingMeal(null),setMealFlowOpen(true)) : setModal(true)}>
         <Plus />
       </button>
       <nav>
@@ -302,6 +307,7 @@ export function App() {
         />
       )}
       {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
+      {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} onClose={() => setMealFlowOpen(false)} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
     </main>
   );
 }
@@ -464,9 +470,11 @@ function Quick({
 function EntryList({
   entries,
   onDelete,
+  onEdit,
 }: {
   entries: Entry[];
   onDelete: (id: string) => void;
+  onEdit: (entry: Entry) => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   if (!entries.length)
@@ -523,6 +531,7 @@ function EntryList({
                 <p>{e.details || e.notes || "Registro completado sin notas adicionales."}</p>
               </div>
               <span className="status-pill">Completado</span>
+              {e.type === "MEAL" && <button className="entry-edit" onClick={() => onEdit(e)}>Editar comida</button>}
             </div>
           </article>
         );
@@ -639,6 +648,8 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [recoverySent, setRecoverySent] = useState(false);
   return (
     <main className="auth">
       <section className="auth-art">
@@ -702,7 +713,7 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
         )}
         <label>
           Email
-          <input required name="email" type="email" autoComplete="email" />
+          <input required name="email" type="email" autoComplete="email" onChange={(event) => setRecoveryEmail(event.target.value)} />
         </label>
         <label>
           {mode === "recover" ? "Nueva contraseña" : "Contraseña"}
@@ -717,10 +728,13 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
           />
         </label>
         {mode === "recover" && (
-          <label>
-            Código de recuperación
-            <input required name="code" autoComplete="one-time-code" placeholder="Tu código personal" />
-          </label>
+          <>
+            <div className="recovery-help"><span>Usa tu código personal guardado o solicita uno temporal por email.</span><button type="button" disabled={busy || !recoveryEmail} onClick={async()=>{setBusy(true);setError("");try{await api.requestPasswordRecovery(recoveryEmail);setRecoverySent(true);setSuccess("Si la cuenta existe, recibirás un código válido durante 15 minutos.")}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo enviar el correo")}finally{setBusy(false)}}}>{recoverySent?"Reenviar código":"Enviar código por email"}</button></div>
+            <label>
+              Código de recuperación
+              <input required name="code" autoComplete="one-time-code" placeholder="Código personal o del email" />
+            </label>
+          </>
         )}
         {error && <div className="error">{error}</div>}
         {success && <div className="success">{success}</div>}

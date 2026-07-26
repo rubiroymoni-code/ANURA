@@ -57,10 +57,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  requestPasswordRecovery: (email:string) => request<void>("/auth/password-recovery/request",{method:"POST",body:JSON.stringify({email})}),
   entries: (type?: EntryType) =>
     request<Entry[]>(`/entries${type ? `?type=${type}` : ""}`),
   create: (data: Omit<Entry, "id">) =>
     request<Entry>("/entries", { method: "POST", body: JSON.stringify(data) }),
+  update: (id:string,data:Omit<Entry,"id">)=>request<Entry>(`/entries/${id}`,{method:"PUT",body:JSON.stringify(data)}),
   remove: (id: string) => request<void>(`/entries/${id}`, { method: "DELETE" }),
 };
 export const bodyProgressApi={
@@ -165,7 +167,7 @@ export const householdApi = {
       Array<{ id: string; email: string; display_name: string; role: string }>
     >(`/households/${id}/members`),
   invite: (id: string, email?: string) =>
-    request<{ code: string; expiresAt: string }>(
+    request<{ code: string; expiresAt: string;recipientStatus:"REGISTERED_USER"|"NEW_USER"|"SHAREABLE_CODE";deliveryStatus:"SENT"|"FAILED"|"EMAIL_DISABLED"|"NOT_REQUESTED" }>(
       `/households/${id}/invitations`,
       { method: "POST", body: JSON.stringify({ email: email || null }) },
     ),
@@ -177,7 +179,7 @@ export const householdApi = {
 };
 export const nutritionApi = {
   today:()=>request<TodayMeal[]>("/nutrition/today"),
-  completeToday:(id:string)=>request<{completed:boolean;calories:number}>(`/nutrition/today/${id}/complete`,{method:"POST"}),
+  completeToday:(id:string,changes?:{title?:string;calories?:number;notes?:string})=>request<{completed:boolean;calories:number}>(`/nutrition/today/${id}/complete`,{method:"POST",body:JSON.stringify(changes||{})}),
   recipes: () =>
     request<
       Array<{ id: string; code: string; name: string; servings: number }>

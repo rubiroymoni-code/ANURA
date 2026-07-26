@@ -76,7 +76,7 @@ public class NutritionController {
 
   @PostMapping("/today/{mealId}/complete")
   @Transactional
-  Map<String,Object> completeTodayMeal(@PathVariable UUID mealId) {
+  Map<String,Object> completeTodayMeal(@PathVariable UUID mealId,@RequestBody(required=false) MealCompletion changes) {
     UUID user=CurrentUser.id();
     Map<String,Object> meal=db.queryForList(
         "SELECT pm.id,pm.meal_name,r.name recipe,ump.calories,ump.protein,ump.carbohydrates,ump.fat"
@@ -86,12 +86,16 @@ public class NutritionController {
             + " WHERE pm.id=? AND p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?)",
         user,mealId,user,user).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"MEAL_NOT_FOUND","Comida planificada no encontrada"));
     UUID entry=UUID.randomUUID();
-    db.update("INSERT INTO tracker_entry(id,user_id,type,title,entry_date,value,unit,details,notes,completed,planned_meal_id) VALUES(?,?,'MEAL',?,CURRENT_DATE,?,'kcal',?,? ,TRUE,?) ON CONFLICT(user_id,entry_date,planned_meal_id) WHERE planned_meal_id IS NOT NULL DO NOTHING",
-        entry,user,meal.get("meal_name"),meal.get("calories"),meal.get("recipe"),"Comida completada desde el plan",mealId);
+    String title=changes!=null&&changes.title()!=null&&!changes.title().isBlank()?changes.title().trim():meal.get("meal_name").toString();
+    Object calories=changes!=null&&changes.calories()!=null?changes.calories():meal.get("calories");
+    String notes=changes!=null&&changes.notes()!=null&&!changes.notes().isBlank()?changes.notes().trim():"Comida completada desde el plan";
+    db.update("INSERT INTO tracker_entry(id,user_id,type,title,entry_date,value,unit,details,notes,completed,planned_meal_id) VALUES(?,?,'MEAL',?,CURRENT_DATE,?,'kcal',?,? ,TRUE,?) ON CONFLICT(user_id,entry_date,planned_meal_id) WHERE planned_meal_id IS NOT NULL DO UPDATE SET title=EXCLUDED.title,value=EXCLUDED.value,details=EXCLUDED.details,notes=EXCLUDED.notes,completed=TRUE,updated_at=CURRENT_TIMESTAMP",
+        entry,user,title,calories,meal.get("recipe"),notes,mealId);
     Map<String,Object> result=new LinkedHashMap<>();
     result.put("plannedMealId",mealId);result.put("completed",true);result.put("calories",meal.get("calories"));
     return result;
   }
+  record MealCompletion(String title,java.math.BigDecimal calories,String notes){}
 
   @GetMapping("/plans/{id}/week")
   List<Map<String, Object>> week(

@@ -21,6 +21,17 @@ Crear un proyecto con PostgreSQL y dos servicios desde este repositorio.
   - `WORKOUT_OFFLINE_OPERATION_RETENTION_DAYS=30`
   - `WORKOUT_ESTIMATED_1RM_MAX_REPS=12`
   - `PROGRESS_PHOTO_STORAGE_ENABLED=false`
+  - `SMTP_ENABLED=true`
+  - `SMTP_HOST`: servidor SMTP del proveedor
+  - `SMTP_PORT=587`
+  - `SMTP_USERNAME`: usuario SMTP
+  - `SMTP_PASSWORD`: contraseña o API key SMTP
+  - `SMTP_FROM`: remitente verificado, por ejemplo `ANURA <no-reply@tudominio.com>`
+  - `SMTP_AUTH=true`
+  - `SMTP_STARTTLS=true`
+  - `APP_FRONTEND_URL`: dominio público del frontend, sin barra final
+
+Sin `SMTP_ENABLED=true`, ANURA mantiene los códigos personales y compartibles en pantalla, pero no promete haber enviado correos. Para producción puede utilizarse cualquier proveedor SMTP con remitente verificado; las credenciales deben existir únicamente como variables de Railway.
 
 Flyway crea y actualiza las tablas durante el arranque.
 

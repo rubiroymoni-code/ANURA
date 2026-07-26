@@ -53,6 +53,14 @@ Todos los recursos se resuelven con el usuario autenticado. Una fotografía o ch
 
 - `GET /api/v1/nutrition/today`
 - `POST /api/v1/nutrition/today/{plannedMealId}/complete`
+
+`complete` acepta opcionalmente `title`, `calories` y `notes` para registrar cambios sobre la comida planificada sin modificar el plan original.
+
+## Recuperación e invitaciones por correo
+
+- `POST /api/v1/auth/password-recovery/request`: solicita un código temporal por email sin revelar si la cuenta existe.
+- `POST /api/v1/auth/password-reset`: acepta tanto el código personal como el código temporal enviado.
+- `POST /api/v1/households/{id}/invitations`: devuelve siempre el código compartible, estado del destinatario y estado del envío SMTP.
 - `GET|POST /api/v1/households`
 - `GET /api/v1/households/{id}/members`
 - `POST /api/v1/households/{id}/invitations`

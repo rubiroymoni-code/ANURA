@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import app.anura.config.JwtService;
 import app.anura.config.CurrentUser;
+import app.anura.notification.EmailService;
 import app.anura.user.User;
 import app.anura.user.UserRepository;
 import jakarta.validation.Valid;
@@ -32,10 +33,11 @@ public class AuthController {
     private final PasswordEncoder passwords;
     private final JwtService jwt;
     private final JdbcTemplate db;
+    private final EmailService email;
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    AuthController(UserRepository users, PasswordEncoder passwords, JwtService jwt, JdbcTemplate db) {
-        this.users = users; this.passwords = passwords; this.jwt = jwt; this.db = db;
+    AuthController(UserRepository users, PasswordEncoder passwords, JwtService jwt, JdbcTemplate db, EmailService email) {
+        this.users = users; this.passwords = passwords; this.jwt = jwt; this.db = db; this.email=email;
     }
 
     @PostMapping("/register")
@@ -90,6 +92,16 @@ public class AuthController {
         db.update("UPDATE password_recovery_code SET used_at=CURRENT_TIMESTAMP WHERE user_id=?", user.id);
     }
 
+    @PostMapping("/password-recovery/request")
+    void requestPasswordRecovery(@Valid @RequestBody RecoveryRequest request) {
+        if(!email.enabled()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"Recuperación por email no configurada");
+        var candidate=users.findByEmailIgnoreCase(request.email()).filter(user->user.enabled);
+        if(candidate.isEmpty()) return;
+        User user=candidate.get();byte[] random=new byte[4];RANDOM.nextBytes(random);String code=HexFormat.of().withUpperCase().formatHex(random);Instant expiresAt=Instant.now().plusSeconds(15*60);
+        db.update("INSERT INTO password_recovery_code(user_id,code_hash,expires_at,used_at) VALUES(?,?,?,NULL) ON CONFLICT(user_id) DO UPDATE SET code_hash=EXCLUDED.code_hash,created_at=CURRENT_TIMESTAMP,expires_at=EXCLUDED.expires_at,used_at=NULL",user.id,passwords.encode(code),Timestamp.from(expiresAt));
+        email.send(user.email,"Código para recuperar ANURA","Tu código temporal es: "+code+"\n\nCaduca en 15 minutos. Si no has solicitado el cambio, ignora este correo.\n\nANURA");
+    }
+
     private AuthResponse response(User user) {
         return new AuthResponse(jwt.create(user.id), new UserView(user.id.toString(), user.email, user.displayName));
     }
@@ -99,6 +111,7 @@ public class AuthController {
     record PasswordResetRequest(@Email @NotBlank String email, @NotBlank String code,
             @NotBlank @Size(min=8, max=100) String newPassword) {}
     record RecoveryCodeResponse(String code, Instant expiresAt) {}
+    record RecoveryRequest(@Email @NotBlank String email) {}
     record UserView(String id, String email, String displayName) {}
     record AuthResponse(String token, UserView user) {}
 }

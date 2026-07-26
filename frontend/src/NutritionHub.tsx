@@ -195,7 +195,13 @@ function HouseholdView({
                 onClick={async () => {
                   const r = await householdApi.invite(h.id, email);
                   setGenerated(r.code);
-                  setMessage(email ? `Código creado para ${email}. Compártelo por un canal seguro.` : "Código listo para compartir.");
+                  setMessage(
+                    r.recipientStatus === "NEW_USER"
+                      ? `Ese email todavía no tiene cuenta. Se ha preparado una invitación para registrarse en ANURA${r.deliveryStatus === "SENT" ? " y se ha enviado por correo" : ""}.`
+                      : r.recipientStatus === "REGISTERED_USER"
+                        ? `Usuario encontrado${r.deliveryStatus === "SENT" ? ": invitación enviada por correo" : ""}.`
+                        : "Código listo para compartir.",
+                  );
                 }}
               >
                 {email ? "Crear invitación para este email" : "Generar código para compartir"}
