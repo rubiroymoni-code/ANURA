@@ -14,6 +14,7 @@ import './meal-flow.css';
 import './meal-flow-v2.css';
 import './responsive.css';
 import './household-management.css';
+import './workout-desktop.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
