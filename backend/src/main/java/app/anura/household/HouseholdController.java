@@ -63,6 +63,37 @@ public class HouseholdController {
     return db.queryForList("SELECT u.id,u.email,u.display_name,m.role FROM household_member m JOIN app_user u ON u.id=m.user_id WHERE m.household_id=? ORDER BY m.joined_at", id);
   }
 
+  @PatchMapping("/{id}")
+  @Transactional
+  Map<String, Object> rename(@PathVariable UUID id, @RequestBody Name body) {
+    owner(id);
+    String name = cleanName(body == null ? null : body.name());
+    db.update("UPDATE household SET name=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", name, id);
+    return Map.of("id", id, "name", name, "role", "OWNER");
+  }
+
+  @PostMapping("/{id}/leave")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  @Transactional
+  void leave(@PathVariable UUID id) {
+    member(id);
+    if (Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM household WHERE id=? AND owner_id=?)", Boolean.class, id, CurrentUser.id())))
+      throw conflict("OWNER_CANNOT_LEAVE", "El propietario debe eliminar la unidad doméstica");
+    db.update("DELETE FROM household_member WHERE household_id=? AND user_id=?", id, CurrentUser.id());
+  }
+
+  @DeleteMapping("/{id}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  @Transactional
+  void delete(@PathVariable UUID id) {
+    owner(id);
+    db.update("DELETE FROM shopping_list WHERE household_id=?", id);
+    db.update("DELETE FROM nutrition_plan WHERE household_id=?", id);
+    db.update("DELETE FROM recipe WHERE household_id=?", id);
+    db.update("DELETE FROM ingredient WHERE household_id=?", id);
+    db.update("DELETE FROM household WHERE id=?", id);
+  }
+
   @PostMapping("/{id}/invitations")
   @Transactional
   Map<String, Object> invite(@PathVariable UUID id, @RequestBody(required = false) Email body) {

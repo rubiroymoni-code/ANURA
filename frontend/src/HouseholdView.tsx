@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Copy, MessageCircle, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Copy, Edit3, LogOut, MessageCircle, Trash2, Users } from "lucide-react";
 import { householdApi, type Household } from "./api";
 
 export function HouseholdView({ households, refresh }: { households: Household[]; refresh: () => void }) {
@@ -13,8 +13,17 @@ export function HouseholdView({ households, refresh }: { households: Household[]
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const household = households[0];
+  const [members, setMembers] = useState<Array<{id:string;email:string;display_name:string;role:string}>>([]);
+  const [editingName, setEditingName] = useState(false);
+  const [renameName, setRenameName] = useState("");
+  const [confirmAction, setConfirmAction] = useState<"delete"|"leave"|null>(null);
 
   const fail = (cause: unknown) => setError(cause instanceof Error ? cause.message : "No se pudo completar la operación");
+  useEffect(() => {
+    if (!household) { setMembers([]); return; }
+    setRenameName(household.name);
+    void householdApi.members(household.id).then(setMembers).catch(fail);
+  }, [household?.id]);
   const copy = async () => {
     await navigator.clipboard.writeText(generated);
     setCopied(true);
@@ -41,8 +50,11 @@ export function HouseholdView({ households, refresh }: { households: Household[]
 
   if (household) return (
     <div className="household-view">
-      <div className="household-card"><Users /><div><b>{household.name}</b><small>Tu rol: {household.role}</small></div></div>
+      <div className="household-card"><Users /><div><b>{household.name}</b><small>{members.length} {members.length===1?"miembro":"miembros"} · Tu rol: {household.role}</small></div></div>
+      {household.role === "OWNER" && editingName && <div className="household-rename"><label>Nombre de la unidad<input value={renameName} maxLength={160} onChange={event=>setRenameName(event.target.value)}/></label><div><button type="button" onClick={()=>setEditingName(false)}>Cancelar</button><button type="button" disabled={busy||!renameName.trim()} onClick={async()=>{setBusy(true);setError("");try{await householdApi.rename(household.id,renameName);setEditingName(false);refresh()}catch(cause){fail(cause)}finally{setBusy(false)}}}>Guardar</button></div></div>}
+      <section className="household-members"><small>PERSONAS DE LA UNIDAD</small>{members.map(member=><div key={member.id}><span><b>{member.display_name}</b><small>{member.email}</small></span><em>{member.role}</em></div>)}</section>
       {household.role === "OWNER" && <>
+        <button className="household-manage" type="button" onClick={()=>setEditingName(true)}><Edit3/>Cambiar nombre</button>
         <label>Email opcional para restringir el código<input value={email} onChange={event => setEmail(event.target.value)} type="email" placeholder="persona@email.com" /></label>
         <p className="form-note">Si no indicas email, cualquier usuario autenticado podrá usar el código. Si el correo está configurado, ANURA también enviará la invitación.</p>
         <button className="primary" disabled={busy} onClick={async () => {
@@ -55,6 +67,8 @@ export function HouseholdView({ households, refresh }: { households: Household[]
         }}>{busy ? "Generando…" : generated ? "Generar otro código" : email ? "Crear invitación" : "Generar código"}</button>
         {invitation}{message && <p className="form-note">{message}</p>}
       </>}
+      <div className="household-danger"><button type="button" onClick={()=>setConfirmAction(household.role==="OWNER"?"delete":"leave")}>{household.role==="OWNER"?<><Trash2/>Eliminar unidad</>:<><LogOut/>Abandonar unidad</>}</button></div>
+      {confirmAction&&<div className="household-confirm"><b>{confirmAction==="delete"?"¿Eliminar toda la unidad?":"¿Abandonar la unidad?"}</b><p>{confirmAction==="delete"?"Se eliminarán miembros, planes compartidos, recetas y listas de compra. No se puede deshacer.":"Dejarás de ver los planes y recursos compartidos."}</p><div><button type="button" onClick={()=>setConfirmAction(null)}>Cancelar</button><button className="danger" type="button" disabled={busy} onClick={async()=>{setBusy(true);setError("");try{confirmAction==="delete"?await householdApi.remove(household.id):await householdApi.leave(household.id);setConfirmAction(null);refresh()}catch(cause){fail(cause)}finally{setBusy(false)}}}>{busy?"Procesando…":confirmAction==="delete"?"Sí, eliminar":"Sí, abandonar"}</button></div></div>}
       {error && <div className="error" role="alert">{error}</div>}
     </div>
   );
