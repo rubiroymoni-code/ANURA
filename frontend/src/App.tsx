@@ -431,7 +431,8 @@ function TrainingImport({ onClose }: { onClose: () => void }) {
                 onClick={async () => {
                   setBusy(true);
                   try {
-                    await trainingApi.confirm(preview.importJobId);
+                    const imported = await trainingApi.confirm(preview.importJobId);
+                    await trainingApi.activate(imported.planId);
                     setDone(true);
                   } catch (cause) {
                     setError(cause instanceof Error ? cause.message : "No se pudo confirmar la importación");
