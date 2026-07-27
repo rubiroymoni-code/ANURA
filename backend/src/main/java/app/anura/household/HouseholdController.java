@@ -146,7 +146,7 @@ public class HouseholdController {
   private Invitation createInvitation(UUID household, String email) {
     String code = "ANURA-" + segment() + "-" + segment();
     Instant expires = Instant.now().plusSeconds(48 * 60 * 60);
-    db.update("INSERT INTO household_invitation(id,household_id,email,token_hash,status,expires_at,invited_by) VALUES(?,?,?,?, 'PENDING',?,?)", UUID.randomUUID(), household, email, encoder.encode(code), expires, CurrentUser.id());
+    db.update("INSERT INTO household_invitation(id,household_id,email,token_hash,status,expires_at,invited_by) VALUES(?,?,?,?, 'PENDING',?,?)", UUID.randomUUID(), household, email, encoder.encode(code), java.sql.Timestamp.from(expires), CurrentUser.id());
     return new Invitation(code, expires);
   }
 

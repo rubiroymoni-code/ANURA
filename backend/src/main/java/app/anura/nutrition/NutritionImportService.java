@@ -65,7 +65,7 @@ public class NutritionImportService {
           content,
           p.external,
           p.version,
-          Instant.now().plusSeconds(86400),
+          java.sql.Timestamp.from(Instant.now().plusSeconds(86400)),
           p.scope);
       if(inserted==0){
         UUID existing=db.query("SELECT id FROM import_job WHERE user_id=? AND import_type=? AND checksum=? ORDER BY created_at DESC LIMIT 1",(rs,n)->rs.getObject(1,UUID.class),CurrentUser.id(),type,hash).stream().findFirst().orElseThrow(()->bad("IMPORT_CONFLICT","La previsualización ya se está procesando"));
