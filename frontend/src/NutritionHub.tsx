@@ -18,6 +18,7 @@ import {
   Utensils,
   X,
 } from "lucide-react";
+import { HouseholdView } from "./HouseholdView";
 export function NutritionHub({ onClose }: { onClose: () => void }) {
   const [section, setSection] = useState<
     "home" | "household" | "import" | "shopping" | "plan" | "recipe"
@@ -156,7 +157,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
-function HouseholdView({
+function LegacyHouseholdView({
   households,
   refresh,
 }: {
@@ -238,7 +239,7 @@ function HouseholdView({
             className="primary"
             onClick={async () => {
               const household = await householdApi.create(name);
-              const invitation = await householdApi.invite(household.id);
+              const invitation = await householdApi.invite(household.household.id);
               setGenerated(invitation.code);
               refresh();
             }}

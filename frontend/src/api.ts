@@ -154,11 +154,14 @@ export type NutritionImportPreview = {
   users: string[];
   issues: Array<{ row?: number; column?: string; message: string }>;
 };
-export type TodayMeal = { planned_meal_id:string;plan_id:string;plan_name:string;version:number;day_name:string;meal_type:string;meal_name:string;recipe:string;calories:number;protein:number;carbohydrates:number;fat:number;portion_multiplier:number;completed:boolean };
+export type MealStatus = "PENDING"|"COMPLETED"|"SKIPPED"|"SUBSTITUTED";
+export type MealType = "BREAKFAST"|"MID_MORNING"|"LUNCH"|"SNACK"|"DINNER"|"OTHER";
+export type MealInput = {mealType:MealType;name:string;date?:string;portion?:string;calories?:number;protein?:number;carbohydrates?:number;fat?:number;notes?:string};
+export type TodayMeal = { planned_meal_id:string;plan_id:string;plan_name:string;version:number;day_name:string;meal_type:string;meal_name:string;recipe:string;calories:number;protein:number;carbohydrates:number;fat:number;portion_multiplier:number;status:MealStatus;consumed_meal_id?:string;custom_name?:string;notes?:string;completed_at?:string };
 export const householdApi = {
   list: () => request<Household[]>("/households"),
   create: (name: string) =>
-    request<Household>("/households", {
+    request<{household:Household;invitation:{code:string;expiresAt:string}}>("/households", {
       method: "POST",
       body: JSON.stringify({ name }),
     }),
@@ -179,7 +182,12 @@ export const householdApi = {
 };
 export const nutritionApi = {
   today:()=>request<TodayMeal[]>("/nutrition/today"),
-  completeToday:(id:string,changes?:{title?:string;calories?:number;notes?:string})=>request<{completed:boolean;calories:number}>(`/nutrition/today/${id}/complete`,{method:"POST",body:JSON.stringify(changes||{})}),
+  completeToday:(id:string)=>request<Record<string,unknown>>(`/nutrition/today/${id}/complete`,{method:"POST"}),
+  skipToday:(id:string,notes?:string)=>request<Record<string,unknown>>(`/nutrition/today/${id}/skip`,{method:"POST",body:JSON.stringify({notes})}),
+  substituteToday:(id:string,data:Omit<MealInput,"mealType"|"date">)=>request<Record<string,unknown>>(`/nutrition/today/${id}/substitute`,{method:"POST",body:JSON.stringify(data)}),
+  customMeal:(data:MealInput)=>request<Record<string,unknown>>("/nutrition/meals/custom",{method:"POST",body:JSON.stringify(data)}),
+  updateConsumed:(id:string,data:MealInput)=>request<Record<string,unknown>>(`/nutrition/consumed-meals/${id}`,{method:"PATCH",body:JSON.stringify(data)}),
+  deleteConsumed:(id:string)=>request<void>(`/nutrition/consumed-meals/${id}`,{method:"DELETE"}),
   recipes: () =>
     request<
       Array<{ id: string; code: string; name: string; servings: number }>
