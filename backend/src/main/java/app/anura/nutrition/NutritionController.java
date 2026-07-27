@@ -133,15 +133,15 @@ public class NutritionController {
 
   @GetMapping("/plans/{id}/week")
   List<Map<String, Object>> week(
-      @PathVariable UUID id, @RequestParam(defaultValue = "1") int week) {
+      @PathVariable UUID id, @RequestParam(required=false) Integer week) {
     return db.queryForList(
-        "SELECT d.day_number,d.day_name,pm.meal_type,pm.meal_name,r.name recipe,u.display_name,"
+        "SELECT d.day_number,d.day_name,pm.meal_type,pm.meal_name,r.name recipe,u.id user_id,u.display_name,"
             + " ump.portion_multiplier,ump.calories,ump.protein,ump.carbohydrates,ump.fat FROM"
             + " nutrition_plan_day d JOIN nutrition_plan p ON p.id=d.nutrition_plan_id LEFT JOIN"
             + " household_member hm ON hm.household_id=p.household_id JOIN planned_meal pm ON"
             + " pm.nutrition_plan_day_id=d.id JOIN recipe r ON r.id=pm.recipe_id JOIN"
             + " user_meal_portion ump ON ump.planned_meal_id=pm.id JOIN app_user u ON"
-            + " u.id=ump.user_id WHERE p.id=? AND d.week_number=? AND (p.owner_id=? OR"
+            + " u.id=ump.user_id WHERE p.id=? AND d.week_number=COALESCE(?,(SELECT MIN(dx.week_number) FROM nutrition_plan_day dx WHERE dx.nutrition_plan_id=p.id)) AND (p.owner_id=? OR"
             + " hm.user_id=?) ORDER BY d.day_order,pm.meal_order,u.display_name",
         id,
         week,
@@ -151,7 +151,7 @@ public class NutritionController {
 
   @GetMapping("/plans/{id}/summary")
   List<Map<String, Object>> summary(
-      @PathVariable UUID id, @RequestParam(defaultValue = "1") int week) {
+      @PathVariable UUID id, @RequestParam(required=false) Integer week) {
     return db.queryForList(
         "SELECT u.id user_id,u.display_name,d.day_number,ROUND(SUM(ump.calories),2) calories,"
             + " ROUND(SUM(ump.protein),2) protein,ROUND(SUM(ump.carbohydrates),2) carbohydrates,"
@@ -163,7 +163,7 @@ public class NutritionController {
             + " ump.planned_meal_id=pm.id JOIN app_user u ON u.id=ump.user_id LEFT JOIN LATERAL"
             + " (SELECT calories FROM nutrition_target t WHERE t.user_id=u.id AND"
             + " t.valid_from<=COALESCE(p.valid_from,CURRENT_DATE) ORDER BY t.valid_from DESC LIMIT"
-            + " 1) nt ON TRUE WHERE p.id=? AND d.week_number=? AND (p.owner_id=? OR"
+            + " 1) nt ON TRUE WHERE p.id=? AND d.week_number=COALESCE(?,(SELECT MIN(dx.week_number) FROM nutrition_plan_day dx WHERE dx.nutrition_plan_id=p.id)) AND (p.owner_id=? OR"
             + " access.user_id=?) GROUP BY u.id,u.display_name,d.day_number,nt.calories ORDER BY"
             + " d.day_number,u.display_name",
         id,
@@ -226,9 +226,10 @@ public class NutritionController {
     Map<String, Object> plan =
         db
             .queryForList(
-                "SELECT p.household_id FROM nutrition_plan p JOIN household_member m ON"
-                    + " m.household_id=p.household_id WHERE p.id=? AND m.user_id=?",
+                "SELECT p.household_id,p.owner_id FROM nutrition_plan p LEFT JOIN household_member m ON"
+                    + " m.household_id=p.household_id WHERE p.id=? AND (p.owner_id=? OR m.user_id=?)",
                 planId,
+                CurrentUser.id(),
                 CurrentUser.id())
             .stream()
             .findFirst()
@@ -236,6 +237,9 @@ public class NutritionController {
                 () ->
                     new ApiException(HttpStatus.NOT_FOUND, "PLAN_NOT_FOUND", "Plan no encontrado"));
     UUID household = (UUID) plan.get("household_id");
+    if(household==null) household=db.query("SELECT household_id FROM household_member WHERE user_id=? ORDER BY joined_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),CurrentUser.id()).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.CONFLICT,"HOUSEHOLD_REQUIRED","Crea una unidad doméstica para compartir y mantener la lista de compra"));
+    Integer days=db.queryForObject("SELECT count(*) FROM nutrition_plan_day WHERE nutrition_plan_id=? AND week_number=?",Integer.class,planId,week);
+    if(days==null||days==0){Integer first=db.queryForObject("SELECT MIN(week_number) FROM nutrition_plan_day WHERE nutrition_plan_id=?",Integer.class,planId);if(first!=null)week=first;}
     List<Map<String, Object>> existing =
         db.queryForList(
             "SELECT id,manually_modified FROM shopping_list WHERE household_id=? AND"
