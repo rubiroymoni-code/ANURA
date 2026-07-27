@@ -216,14 +216,15 @@ export const nutritionApi = {
     request<
       Array<{
         id: string;
+        nutrition_plan_id: string;
         week_number: number;
         status: string;
         manually_modified: boolean;
       }>
     >("/nutrition/shopping-lists"),
-  generateShopping: (planId: string, replaceModified = false) =>
+  generateShopping: (planId: string, week = 1, replaceModified = false) =>
     request<{ id: string; items: number }>(
-      `/nutrition/plans/${planId}/shopping-list?week=1&replaceModified=${replaceModified}`,
+      `/nutrition/plans/${planId}/shopping-list?week=${week}&replaceModified=${replaceModified}`,
       { method: "POST" },
     ),
   items: (id: string) =>
@@ -233,10 +234,17 @@ export const nutritionApi = {
         name: string;
         category: string;
         quantity: number;
+        required_quantity: number;
+        pantry_used: number;
         unit: string;
         purchased: boolean;
+        manual: boolean;
       }>
     >(`/nutrition/shopping-lists/${id}/items`),
+  addShoppingItem: (id: string, body: {name:string;category:string;quantity:number;unit:string}) =>
+    request<{id:string;name:string}>(`/nutrition/shopping-lists/${id}/items`, {method:"POST",body:JSON.stringify(body)}),
+  shoppingQuantity: (id: string, quantity: number) =>
+    request<void>(`/nutrition/shopping-items/${id}/quantity`, {method:"PATCH",body:JSON.stringify({quantity})}),
   toggle: (id: string) =>
     request<void>(`/nutrition/shopping-items/${id}/toggle`, {
       method: "PATCH",

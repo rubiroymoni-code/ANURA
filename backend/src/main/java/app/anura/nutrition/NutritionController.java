@@ -211,7 +211,7 @@ public class NutritionController {
   @GetMapping("/shopping-lists")
   List<Map<String, Object>> shopping() {
     return db.queryForList(
-        "SELECT DISTINCT s.id,s.week_number,s.status,s.manually_modified,s.created_at FROM shopping_list s JOIN"
+        "SELECT DISTINCT s.id,s.nutrition_plan_id,s.week_number,s.status,s.manually_modified,s.created_at FROM shopping_list s JOIN"
             + " household_member m ON m.household_id=s.household_id WHERE m.user_id=? ORDER BY"
             + " s.created_at DESC",
         CurrentUser.id());
@@ -251,6 +251,12 @@ public class NutritionController {
             HttpStatus.CONFLICT,
             "SHOPPING_LIST_MODIFIED",
             "La lista fue modificada; confirma su sustitución");
+      db.update("""
+          INSERT INTO household_pantry_stock(household_id,ingredient_id,unit,quantity)
+          SELECT ?,ingredient_id,unit,SUM(pantry_used) FROM shopping_list_item
+          WHERE shopping_list_id=? AND ingredient_id IS NOT NULL GROUP BY ingredient_id,unit
+          ON CONFLICT(household_id,ingredient_id,unit) DO UPDATE SET quantity=household_pantry_stock.quantity+EXCLUDED.quantity,updated_at=CURRENT_TIMESTAMP
+          """, household, list);
       db.update("DELETE FROM shopping_list_item WHERE shopping_list_id=?", list);
       db.update(
           "UPDATE shopping_list SET manually_modified=FALSE,updated_at=CURRENT_TIMESTAMP WHERE"
@@ -279,26 +285,39 @@ public class NutritionController {
             planId,
             week);
     int order = 0;
-    for (Map<String, Object> row : totals)
+    for (Map<String, Object> row : totals) {
+      java.math.BigDecimal required = (java.math.BigDecimal) row.get("quantity");
+      java.math.BigDecimal stock = db.queryForObject(
+          "SELECT COALESCE(MAX(quantity),0) FROM household_pantry_stock WHERE household_id=? AND ingredient_id=? AND unit=?",
+          java.math.BigDecimal.class, household, row.get("ingredient_id"), row.get("unit"));
+      if (stock == null) stock = java.math.BigDecimal.ZERO;
+      java.math.BigDecimal pantryUsed = stock.min(required);
+      java.math.BigDecimal toBuy = required.subtract(pantryUsed);
+      if (pantryUsed.signum() > 0) db.update(
+          "UPDATE household_pantry_stock SET quantity=quantity-?,updated_at=CURRENT_TIMESTAMP WHERE household_id=? AND ingredient_id=? AND unit=?",
+          pantryUsed, household, row.get("ingredient_id"), row.get("unit"));
       db.update(
           "INSERT INTO"
-              + " shopping_list_item(id,shopping_list_id,ingredient_id,name,category,quantity,unit,item_order)"
-              + " VALUES(?,?,?,?,?,?,?,?)",
+              + " shopping_list_item(id,shopping_list_id,ingredient_id,name,category,quantity,required_quantity,pantry_used,unit,item_order)"
+              + " VALUES(?,?,?,?,?,?,?,?,?,?)",
           UUID.randomUUID(),
           list,
           row.get("ingredient_id"),
           row.get("name"),
           row.get("category"),
-          row.get("quantity"),
+          toBuy,
+          required,
+          pantryUsed,
           row.get("unit"),
           ++order);
+    }
     return Map.of("id", list, "items", totals.size(), "week", week);
   }
 
   @GetMapping("/shopping-lists/{id}/items")
   List<Map<String, Object>> items(@PathVariable UUID id) {
     return db.queryForList(
-        "SELECT i.id,i.name,i.category,i.quantity,i.unit,i.purchased,i.manual FROM"
+        "SELECT i.id,i.name,i.category,i.quantity,i.required_quantity,i.pantry_used,i.unit,i.purchased,i.manual FROM"
             + " shopping_list_item i JOIN shopping_list s ON s.id=i.shopping_list_id JOIN"
             + " household_member m ON m.household_id=s.household_id WHERE i.shopping_list_id=? AND"
             + " m.user_id=? ORDER BY i.item_order",
@@ -326,12 +345,13 @@ public class NutritionController {
             id);
     db.update(
         "INSERT INTO"
-            + " shopping_list_item(id,shopping_list_id,name,category,quantity,unit,manual,item_order)"
-            + " VALUES(?,?,?,?,?,?,TRUE,?)",
+            + " shopping_list_item(id,shopping_list_id,name,category,quantity,required_quantity,unit,manual,item_order)"
+            + " VALUES(?,?,?,?,?,?,?,TRUE,?)",
         item,
         id,
         body.name(),
         body.category(),
+        body.quantity(),
         body.quantity(),
         body.unit(),
         order);
@@ -342,15 +362,35 @@ public class NutritionController {
   }
 
   @PatchMapping("/shopping-items/{id}/toggle")
+  @Transactional
   void toggle(@PathVariable UUID id) {
-    db.update(
-        "UPDATE shopping_list_item i SET purchased=NOT purchased FROM shopping_list"
-            + " s,household_member m WHERE i.id=? AND s.id=i.shopping_list_id AND"
-            + " m.household_id=s.household_id AND m.user_id=?",
-        id,
-        CurrentUser.id());
+    Map<String,Object> item=db.queryForList("SELECT i.purchased,i.quantity,i.required_quantity,i.pantry_used,i.ingredient_id,i.unit,s.household_id FROM shopping_list_item i JOIN shopping_list s ON s.id=i.shopping_list_id JOIN household_member m ON m.household_id=s.household_id WHERE i.id=? AND m.user_id=?",id,CurrentUser.id()).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ITEM_NOT_FOUND","Artículo no encontrado"));
+    boolean purchased=Boolean.TRUE.equals(item.get("purchased"));
+    java.math.BigDecimal bought=(java.math.BigDecimal)item.get("quantity"),required=(java.math.BigDecimal)item.get("required_quantity"),used=(java.math.BigDecimal)item.get("pantry_used");
+    if(required==null)required=bought;if(used==null)used=java.math.BigDecimal.ZERO;
+    java.math.BigDecimal surplus=bought.add(used).subtract(required).max(java.math.BigDecimal.ZERO);
+    if(item.get("ingredient_id")!=null&&surplus.signum()>0){
+      if(!purchased) db.update("INSERT INTO household_pantry_stock(household_id,ingredient_id,unit,quantity) VALUES(?,?,?,?) ON CONFLICT(household_id,ingredient_id,unit) DO UPDATE SET quantity=household_pantry_stock.quantity+EXCLUDED.quantity,updated_at=CURRENT_TIMESTAMP",item.get("household_id"),item.get("ingredient_id"),item.get("unit"),surplus);
+      else db.update("UPDATE household_pantry_stock SET quantity=GREATEST(0,quantity-?),updated_at=CURRENT_TIMESTAMP WHERE household_id=? AND ingredient_id=? AND unit=?",surplus,item.get("household_id"),item.get("ingredient_id"),item.get("unit"));
+    }
+    db.update("UPDATE shopping_list_item SET purchased=? WHERE id=?",!purchased,id);
+  }
+
+  @PatchMapping("/shopping-items/{id}/quantity")
+  @Transactional
+  void quantity(@PathVariable UUID id,@RequestBody Quantity body){
+    if(body.quantity()==null||body.quantity().signum()<0)throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_QUANTITY","Cantidad no válida");
+    Map<String,Object> item=db.queryForList("SELECT i.purchased,i.quantity,i.required_quantity,i.pantry_used,i.ingredient_id,i.unit,s.household_id FROM shopping_list_item i JOIN shopping_list s ON s.id=i.shopping_list_id JOIN household_member m ON m.household_id=s.household_id WHERE i.id=? AND m.user_id=?",id,CurrentUser.id()).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"ITEM_NOT_FOUND","Artículo no encontrado"));
+    if(Boolean.TRUE.equals(item.get("purchased"))&&item.get("ingredient_id")!=null){
+      java.math.BigDecimal old=((java.math.BigDecimal)item.get("quantity")).add((java.math.BigDecimal)item.get("pantry_used")).subtract((java.math.BigDecimal)item.get("required_quantity")).max(java.math.BigDecimal.ZERO);
+      java.math.BigDecimal next=body.quantity().add((java.math.BigDecimal)item.get("pantry_used")).subtract((java.math.BigDecimal)item.get("required_quantity")).max(java.math.BigDecimal.ZERO);
+      db.update("UPDATE household_pantry_stock SET quantity=GREATEST(0,quantity+?),updated_at=CURRENT_TIMESTAMP WHERE household_id=? AND ingredient_id=? AND unit=?",next.subtract(old),item.get("household_id"),item.get("ingredient_id"),item.get("unit"));
+    }
+    db.update("UPDATE shopping_list_item SET quantity=? WHERE id=?",body.quantity(),id);
+    db.update("UPDATE shopping_list SET manually_modified=TRUE,updated_at=CURRENT_TIMESTAMP WHERE id=(SELECT shopping_list_id FROM shopping_list_item WHERE id=?)",id);
   }
 }
 
 record Item(String name, String category, java.math.BigDecimal quantity, String unit) {}
+record Quantity(java.math.BigDecimal quantity) {}
 record NutritionTarget(LocalDate validFrom, java.math.BigDecimal calories, java.math.BigDecimal protein, java.math.BigDecimal carbohydrates, java.math.BigDecimal fat, java.math.BigDecimal fiber) {}
