@@ -110,6 +110,11 @@ export const trainingApi = {
     request<{ planId: string; status: string }>(`/imports/${id}/confirm`, {
       method: "POST",
     }),
+  activate: (id: string) =>
+    request<{ id: string; name: string; version: number; status: string }>(
+      `/workout-plans/${id}/activate`,
+      { method: "POST" },
+    ),
   plans: () =>
     request<
       Array<{ id: string; name: string; version: number; status: string }>
