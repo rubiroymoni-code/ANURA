@@ -10,26 +10,29 @@ import java.util.Map;
 
 @Service
 public class EmailService {
-    private final RestClient resend;
-    private final boolean enabled;
-    private final String apiKey;
-    private final String from;
+    private final RestClient brevo;
+    private final boolean brevoEnabled;
+    private final String brevoApiKey;
+    private final String brevoFromEmail;
+    private final String brevoFromName;
     private final String frontendUrl;
 
     EmailService(RestClient.Builder builder,
-                 @Value("${app.mail.enabled:false}") boolean enabled,
-                 @Value("${app.mail.api-key:}") String apiKey,
-                 @Value("${app.mail.from:onboarding@resend.dev}") String from,
+                 @Value("${app.mail.brevo.enabled:false}") boolean brevoEnabled,
+                 @Value("${app.mail.brevo.api-key:}") String brevoApiKey,
+                 @Value("${app.mail.brevo.from-email:}") String brevoFromEmail,
+                 @Value("${app.mail.brevo.from-name:ANURA}") String brevoFromName,
                  @Value("${app.mail.frontend-url:http://localhost:5173}") String frontendUrl) {
-        this.resend = builder.baseUrl("https://api.resend.com").build();
-        this.enabled = enabled;
-        this.apiKey = apiKey;
-        this.from = from;
+        this.brevo = builder.baseUrl("https://api.brevo.com/v3").build();
+        this.brevoEnabled = brevoEnabled;
+        this.brevoApiKey = brevoApiKey;
+        this.brevoFromEmail = brevoFromEmail;
+        this.brevoFromName = brevoFromName;
         this.frontendUrl = frontendUrl;
     }
 
     public boolean enabled() {
-        return enabled;
+        return brevoConfigured();
     }
 
     public String frontendUrl() {
@@ -37,18 +40,55 @@ public class EmailService {
     }
 
     public void send(String to, String subject, String body) {
-        if (!enabled || apiKey.isBlank()) {
+        if (!enabled()) {
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "EMAIL_NOT_CONFIGURED", "El servicio de correo todavia no esta configurado");
         }
         try {
-            resend.post()
-                .uri("/emails")
-                .header("Authorization", "Bearer " + apiKey)
-                .body(Map.of("from", from, "to", new String[]{to}, "subject", subject, "text", body))
+            brevo.post()
+                .uri("/smtp/email")
+                .header("api-key", brevoApiKey)
+                .body(Map.of(
+                    "sender", Map.of("name", brevoFromName, "email", brevoFromEmail),
+                    "to", new Object[]{Map.of("email", to)},
+                    "subject", subject,
+                    "textContent", body,
+                    "htmlContent", brandedHtml(subject, body)))
                 .retrieve()
                 .toBodilessEntity();
         } catch (Exception exception) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "EMAIL_DELIVERY_FAILED", "No se pudo enviar el correo");
         }
     }
+
+    private boolean brevoConfigured() {
+        return brevoEnabled && !brevoApiKey.isBlank() && !brevoFromEmail.isBlank();
+    }
+
+    private String brandedHtml(String subject, String body) {
+        String safeSubject = escape(subject);
+        String safeBody = escape(body).replace("\n", "<br>");
+        return """
+            <!doctype html><html lang="es"><body style="margin:0;background:#f1f3ed;font-family:Arial,sans-serif;color:#122018">
+            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f1f3ed;padding:32px 14px"><tr><td align="center">
+              <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border-radius:24px;overflow:hidden;box-shadow:0 18px 50px rgba(18,32,24,.12)">
+                <tr><td style="background:#13251a;padding:28px 32px;color:#fff">
+                  <div style="display:inline-block;background:#c7f454;color:#13251a;border-radius:12px;padding:8px 12px;font-size:22px;font-weight:900">A</div>
+                  <span style="margin-left:10px;font-size:20px;font-weight:800;letter-spacing:3px">ANURA</span>
+                </td></tr>
+                <tr><td style="padding:34px 32px 18px">
+                  <div style="color:#718076;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Tu espacio saludable</div>
+                  <h1 style="margin:10px 0 18px;font-size:28px;line-height:1.15">%s</h1>
+                  <div style="font-size:16px;line-height:1.75;color:#35443a;background:#f3f6ee;border-left:4px solid #c7f454;border-radius:12px;padding:18px">%s</div>
+                  <div style="padding-top:26px"><a href="%s" style="display:inline-block;background:#c7f454;color:#13251a;text-decoration:none;border-radius:14px;padding:14px 24px;font-weight:800">Abrir ANURA</a></div>
+                </td></tr>
+                <tr><td style="padding:18px 32px 30px;color:#8a958d;font-size:12px;line-height:1.5">Si no has solicitado este mensaje, puedes ignorarlo con seguridad.<br>ANURA · Tu progreso, en un solo lugar.</td></tr>
+              </table>
+            </td></tr></table></body></html>
+            """.formatted(safeSubject, safeBody, escape(frontendUrl));
+    }
+
+    private String escape(String value) {
+        return value == null ? "" : value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;");
+    }
+
 }

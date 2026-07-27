@@ -522,77 +522,26 @@ function PlanView({ id }: { id: string }) {
   );
 }
 
-function Shopping({ plans }: { plans: Array<{ id: string }> }) {
-  const [lists, setLists] = useState<
-    Array<{ id: string; week_number: number }>
-  >([]);
-  const [items, setItems] = useState<
-    Array<{
-      id: string;
-      name: string;
-      quantity: number;
-      unit: string;
-      purchased: boolean;
-    }>
-  >([]);
-  useEffect(() => {
-    void nutritionApi.shopping().then(async (l) => {
-      setLists(l);
-      if (l[0]) setItems(await nutritionApi.items(l[0].id));
-    });
-  }, []);
-  return (
-    <div>
-      {!lists.length ? (
-        <>
-          <div className="empty">No hay lista generada todavía.</div>
-          {plans[0] && (
-            <button
-              className="primary"
-              onClick={async () => {
-                await nutritionApi.generateShopping(plans[0].id);
-                const current = await nutritionApi.shopping();
-                setLists(current);
-                if (current[0])
-                  setItems(await nutritionApi.items(current[0].id));
-              }}
-            >
-              Generar desde el plan
-            </button>
-          )}
-        </>
-      ) : (
-        <>
-          {items.map((i) => (
-            <button
-              className={"shopping-item " + (i.purchased ? "purchased" : "")}
-              onClick={async () => {
-                await nutritionApi.toggle(i.id);
-                setItems(await nutritionApi.items(lists[0].id));
-              }}
-            >
-              <span>{i.purchased ? "✓" : "○"}</span>
-              <b>{i.name}</b>
-              <small>
-                {i.quantity} {i.unit}
-              </small>
-            </button>
-          ))}
-          <button
-            className="primary secondary"
-            onClick={() =>
-              navigator.clipboard.writeText(
-                items
-                  .filter((i) => !i.purchased)
-                  .map((i) => `${i.name}: ${i.quantity} ${i.unit}`)
-                  .join("\n"),
-              )
-            }
-          >
-            Copiar para Google Keep
-          </button>
-        </>
-      )}
-    </div>
-  );
+function Shopping({ plans }: { plans: Array<{ id: string;name:string;status:string }> }) {
+  const [lists,setLists]=useState<Awaited<ReturnType<typeof nutritionApi.shopping>>>([]),[items,setItems]=useState<Awaited<ReturnType<typeof nutritionApi.items>>>([]),[week,setWeek]=useState(1),[listId,setListId]=useState(""),[error,setError]=useState("");
+  const activePlan=plans.find(p=>p.status==="ACTIVE")||plans[0];
+  const load=async(preferred?:string)=>{const next=await nutritionApi.shopping();setLists(next);const selected=next.find(x=>x.id===(preferred||listId))||next.find(x=>x.week_number===week)||next[0];setListId(selected?.id||"");setItems(selected?await nutritionApi.items(selected.id):[])};
+  useEffect(()=>{void load()},[]);
+  const generate=async()=>{if(!activePlan)return;setError("");try{const result=await nutritionApi.generateShopping(activePlan.id,week);await load(result.id)}catch(cause){if(cause instanceof Error&&cause.message.includes("modificada")&&confirm("La lista tiene cambios manuales. ¿Regenerarla igualmente?")){const result=await nutritionApi.generateShopping(activePlan.id,week,true);await load(result.id)}else setError(cause instanceof Error?cause.message:"No se pudo generar")}};
+  const refreshItems=async()=>{if(listId)setItems(await nutritionApi.items(listId))};
+  const categories=[...new Set(items.map(i=>i.category||"OTHER"))];
+  return <div className="shopping-view">
+    <div className="shopping-toolbar"><label>Semana<select value={week} onChange={e=>setWeek(Number(e.target.value))}>{[1,2,3,4,5,6,7,8].map(n=><option key={n} value={n}>Semana {n}</option>)}</select></label><button className="primary" disabled={!activePlan} onClick={generate}>{lists.some(x=>x.week_number===week)?"Regenerar semana":"Generar desde el plan"}</button></div>
+    {error&&<p className="error">{error}</p>}
+    {lists.length>0&&<select className="shopping-list-select" value={listId} onChange={async e=>{setListId(e.target.value);setItems(await nutritionApi.items(e.target.value))}}>{lists.map(l=><option key={l.id} value={l.id}>Semana {l.week_number}</option>)}</select>}
+    {!listId?<div className="empty">Genera la lista de la semana desde tu plan activo.</div>:<>
+      <div className="pantry-note">La despensa descuenta automáticamente los sobrantes comprados en semanas anteriores.</div>
+      {categories.map(category=><section className="shopping-category" key={category}><h4>{categoryLabel(category)}</h4>{items.filter(i=>(i.category||"OTHER")===category).map(i=><article className={`shopping-item ${i.purchased?"purchased":""}`} key={i.id}>
+        <button className="shopping-check" onClick={async()=>{await nutritionApi.toggle(i.id);await refreshItems()}}>{i.purchased?"✓":"○"}</button><div><b>{i.name}</b><small>Necesario: {i.required_quantity} {i.unit}{i.pantry_used>0?` · Despensa: ${i.pantry_used} ${i.unit}`:""}</small></div><label>Comprar<input type="number" min="0" step="0.001" defaultValue={i.quantity} onBlur={async e=>{await nutritionApi.shoppingQuantity(i.id,Number(e.target.value));await refreshItems()}}/><span>{i.unit}</span></label>
+      </article>)}</section>)}
+      <form className="shopping-add" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);await nutritionApi.addShoppingItem(listId,{name:String(f.get("name")),category:String(f.get("category")),quantity:Number(f.get("quantity")),unit:String(f.get("unit"))});e.currentTarget.reset();await refreshItems()}}><b>Añadir a la casa</b><input name="name" required placeholder="Producto"/><select name="category"><option value="OTHER">Otros</option><option value="PANTRY">Despensa</option><option value="FRUIT_VEGETABLES">Fruta y verdura</option><option value="MEAT_FISH">Carnes y pescados</option><option value="DAIRY">Lácteos</option></select><input name="quantity" required type="number" min="0" step="0.001" placeholder="Cantidad"/><input name="unit" required placeholder="ud, g, ml…"/><button className="primary">Añadir</button></form>
+      <button className="primary secondary" onClick={()=>navigator.clipboard.writeText(items.filter(i=>!i.purchased&&i.quantity>0).map(i=>`${i.name}: ${i.quantity} ${i.unit}`).join("\n"))}>Copiar pendientes</button>
+    </>}
+  </div>;
 }
+function categoryLabel(value:string){return ({FRUIT_VEGETABLES:"Fruta y verdura",MEAT_FISH:"Carnes y pescados",DAIRY:"Lácteos",CEREALS_LEGUMES:"Cereales y legumbres",FROZEN:"Congelados",PANTRY:"Despensa",DRINKS:"Bebidas",OTHER:"Otros"} as Record<string,string>)[value]||value}

@@ -123,7 +123,7 @@ export const trainingApi = {
 
 export type WorkoutSet = { id:string; setNumber:number; setType:string; weight?:number; repetitions?:number; rir?:number; rpe?:number; restSeconds?:number; completed:boolean; clientExternalId:string };
 export type WorkoutExercise = { id:string; exerciseId:string; name:string; muscleGroup?:string; equipment?:string; order:number; targetSets?:number; targetRepsMin?:number; targetRepsMax?:number; targetRir?:number; targetRestSeconds?:number; instructions?:string; completed:boolean; painReported:boolean; painIntensity?:number; sets:WorkoutSet[] };
-export type WorkoutSession = { header:{id:string;name:string;plannedDate:string;status:string;startedAt:string;durationSeconds?:number;globalRpe?:number;painLevel?:number;clientExternalId:string;workoutPlanVersion?:number}; exercises:WorkoutExercise[]; metrics:{exercises:number;sets:number;repetitions:number;volume:number;maxPain:number;personalRecords:number} };
+export type WorkoutSession = { header:{id:string;name:string;plannedDate:string;status:string;startedAt:string;durationSeconds?:number;globalRpe?:number;painLevel?:number;clientExternalId:string;workoutPlanVersion?:number;pausedAt?:string;pausedSeconds:number}; exercises:WorkoutExercise[]; metrics:{exercises:number;sets:number;repetitions:number;volume:number;maxPain:number;personalRecords:number} };
 export type TodayWorkout = { planId:string;planName:string;planVersion:number;dayId:string;sessionName:string;dayName:string;weekNumber:number;dayNumber:number;estimatedMinutes:number;exerciseCount:number;exercises:Array<{exerciseId:string;name:string;muscleGroup?:string;sets:number;repsMin:number;repsMax:number;targetRir?:number;restSeconds?:number}> };
 export type WorkoutSummary = {id:string;name:string;date:string;status:string;durationSeconds?:number;globalRpe?:number;exercises:number;sets:number;volume:number};
 export const workoutApi = {
@@ -216,14 +216,15 @@ export const nutritionApi = {
     request<
       Array<{
         id: string;
+        nutrition_plan_id: string;
         week_number: number;
         status: string;
         manually_modified: boolean;
       }>
     >("/nutrition/shopping-lists"),
-  generateShopping: (planId: string, replaceModified = false) =>
+  generateShopping: (planId: string, week = 1, replaceModified = false) =>
     request<{ id: string; items: number }>(
-      `/nutrition/plans/${planId}/shopping-list?week=1&replaceModified=${replaceModified}`,
+      `/nutrition/plans/${planId}/shopping-list?week=${week}&replaceModified=${replaceModified}`,
       { method: "POST" },
     ),
   items: (id: string) =>
@@ -233,10 +234,17 @@ export const nutritionApi = {
         name: string;
         category: string;
         quantity: number;
+        required_quantity: number;
+        pantry_used: number;
         unit: string;
         purchased: boolean;
+        manual: boolean;
       }>
     >(`/nutrition/shopping-lists/${id}/items`),
+  addShoppingItem: (id: string, body: {name:string;category:string;quantity:number;unit:string}) =>
+    request<{id:string;name:string}>(`/nutrition/shopping-lists/${id}/items`, {method:"POST",body:JSON.stringify(body)}),
+  shoppingQuantity: (id: string, quantity: number) =>
+    request<void>(`/nutrition/shopping-items/${id}/quantity`, {method:"PATCH",body:JSON.stringify({quantity})}),
   toggle: (id: string) =>
     request<void>(`/nutrition/shopping-items/${id}/toggle`, {
       method: "PATCH",
