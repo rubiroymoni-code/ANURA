@@ -1,0 +1,10 @@
+/* Canonical viewport geometry shared by every feature. */
+html,body,#root{min-height:100%;max-width:100%;overflow-x:hidden}
+body{min-width:320px}body.modal-open{overflow:hidden}button{min-height:44px}button:disabled{cursor:not-allowed;opacity:.55}
+.shell{width:100%;max-width:1240px;min-height:100dvh;overflow-x:clip;padding-bottom:calc(92px + env(safe-area-inset-bottom))}
+.shell>header,.shell nav{width:min(1240px,100%)}.content{width:100%;max-width:1160px;margin-inline:auto;padding:32px clamp(20px,4vw,46px)}
+.overlay{z-index:50;align-items:center;padding:24px}.modal{width:min(720px,100%);max-height:88dvh;border-radius:26px;box-shadow:0 28px 90px #07100955}.nutrition-hub{width:min(900px,100%)}
+.body-progress,.body-chart,.body-chart svg,.chart-wrap,.evolution-chart{min-width:0;max-width:100%}.body-chart,.chart-wrap{overflow:hidden}.row,.checkin-primary-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(min-width:900px){.daily-plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.content{padding:24px 18px}.overlay{align-items:stretch;padding:0}.modal{width:100%;height:100dvh;max-height:100dvh;border-radius:0;padding-top:max(18px,env(safe-area-inset-top));padding-bottom:max(30px,env(safe-area-inset-bottom))}.modal input,.modal textarea,.modal select,.auth input{font-size:16px}.row,.checkin-primary-fields{grid-template-columns:1fr}.fab{bottom:calc(65px + env(safe-area-inset-bottom))}}
+@media(max-width:360px){.content{padding-inline:14px}.modal{padding-inline:16px}.quick-grid,.body-kpis,.measure-grid{grid-template-columns:1fr}.types button{min-width:64px}.hello h1,.section-title h1{font-size:36px}}

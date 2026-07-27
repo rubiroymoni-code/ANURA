@@ -65,10 +65,11 @@ public class NutritionController {
     return db.queryForList(
         "SELECT pm.id planned_meal_id,p.id plan_id,p.name plan_name,p.version,d.day_name,pm.meal_type,pm.meal_name,r.name recipe,"
             + " ump.calories,ump.protein,ump.carbohydrates,ump.fat,ump.portion_multiplier,"
-            + " EXISTS(SELECT 1 FROM tracker_entry te WHERE te.user_id=? AND te.entry_date=CURRENT_DATE AND te.planned_meal_id=pm.id) completed"
+            + " COALESCE(cm.status,'PENDING') status,cm.id consumed_meal_id,cm.custom_name,cm.notes,cm.completed_at"
             + " FROM nutrition_plan p LEFT JOIN household_member access ON access.household_id=p.household_id"
             + " JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id"
             + " JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=?"
+            + " LEFT JOIN consumed_meal cm ON cm.planned_meal_id=pm.id AND cm.user_id=? AND cm.meal_date=CURRENT_DATE"
             + " WHERE p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?) AND d.day_number=?"
             + " ORDER BY pm.meal_order",
         CurrentUser.id(),CurrentUser.id(),CurrentUser.id(),CurrentUser.id(),LocalDate.now().getDayOfWeek().getValue());
@@ -76,26 +77,59 @@ public class NutritionController {
 
   @PostMapping("/today/{mealId}/complete")
   @Transactional
-  Map<String,Object> completeTodayMeal(@PathVariable UUID mealId,@RequestBody(required=false) MealCompletion changes) {
-    UUID user=CurrentUser.id();
-    Map<String,Object> meal=db.queryForList(
-        "SELECT pm.id,pm.meal_name,r.name recipe,ump.calories,ump.protein,ump.carbohydrates,ump.fat"
-            + " FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id JOIN nutrition_plan p ON p.id=d.nutrition_plan_id"
-            + " LEFT JOIN household_member access ON access.household_id=p.household_id JOIN recipe r ON r.id=pm.recipe_id"
-            + " JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=?"
-            + " WHERE pm.id=? AND p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?)",
-        user,mealId,user,user).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"MEAL_NOT_FOUND","Comida planificada no encontrada"));
-    UUID entry=UUID.randomUUID();
-    String title=changes!=null&&changes.title()!=null&&!changes.title().isBlank()?changes.title().trim():meal.get("meal_name").toString();
-    Object calories=changes!=null&&changes.calories()!=null?changes.calories():meal.get("calories");
-    String notes=changes!=null&&changes.notes()!=null&&!changes.notes().isBlank()?changes.notes().trim():"Comida completada desde el plan";
-    db.update("INSERT INTO tracker_entry(id,user_id,type,title,entry_date,value,unit,details,notes,completed,planned_meal_id) VALUES(?,?,'MEAL',?,CURRENT_DATE,?,'kcal',?,? ,TRUE,?) ON CONFLICT(user_id,entry_date,planned_meal_id) WHERE planned_meal_id IS NOT NULL DO UPDATE SET title=EXCLUDED.title,value=EXCLUDED.value,details=EXCLUDED.details,notes=EXCLUDED.notes,completed=TRUE,updated_at=CURRENT_TIMESTAMP",
-        entry,user,title,calories,meal.get("recipe"),notes,mealId);
-    Map<String,Object> result=new LinkedHashMap<>();
-    result.put("plannedMealId",mealId);result.put("completed",true);result.put("calories",meal.get("calories"));
-    return result;
+  Map<String,Object> completeTodayMeal(@PathVariable UUID mealId) {
+    Map<String,Object> meal=plannedMeal(mealId);
+    return savePlanned(mealId,"COMPLETED",null,meal,null);
   }
-  record MealCompletion(String title,java.math.BigDecimal calories,String notes){}
+
+  @PostMapping("/today/{mealId}/skip")
+  @Transactional
+  Map<String,Object> skipTodayMeal(@PathVariable UUID mealId,@RequestBody(required=false) MealInput input) {
+    Map<String,Object> meal=plannedMeal(mealId);
+    return savePlanned(mealId,"SKIPPED",input,meal,null);
+  }
+
+  @PostMapping("/today/{mealId}/substitute")
+  @Transactional
+  Map<String,Object> substituteTodayMeal(@PathVariable UUID mealId,@RequestBody MealInput input) {
+    if(input==null||input.name()==null||input.name().isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST,"MEAL_NAME_REQUIRED","Escribe qué has comido");
+    Map<String,Object> meal=plannedMeal(mealId);
+    return savePlanned(mealId,"SUBSTITUTED",input,meal,input.name().trim());
+  }
+
+  @PostMapping("/meals/custom")
+  @ResponseStatus(HttpStatus.CREATED)
+  @Transactional
+  Map<String,Object> customMeal(@RequestBody MealInput input) {
+    validateMealType(input==null?null:input.mealType());
+    if(input.name()==null||input.name().isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST,"MEAL_NAME_REQUIRED","Escribe qué has comido");
+    UUID id=UUID.randomUUID();LocalDate date=input.date()==null?LocalDate.now():input.date();
+    db.update("INSERT INTO consumed_meal(id,user_id,meal_date,meal_type,status,custom_name,portion,calories,protein,carbohydrates,fat,notes,completed_at) VALUES(?,?,?,?, 'COMPLETED',?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",id,CurrentUser.id(),date,input.mealType(),input.name().trim(),clean(input.portion()),input.calories(),input.protein(),input.carbohydrates(),input.fat(),clean(input.notes()));
+    return consumed(id);
+  }
+
+  @PatchMapping("/consumed-meals/{id}")
+  @Transactional
+  Map<String,Object> editConsumed(@PathVariable UUID id,@RequestBody MealInput input) {
+    ownedConsumed(id);validateMealType(input.mealType());
+    if(input.name()==null||input.name().isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST,"MEAL_NAME_REQUIRED","Escribe qué has comido");
+    db.update("UPDATE consumed_meal SET meal_date=?,meal_type=?,custom_name=?,portion=?,calories=?,protein=?,carbohydrates=?,fat=?,notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?",input.date()==null?LocalDate.now():input.date(),input.mealType(),input.name().trim(),clean(input.portion()),input.calories(),input.protein(),input.carbohydrates(),input.fat(),clean(input.notes()),id,CurrentUser.id());
+    return consumed(id);
+  }
+
+  @DeleteMapping("/consumed-meals/{id}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  @Transactional
+  void deleteConsumed(@PathVariable UUID id){ownedConsumed(id);db.update("DELETE FROM consumed_meal WHERE id=? AND user_id=?",id,CurrentUser.id());}
+
+  private Map<String,Object> plannedMeal(UUID mealId){UUID user=CurrentUser.id();return db.queryForList("SELECT pm.id,pm.meal_type,pm.meal_name,ump.calories,ump.protein,ump.carbohydrates,ump.fat FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id JOIN nutrition_plan p ON p.id=d.nutrition_plan_id LEFT JOIN household_member access ON access.household_id=p.household_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE pm.id=? AND p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?)",user,mealId,user,user).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"MEAL_NOT_FOUND","Comida planificada no encontrada"));}
+  private Map<String,Object> savePlanned(UUID mealId,String status,MealInput input,Map<String,Object> meal,String customName){UUID id=UUID.randomUUID();Object calories=input!=null&&input.calories()!=null?input.calories():meal.get("calories");Object protein=input!=null&&input.protein()!=null?input.protein():meal.get("protein");Object carbs=input!=null&&input.carbohydrates()!=null?input.carbohydrates():meal.get("carbohydrates");Object fat=input!=null&&input.fat()!=null?input.fat():meal.get("fat");db.update("INSERT INTO consumed_meal(id,user_id,planned_meal_id,meal_date,meal_type,status,custom_name,portion,calories,protein,carbohydrates,fat,notes,completed_at) VALUES(?,?,?,CURRENT_DATE,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(user_id,planned_meal_id,meal_date) WHERE planned_meal_id IS NOT NULL DO UPDATE SET status=EXCLUDED.status,custom_name=EXCLUDED.custom_name,portion=EXCLUDED.portion,calories=EXCLUDED.calories,protein=EXCLUDED.protein,carbohydrates=EXCLUDED.carbohydrates,fat=EXCLUDED.fat,notes=EXCLUDED.notes,completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP",id,CurrentUser.id(),mealId,normalizeMealType(meal.get("meal_type").toString()),status,customName,input==null?null:clean(input.portion()),"SKIPPED".equals(status)?null:calories,"SKIPPED".equals(status)?null:protein,"SKIPPED".equals(status)?null:carbs,"SKIPPED".equals(status)?null:fat,input==null?null:clean(input.notes()));return db.queryForMap("SELECT id,planned_meal_id,status,custom_name,calories,protein,carbohydrates,fat,notes,completed_at FROM consumed_meal WHERE user_id=? AND planned_meal_id=? AND meal_date=CURRENT_DATE",CurrentUser.id(),mealId);}
+  private Map<String,Object> consumed(UUID id){return db.queryForMap("SELECT id,planned_meal_id,meal_date,meal_type,status,custom_name,portion,calories,protein,carbohydrates,fat,notes,completed_at FROM consumed_meal WHERE id=? AND user_id=?",id,CurrentUser.id());}
+  private void ownedConsumed(UUID id){if(!Boolean.TRUE.equals(db.queryForObject("SELECT EXISTS(SELECT 1 FROM consumed_meal WHERE id=? AND user_id=?)",Boolean.class,id,CurrentUser.id())))throw new ApiException(HttpStatus.NOT_FOUND,"CONSUMED_MEAL_NOT_FOUND","Registro de comida no encontrado");}
+  private static void validateMealType(String type){if(!Set.of("BREAKFAST","MID_MORNING","LUNCH","SNACK","DINNER","OTHER").contains(type))throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_MEAL_TYPE","Selecciona un momento del día válido");}
+  private static String normalizeMealType(String value){String v=value.toUpperCase(Locale.ROOT);if(v.contains("DESAY")||v.equals("BREAKFAST"))return"BREAKFAST";if(v.contains("MEDIA")||v.equals("MID_MORNING"))return"MID_MORNING";if(v.equals("COMIDA")||v.equals("LUNCH"))return"LUNCH";if(v.contains("MERIEN")||v.equals("SNACK"))return"SNACK";if(v.contains("CENA")||v.equals("DINNER"))return"DINNER";return"OTHER";}
+  private static String clean(String value){return value==null||value.isBlank()?null:value.trim();}
+  record MealInput(String mealType,String name,LocalDate date,String portion,java.math.BigDecimal calories,java.math.BigDecimal protein,java.math.BigDecimal carbohydrates,java.math.BigDecimal fat,String notes){}
 
   @GetMapping("/plans/{id}/week")
   List<Map<String, Object>> week(
