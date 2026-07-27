@@ -32,16 +32,17 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
   const [plans, setPlans] = useState<
     Array<{ id: string; name: string; version: number; status: string }>
   >([]);
+  const [loadError, setLoadError] = useState("");
   const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
   useEffect(() => {
-    void Promise.all([
-      householdApi.list(),
-      nutritionApi.recipes(),
-      nutritionApi.plans(),
-    ]).then(([h, r, p]) => {
-      setHouseholds(h);
-      setRecipes(r);
-      setPlans(p);
+    void Promise.allSettled([
+      householdApi.list(), nutritionApi.recipes(), nutritionApi.plans(),
+    ]).then(([householdResult, recipeResult, planResult]) => {
+      if (householdResult.status === "fulfilled") setHouseholds(householdResult.value);
+      if (recipeResult.status === "fulfilled") setRecipes(recipeResult.value);
+      if (planResult.status === "fulfilled") setPlans(planResult.value);
+      const rejected = [householdResult, recipeResult, planResult].find(result => result.status === "rejected");
+      if (rejected?.status === "rejected") setLoadError(rejected.reason instanceof Error ? rejected.reason.message : "No se pudo cargar nutrición");
     });
   }, []);
   return (
@@ -64,6 +65,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
             <X />
           </button>
         </div>
+        {loadError && <div className="error" role="alert">{loadError}</div>}
         {section === "home" && (
           <>
             {activePlan && (
