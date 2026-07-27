@@ -1,9 +1,9 @@
 import { useEffect,useMemo,useState } from "react";
-import { Check,ChevronDown,Clock,Copy,Dumbbell,History,Pause,Play,Plus,RotateCcw,Signal,SignalZero,Trash2,X } from "lucide-react";
+import { Check,ChevronDown,Clock,Copy,Dumbbell,FileUp,History,Pause,Play,Plus,RotateCcw,Signal,SignalZero,Trash2,X } from "lucide-react";
 import { workoutApi, type TodayWorkout,type WorkoutExercise,type WorkoutSession,type WorkoutSet,type WorkoutSummary } from "./api";
 import { pendingOperations,queueOperation,removeOperations,type OfflineOperation } from "./workoutOffline";
 
-export function WorkoutHub({onClose}:{onClose:()=>void}){
+export function WorkoutHub({onClose,onImport}:{onClose:()=>void;onImport:()=>void}){
  const [today,setToday]=useState<TodayWorkout|null>(null),[session,setSession]=useState<WorkoutSession|null>(null),[history,setHistory]=useState<WorkoutSummary[]>([]),[view,setView]=useState<"today"|"active"|"history"|"summary">("today"),[busy,setBusy]=useState(false),[sync,setSync]=useState("Sincronizado");
  const load=async()=>{const [t,a,h]=await Promise.all([workoutApi.today().catch(()=>null),workoutApi.active().catch(()=>null),workoutApi.history().catch(()=>[])]);setToday(t);setSession(a);setHistory(h);if(a)setView("active")};
  useEffect(()=>{void load()},[]);
@@ -15,7 +15,7 @@ export function WorkoutHub({onClose}:{onClose:()=>void}){
  {view==="active"&&session&&<ActiveWorkout session={session} sync={sync} setSession={setSession} onSync={syncPending} onFinish={()=>setView("summary")}/>} 
  {view==="history"&&<WorkoutHistory rows={history} onOpen={async id=>{setSession(await workoutApi.one(id));setView("summary")}}/>}
  {view==="summary"&&session&&<WorkoutSummaryView session={session} onBack={()=>{void load();setView("history")}}/>}
- <nav className="workout-tabs"><button className={view==="today"?"active":""} onClick={()=>setView("today")}><Dumbbell/>Hoy</button><button className={view==="active"?"active":""} disabled={!session} onClick={()=>setView("active")}><Play/>Sesión</button><button className={view==="history"?"active":""} onClick={()=>setView("history")}><History/>Histórico</button></nav>
+ <nav className="workout-tabs"><button className={view==="today"?"active":""} onClick={()=>setView("today")}><Dumbbell/>Hoy</button><button className={view==="active"?"active":""} disabled={!session} onClick={()=>setView("active")}><Play/>Sesión</button><button className={view==="history"?"active":""} onClick={()=>setView("history")}><History/>Histórico</button><button onClick={onImport}><FileUp/>Importar plan</button></nav>
  </section></div>
 }
 

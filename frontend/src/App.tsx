@@ -296,6 +296,10 @@ export function App() {
       )}
       {workoutOpen && (
         <WorkoutHub
+          onImport={() => {
+            setWorkoutOpen(false);
+            setImportOpen(true);
+          }}
           onClose={() => {
             setWorkoutOpen(false);
             load();
