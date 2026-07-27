@@ -1,0 +1,56 @@
+/* Ajuste final del check-in corporal en pantallas de escritorio. */
+@media (min-width: 721px) {
+  .checkin-overlay {
+    z-index: 100;
+    padding: 24px;
+    background: rgba(10, 22, 15, 0.82);
+  }
+
+  .checkin-modal {
+    width: min(760px, calc(100vw - 48px));
+    max-height: min(760px, calc(100dvh - 48px));
+    padding: 24px 26px 22px;
+    border-radius: 28px;
+  }
+
+  .checkin-modal .modal-head {
+    margin-bottom: 16px;
+  }
+
+  .checkin-modal .modal-head h2 {
+    font-size: clamp(28px, 3vw, 36px);
+  }
+
+  .checkin-form-scroll {
+    padding-right: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: #a7afa6 transparent;
+  }
+
+  .checkin-primary-fields,
+  .measurement-fields > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .measurement-fields {
+    padding: 14px;
+  }
+
+  .checkin-save {
+    min-height: 56px;
+    margin-top: 12px;
+  }
+
+  body:has(.checkin-overlay) .shell > nav,
+  body:has(.checkin-overlay) .shell > .fab {
+    visibility: hidden;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 899px) {
+  .checkin-primary-fields,
+  .measurement-fields > div {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
