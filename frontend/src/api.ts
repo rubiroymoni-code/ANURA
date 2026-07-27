@@ -169,6 +169,9 @@ export const householdApi = {
     request<
       Array<{ id: string; email: string; display_name: string; role: string }>
     >(`/households/${id}/members`),
+  rename: (id:string,name:string)=>request<Household>(`/households/${id}`,{method:"PATCH",body:JSON.stringify({name})}),
+  leave: (id:string)=>request<void>(`/households/${id}/leave`,{method:"POST"}),
+  remove: (id:string)=>request<void>(`/households/${id}`,{method:"DELETE"}),
   invite: (id: string, email?: string) =>
     request<{ code: string; expiresAt: string;recipientStatus:"REGISTERED_USER"|"NEW_USER"|"SHAREABLE_CODE";deliveryStatus:"SENT"|"FAILED"|"EMAIL_DISABLED"|"NOT_REQUESTED" }>(
       `/households/${id}/invitations`,

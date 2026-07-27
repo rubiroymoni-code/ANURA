@@ -73,14 +73,18 @@ public class TrainingPlanImportService {
     UUID job = UUID.randomUUID();
     int inserted=db.update(
         "INSERT INTO import_job(id,user_id,import_type,schema_version,status,original_filename,checksum,file_size,content,external_id,plan_version,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING",
-        job,user,"TRAINING_PLAN","v1",parsed.issues.isEmpty()?"VALID":"INVALID",safeName(file.getOriginalFilename()),checksum,file.getSize(),content,parsed.externalId,parsed.version,Instant.now().plusSeconds(ttlHours*3600));
+        job,user,"TRAINING_PLAN","v1",parsed.issues.isEmpty()?"VALID":"INVALID",safeName(file.getOriginalFilename()),checksum,file.getSize(),content,parsed.externalId,parsed.version,java.sql.Timestamp.from(Instant.now().plusSeconds(ttlHours*3600)));
     if(inserted==0){
       UUID existing=db.query("SELECT id FROM import_job WHERE user_id=? AND import_type='TRAINING_PLAN' AND checksum=? ORDER BY created_at DESC LIMIT 1",(rs,n)->rs.getObject(1,UUID.class),user,checksum).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.CONFLICT,"IMPORT_CONFLICT","La previsualización ya se está procesando"));
-      return parsed.preview(existing);
+      String existingStatus=db.queryForObject("SELECT status FROM import_job WHERE id=?",String.class,existing);
+      if("CONFIRMED".equals(existingStatus))return parsed.preview(existing);
+      job=existing;
+      db.update("DELETE FROM import_error WHERE import_job_id=?",job);
+      db.update("UPDATE import_job SET status=?,original_filename=?,file_size=?,content=?,external_id=?,plan_version=?,expires_at=?,confirmed_at=NULL,plan_id=NULL WHERE id=?",parsed.issues.isEmpty()?"VALID":"INVALID",safeName(file.getOriginalFilename()),file.getSize(),content,parsed.externalId,parsed.version,java.sql.Timestamp.from(Instant.now().plusSeconds(ttlHours*3600)),job);
     }
-    parsed.issues.forEach(i -> db.update(
+    for (Issue issue : parsed.issues) db.update(
         "INSERT INTO import_error(id,import_job_id,row_number,column_name,error_code,message,severity) VALUES(?,?,?,?,?,?,?)",
-        UUID.randomUUID(),job,i.row(),i.column(),i.code(),i.message(),i.severity()));
+        UUID.randomUUID(),job,issue.row(),issue.column(),issue.code(),issue.message(),issue.severity());
     audit(user,"IMPORT_PREVIEW","IMPORT_JOB",job,parsed.issues.isEmpty()?"SUCCESS":"REJECTED");
     return parsed.preview(job);
   }

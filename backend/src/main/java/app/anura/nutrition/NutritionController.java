@@ -53,7 +53,7 @@ public class NutritionController {
   @GetMapping("/plans")
   List<Map<String, Object>> plans() {
     return db.queryForList(
-        "SELECT DISTINCT p.id,p.name,p.version,p.status,p.valid_from,p.valid_until FROM"
+        "SELECT DISTINCT p.id,p.name,p.version,p.status,p.valid_from,p.valid_until,p.created_at FROM"
             + " nutrition_plan p LEFT JOIN household_member m ON m.household_id=p.household_id"
             + " WHERE p.owner_id=? OR m.user_id=? ORDER BY p.created_at DESC",
         CurrentUser.id(),
@@ -211,7 +211,7 @@ public class NutritionController {
   @GetMapping("/shopping-lists")
   List<Map<String, Object>> shopping() {
     return db.queryForList(
-        "SELECT DISTINCT s.id,s.week_number,s.status,s.manually_modified FROM shopping_list s JOIN"
+        "SELECT DISTINCT s.id,s.week_number,s.status,s.manually_modified,s.created_at FROM shopping_list s JOIN"
             + " household_member m ON m.household_id=s.household_id WHERE m.user_id=? ORDER BY"
             + " s.created_at DESC",
         CurrentUser.id());
