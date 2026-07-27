@@ -5,6 +5,7 @@ import {
   householdApi,
   nutritionApi,
   NutritionImportPreview,
+  TodayMeal,
 } from "./api";
 import {
   ChevronDown,
@@ -33,8 +34,10 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
     Array<{ id: string; name: string; version: number; status: string }>
   >([]);
   const [loadError, setLoadError] = useState("");
+  const [todayMeals,setTodayMeals]=useState<TodayMeal[]>([]);
   const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
   useEffect(() => {
+    void nutritionApi.today().then(setTodayMeals).catch(()=>setTodayMeals([]));
     void Promise.allSettled([
       householdApi.list(), nutritionApi.recipes(), nutritionApi.plans(),
     ]).then(([householdResult, recipeResult, planResult]) => {
@@ -50,7 +53,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
       <section className="modal nutrition-hub">
         <div className="modal-head">
           <div>
-            <small>NUTRICIÓN COMPARTIDA</small>
+            <small>{households.length?"NUTRICIÓN Y HOGAR":"MI NUTRICIÓN"}</small>
             <h2>
               {section === "home"
                 ? "Nutrición"
@@ -58,7 +61,11 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                   ? "Mi unidad doméstica"
                   : section === "import"
                     ? "Importar dieta"
-                    : "Lista de compra"}
+                    : section === "shopping"
+                      ? "Lista de compra"
+                      : section === "plan"
+                        ? "Plan nutricional"
+                        : "Receta"}
             </h2>
           </div>
           <button onClick={onClose}>
@@ -84,6 +91,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                 <strong>Ver mis comidas →</strong>
               </button>
             )}
+            <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3></div>{todayMeals.length?todayMeals.map(meal=><article className={meal.status==="COMPLETED"?"completed":""} key={meal.planned_meal_id}><span><small>{meal.meal_type}</small><b>{meal.meal_name}</b><em>{Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</em></span><button disabled={meal.status==="COMPLETED"} onClick={async()=>{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today())}}>{meal.status==="COMPLETED"?"Hecho":"Completar"}</button></article>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}</section>
             <div className="nutrition-menu">
               <button onClick={() => setSection("household")}>
                 <Users />
@@ -123,7 +131,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
               </button>
             ))}
             <h3>Recetas</h3>
-            {recipes.slice(0, 5).map((r) => (
+            {recipes.map((r) => (
               <button
                 className="nutrition-row"
                 key={r.name}
@@ -451,8 +459,9 @@ function PlanView({ id }: { id: string }) {
   }, [id]);
   const visible =
     mode === "mine"
-      ? rows.filter((r) => r.display_name === currentUser.displayName)
+      ? rows.filter((r) => r.user_id === currentUser.id)
       : rows;
+  const shared=new Set(rows.map(r=>String(r.user_id))).size>1;
   const grouped = Object.values(
     visible.reduce<
       Record<
@@ -472,7 +481,7 @@ function PlanView({ id }: { id: string }) {
   );
   return (
     <div>
-      <div className="import-types">
+      {shared&&<div className="import-types">
         <button
           className={mode === "mine" ? "selected" : ""}
           onClick={() => setMode("mine")}
@@ -491,7 +500,9 @@ function PlanView({ id }: { id: string }) {
         >
           Total receta
         </button>
-      </div>
+      </div>}
+      {!shared&&<div className="plan-owner-label">Tu planificación y cantidades</div>}
+      {!grouped.length&&<div className="empty">Este plan no contiene comidas visibles. Revisa su semana e identificador de usuario.</div>}
       {grouped.map((g, n) => (
         <article className={`meal-card ${expanded === n ? "expanded" : ""}`} key={n}>
           <button className="meal-card-head" onClick={() => setExpanded(expanded === n ? null : n)} aria-expanded={expanded === n}>
