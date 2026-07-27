@@ -1,5 +1,9 @@
 /* Ajuste final del check-in corporal en pantallas de escritorio. */
 @media (min-width: 721px) {
+  body:has(.checkin-overlay) {
+    overflow: hidden;
+  }
+
   .checkin-overlay {
     z-index: 100;
     padding: 24px;
@@ -23,8 +27,14 @@
 
   .checkin-form-scroll {
     padding-right: 8px;
-    scrollbar-width: thin;
-    scrollbar-color: #a7afa6 transparent;
+    scrollbar-width: none;
+    overscroll-behavior: contain;
+  }
+
+  .checkin-form-scroll::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
   }
 
   .checkin-primary-fields,

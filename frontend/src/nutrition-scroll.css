@@ -1,0 +1,6 @@
+body:has(.nutrition-hub){overflow:hidden}
+.nutrition-hub{overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-width:none;scroll-behavior:smooth}
+.nutrition-hub::-webkit-scrollbar{display:none;width:0;height:0}
+.nutrition-hub .modal-head{top:-28px;margin-top:-1px;padding-bottom:8px;background:linear-gradient(180deg,var(--paper) 82%,rgba(247,245,239,0));}
+@media(min-width:721px){.nutrition-hub{max-height:calc(100dvh - 64px);padding-right:32px}.nutrition-hub>.text-btn{position:sticky;bottom:-34px;background:var(--paper);z-index:5}}
+@media(max-width:720px){.nutrition-hub{height:100dvh;max-height:100dvh}.nutrition-hub .modal-head{top:calc(-1 * max(18px,env(safe-area-inset-top)))}}

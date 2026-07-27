@@ -72,6 +72,7 @@ export function App() {
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null>(null);
   const [todayWorkoutDone, setTodayWorkoutDone] = useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
+  const [mealsExpanded,setMealsExpanded]=useState(false);
   const [mealFlowOpen, setMealFlowOpen] = useState(false);
   const [editingMeal, setEditingMeal] = useState<Entry | null>(null);
   const load = () => {
@@ -153,13 +154,14 @@ export function App() {
                 <em>{todayWorkoutDone || todayItems.some((e) => e.type === "WORKOUT") ? "Hecho" : "Pendiente"}</em>
               </button>
               <div className="daily-focus nutrition">
-                <button className="daily-focus-main" onClick={() => setNutritionOpen(true)}>
+                <button className="daily-focus-main" onClick={() => setMealsExpanded(value=>!value)} aria-expanded={mealsExpanded}>
                   <span className="daily-focus-icon"><Apple /></span>
                   <span><small>COMIDAS</small><strong>{todayMeals.length ? `${todayMeals.filter(m => m.status === "PENDING").length} pendientes` : "Sin plan para hoy"}</strong><b>{todayMeals.length ? `${todayMeals.reduce((sum,m) => sum + Number(m.calories || 0),0).toFixed(0)} kcal planificadas` : "Añade una comida o abre tus planes"}</b></span>
-                  <em>{todayMeals.length && todayMeals.every(m => m.status !== "PENDING") ? "Revisado" : "Ver plan"}</em>
+                  <ChevronDown className={`daily-expand-icon ${mealsExpanded?"open":""}`}/>
                 </button>
-                {todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.status !== "PENDING" ? "completed" : ""}><button onClick={() => setMealFlowOpen(true)}><span><b>{meal.custom_name||meal.meal_name}</b><small>{meal.status === "SKIPPED" ? "Saltada" : meal.status === "SUBSTITUTED" ? "Sustituida" : `${meal.recipe} · ${Number(meal.calories || 0).toFixed(0)} kcal`}</small></span></button><button className="meal-complete" disabled={meal.status !== "PENDING" || dailyLoading} onClick={async () => {setDailyLoading(true);try{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(rows => rows.map(row => row.planned_meal_id === meal.planned_meal_id ? {...row,status:"COMPLETED"} : row));load();}finally{setDailyLoading(false)}}}>{meal.status !== "PENDING" ? "✓" : "Completar"}</button></div>)}</div>}
-                <button className="daily-add-meal" onClick={() => {setEditingMeal(null);setMealFlowOpen(true)}}><Plus/>Revisar dieta o añadir comida</button>
+                <div className="daily-meal-actions"><button onClick={()=>setMealsExpanded(value=>!value)}>{mealsExpanded?"Ocultar comidas":"Desplegar comidas"}<ChevronDown className={mealsExpanded?"open":""}/></button><button onClick={()=>setNutritionOpen(true)}>Ver plan</button></div>
+                {mealsExpanded&&todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.status !== "PENDING" ? "completed" : ""}><button onClick={() => setMealFlowOpen(true)}><span><b>{meal.custom_name||meal.meal_name}</b><small>{meal.status === "SKIPPED" ? "Saltada" : meal.status === "SUBSTITUTED" ? "Sustituida" : `${meal.recipe} · ${Number(meal.calories || 0).toFixed(0)} kcal`}</small></span></button><button className="meal-complete" disabled={meal.status !== "PENDING" || dailyLoading} onClick={async () => {setDailyLoading(true);try{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(rows => rows.map(row => row.planned_meal_id === meal.planned_meal_id ? {...row,status:"COMPLETED"} : row));load();}finally{setDailyLoading(false)}}}>{meal.status !== "PENDING" ? "✓" : "Completar"}</button></div>)}</div>}
+                {mealsExpanded&&<button className="daily-add-meal" onClick={() => {setEditingMeal(null);setMealFlowOpen(true)}}><Plus/>Revisar dieta o añadir comida</button>}
               </div>
             </div>
             <div className="score">
