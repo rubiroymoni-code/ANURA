@@ -47,3 +47,8 @@ app:
     api-key: ${RESEND_API_KEY:}
     from: ${RESEND_FROM:onboarding@resend.dev}
     frontend-url: ${APP_FRONTEND_URL:http://localhost:5173}
+    brevo:
+      enabled: ${BREVO_ENABLED:false}
+      api-key: ${BREVO_API_KEY:}
+      from-email: ${BREVO_FROM_EMAIL:}
+      from-name: ${BREVO_FROM_NAME:ANURA}
