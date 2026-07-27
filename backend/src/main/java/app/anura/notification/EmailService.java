@@ -51,7 +51,8 @@ public class EmailService {
                     "sender", Map.of("name", brevoFromName, "email", brevoFromEmail),
                     "to", new Object[]{Map.of("email", to)},
                     "subject", subject,
-                    "textContent", body))
+                    "textContent", body,
+                    "htmlContent", brandedHtml(subject, body)))
                 .retrieve()
                 .toBodilessEntity();
         } catch (Exception exception) {
@@ -61,6 +62,33 @@ public class EmailService {
 
     private boolean brevoConfigured() {
         return brevoEnabled && !brevoApiKey.isBlank() && !brevoFromEmail.isBlank();
+    }
+
+    private String brandedHtml(String subject, String body) {
+        String safeSubject = escape(subject);
+        String safeBody = escape(body).replace("\n", "<br>");
+        return """
+            <!doctype html><html lang="es"><body style="margin:0;background:#f1f3ed;font-family:Arial,sans-serif;color:#122018">
+            <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f1f3ed;padding:32px 14px"><tr><td align="center">
+              <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border-radius:24px;overflow:hidden;box-shadow:0 18px 50px rgba(18,32,24,.12)">
+                <tr><td style="background:#13251a;padding:28px 32px;color:#fff">
+                  <div style="display:inline-block;background:#c7f454;color:#13251a;border-radius:12px;padding:8px 12px;font-size:22px;font-weight:900">A</div>
+                  <span style="margin-left:10px;font-size:20px;font-weight:800;letter-spacing:3px">ANURA</span>
+                </td></tr>
+                <tr><td style="padding:34px 32px 18px">
+                  <div style="color:#718076;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase">Tu espacio saludable</div>
+                  <h1 style="margin:10px 0 18px;font-size:28px;line-height:1.15">%s</h1>
+                  <div style="font-size:16px;line-height:1.75;color:#35443a;background:#f3f6ee;border-left:4px solid #c7f454;border-radius:12px;padding:18px">%s</div>
+                  <div style="padding-top:26px"><a href="%s" style="display:inline-block;background:#c7f454;color:#13251a;text-decoration:none;border-radius:14px;padding:14px 24px;font-weight:800">Abrir ANURA</a></div>
+                </td></tr>
+                <tr><td style="padding:18px 32px 30px;color:#8a958d;font-size:12px;line-height:1.5">Si no has solicitado este mensaje, puedes ignorarlo con seguridad.<br>ANURA · Tu progreso, en un solo lugar.</td></tr>
+              </table>
+            </td></tr></table></body></html>
+            """.formatted(safeSubject, safeBody, escape(frontendUrl));
+    }
+
+    private String escape(String value) {
+        return value == null ? "" : value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;");
     }
 
 }
