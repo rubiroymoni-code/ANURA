@@ -273,6 +273,11 @@ export function App() {
         <EntryModal
           busy={loading}
           onClose={() => setModal(false)}
+          onMealSelected={() => {
+            setModal(false);
+            setEditingMeal(null);
+            setMealFlowOpen(true);
+          }}
           onSave={async (e) => {
             setLoading(true);
             try {
@@ -543,10 +548,12 @@ function EntryList({
 function EntryModal({
   onClose,
   onSave,
+  onMealSelected,
   busy,
 }: {
   onClose: () => void;
   onSave: (e: Omit<Entry, "id">) => void;
+  onMealSelected: () => void;
   busy: boolean;
 }) {
   const [type, setType] = useState<EntryType>("WORKOUT");
@@ -586,7 +593,7 @@ function EntryModal({
               <button
                 type="button"
                 className={type === t ? "selected" : ""}
-                onClick={() => setType(t)}
+                onClick={() => t === "MEAL" ? onMealSelected() : setType(t)}
                 key={t}
               >
                 <I />
