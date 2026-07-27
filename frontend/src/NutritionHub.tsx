@@ -286,6 +286,8 @@ function LegacyHouseholdView({
   );
 }
 function NutritionImport() {
+  const currentUser=JSON.parse(localStorage.getItem("anura-user")||"{}");
+  const [csvHouseholds,setCsvHouseholds]=useState<Household[]>([]);
   const [type, setType] = useState<"diet" | "shared-diet" | "recipes">(
     "shared-diet",
   );
@@ -294,6 +296,7 @@ function NutritionImport() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  useEffect(()=>{void householdApi.list().then(setCsvHouseholds)},[]);
   if (done)
     return (
       <div className="import-success">
@@ -322,6 +325,7 @@ function NutritionImport() {
           </button>
         ))}
       </div>
+      {type!=="recipes"&&<div className="csv-identity"><small>DATOS PARA RELLENAR LA PLANTILLA</small>{type==="diet"?<><b>{currentUser.email}</b><span>Usar en <code>user_identifier</code>.</span></>:<><b>{csvHouseholds[0]?.name||"Crea primero una unidad doméstica"}</b><span>Usar como <code>household_identifier</code>. En <code>user_1_identifier</code> y <code>user_2_identifier</code>, usa los emails de los miembros.</span></>}</div>}
       <a
         className="template-link"
         href={`${API_BASE}/nutrition-import-schemas/${type}/template`}

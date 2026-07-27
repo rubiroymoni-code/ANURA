@@ -10,7 +10,7 @@ import {
   Dumbbell,
   FileUp,
   Home,
-  KeyRound,
+  CircleUserRound,
   LogOut,
   Plus,
   Scale,
@@ -119,8 +119,8 @@ export function App() {
           <span>A</span> ANURA
         </div>
         <div className="header-actions">
-          <button className="icon-btn" onClick={() => setAccountOpen(true)} aria-label="Seguridad de la cuenta">
-            <KeyRound size={19} />
+          <button className="icon-btn" onClick={() => setAccountOpen(true)} aria-label="Mi perfil" title="Mi perfil">
+            <CircleUserRound size={19} />
           </button>
           <button className="icon-btn" onClick={logout} aria-label="Cerrar sesión">
             <LogOut size={19} />
@@ -315,7 +315,7 @@ export function App() {
           }}
         />
       )}
-      {accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}
+      {accountOpen && <AccountModal user={user} onClose={() => setAccountOpen(false)} />}
       {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} onClose={() => setMealFlowOpen(false)} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
     </main>
   );
@@ -351,6 +351,7 @@ function TrainingImport({ onClose }: { onClose: () => void }) {
             <X />
           </button>
         </div>
+        <div className="csv-identity"><small>IDENTIFICADOR DE ESTA CUENTA</small><b>{JSON.parse(localStorage.getItem("anura-user")||"{}").email}</b><span>ChatGPT debe repetir este email en <code>user_identifier</code>.</span></div>
         {done ? (
           <div className="import-success">
             <Target />
@@ -770,7 +771,7 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
   );
 }
 
-function AccountModal({ onClose }: { onClose: () => void }) {
+function AccountModal({ user, onClose }: { user: User; onClose: () => void }) {
   const [result, setResult] = useState<{ code: string; expiresAt: string } | null>(null);
   const [busy, setBusy] = useState(false);
   return (
@@ -780,6 +781,8 @@ function AccountModal({ onClose }: { onClose: () => void }) {
           <div><small>SEGURIDAD</small><h2>Recuperación de cuenta</h2></div>
           <button type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
         </div>
+        <div className="account-profile"><small>MI PERFIL</small><h3>{user.displayName}</h3><p>{user.email}</p><button type="button" onClick={()=>void navigator.clipboard.writeText(user.email)}><Copy/> Copiar identificador CSV</button></div>
+        <p>En los CSV individuales usa siempre <b>{user.email}</b> como <code>user_identifier</code>.</p>
         <p>Guarda este código fuera de ANURA. Podrás usarlo si olvidas tu contraseña; al generar otro, el anterior deja de funcionar.</p>
         <button className="primary" disabled={busy} onClick={async () => {
           setBusy(true);

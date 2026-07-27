@@ -162,6 +162,9 @@ public class TrainingPlanImportService {
     if (!parsed.issues.isEmpty())
       throw new ApiException(
           HttpStatus.CONFLICT, "IMPORT_CHANGED", "La validación ya no es válida");
+    String accountEmail=db.queryForObject("SELECT email FROM app_user WHERE id=?",String.class,user);
+    if(accountEmail==null||!accountEmail.equalsIgnoreCase(parsed.rows.getFirst().userIdentifier))
+      throw new ApiException(HttpStatus.BAD_REQUEST,"USER_IDENTIFIER_MISMATCH","El user_identifier del CSV debe ser el email de la cuenta actual");
     Integer conflict =
         db.queryForObject(
             "SELECT count(*) FROM workout_plan WHERE user_id=? AND external_id=? AND version=?",
@@ -290,7 +293,8 @@ public class TrainingPlanImportService {
       for (Row row : rows) {
         if (!row.externalId.equals(first.externalId)
             || row.version != first.version
-            || !row.name.equals(first.name))
+            || !row.name.equals(first.name)
+            || !row.userIdentifier.equalsIgnoreCase(first.userIdentifier))
           issues.add(
               new Issue(
                   null,
@@ -325,7 +329,8 @@ public class TrainingPlanImportService {
     if ("1.0".equals(schema)) schema = "v1";
     String
         external = req(r, "plan_external_id"),
-        name = req(r, "plan_name");
+        name = req(r, "plan_name"),
+        userIdentifier = req(r, "user_identifier");
     int version = positive(r, "plan_version"),
         week = positive(r, "week_number"),
         day = positive(r, "day_number"),
@@ -341,6 +346,7 @@ public class TrainingPlanImportService {
         schema,
         external,
         name,
+        userIdentifier,
         version,
         week,
         day,
@@ -444,6 +450,7 @@ public class TrainingPlanImportService {
       String schema,
       String externalId,
       String name,
+      String userIdentifier,
       int version,
       int week,
       int day,
