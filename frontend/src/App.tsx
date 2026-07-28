@@ -120,7 +120,7 @@ export function App() {
     <main className="shell">
       <header>
         <div className="brand">
-          <span>A</span> ANURA
+          <img src="/anura-mascot.png" alt="" /> ANURA
         </div>
         <div className="header-actions">
           <button className="icon-btn" onClick={() => setAccountOpen(true)} aria-label="Mi perfil" title="Mi perfil">
@@ -684,7 +684,7 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
     <main className="auth">
       <section className="auth-art">
         <div className="brand light">
-          <span>A</span> ANURA
+          <img src="/anura-mascot.png" alt="" /> ANURA
         </div>
         <div>
           <p>ENTRENA · NÚTRETE · EVOLUCIONA</p>
