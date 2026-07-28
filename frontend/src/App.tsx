@@ -52,6 +52,7 @@ const meta: Record<
   },
   GOAL: { label: "Objetivo", icon: Target, unit: "%", color: "pink" },
 };
+type ProfilePreferences={primary_goal?:string;experience_level?:string;activity_level?:string;height_cm?:number;training_days?:number;limitations?:string;avatar_url?:string;reminder_email_enabled?:boolean;reminder_frequency?:string;last_summary_sent_at?:string};
 
 export function App() {
   const [user, setUser] = useState<User | null>(() => {
@@ -69,6 +70,7 @@ export function App() {
   const [nutritionOpen, setNutritionOpen] = useState(false);
   const [workoutOpen, setWorkoutOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [profilePreferences,setProfilePreferences]=useState<ProfilePreferences>({});
   const [todayMeals, setTodayMeals] = useState<TodayMeal[]>([]);
   const [nutritionDashboard,setNutritionDashboard]=useState<NutritionDashboard|null>(null);
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null>(null);
@@ -95,6 +97,7 @@ export function App() {
       setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0,10) && session.status === "COMPLETED"));
     });
     void nutritionApi.dashboard().then(setNutritionDashboard).catch(()=>setNutritionDashboard(null));
+    void api.profilePreferences().then(setProfilePreferences).catch(()=>setProfilePreferences({}));
   }, [user]);
   function logout() {
     localStorage.removeItem("anura-token");
@@ -124,7 +127,7 @@ export function App() {
         </div>
         <div className="header-actions">
           <button className="icon-btn" onClick={() => setAccountOpen(true)} aria-label="Mi perfil" title="Mi perfil">
-            <CircleUserRound size={19} />
+            {profilePreferences.avatar_url?<img className="header-avatar" src={profilePreferences.avatar_url} alt={user.displayName}/>:<CircleUserRound size={19} />}
           </button>
           <button className="icon-btn" onClick={logout} aria-label="Cerrar sesión">
             <LogOut size={19} />
@@ -149,6 +152,7 @@ export function App() {
                 }).format(new Date())}
               </span>
             </div>
+            <button className="home-profile-card" onClick={()=>setAccountOpen(true)}><span className="home-avatar">{profilePreferences.avatar_url?<img src={profilePreferences.avatar_url} alt=""/>:<img src="/anura-mascot.png" alt=""/>}</span><span><small>MI PERFIL ANURA</small><b>{user.displayName}</b><em>{goalLabel(profilePreferences.primary_goal)}</em></span><strong>Ver perfil →</strong></button>
             <div className="daily-plan-head"><span>PLAN DE HOY</span><button onClick={() => setNutritionOpen(true)}>Nutrición compartida</button></div>
             <div className="daily-plan-grid">
               <button className="daily-focus workout" onClick={() => setWorkoutOpen(true)}>
@@ -322,7 +326,7 @@ export function App() {
           }}
         />
       )}
-      {accountOpen && <AccountModal user={user} onClose={() => setAccountOpen(false)} />}
+      {accountOpen && <AccountModal user={user} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} />}
       {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} onClose={() => setMealFlowOpen(false)} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
     </main>
   );
@@ -332,6 +336,7 @@ function GoalVision({goals,onAdd}:{goals:Entry[];onAdd:()=>void}){
  const active=goals[0];
  return <section className="goal-vision"><div className="goal-frog" aria-hidden="true"/><div><small>TU DIRECCIÓN</small><h2>{active?.title||"Define hacia dónde vas"}</h2><p>{active?.details||"Bajar grasa, ganar músculo o mejorar hábitos: tu nutrición, entrenamientos y evolución trabajan sobre una misma meta."}</p><div className="goal-pill-row"><span>Bajar grasa</span><span>Ganar músculo</span><span>Mejorar hábitos</span></div><button onClick={onAdd}>{active?"Actualizar objetivo":"Crear mi objetivo"}</button></div>{active&&<strong>{Number(active.value||0).toFixed(0)}<small>% progreso</small></strong>}</section>
 }
+function goalLabel(value?:string){return ({LOSE_FAT:"Objetivo · Bajar grasa",GAIN_MUSCLE:"Objetivo · Ganar músculo",BODY_RECOMPOSITION:"Objetivo · Recomposición corporal",HEALTH:"Objetivo · Salud y hábitos"} as Record<string,string>)[value||""]||"Completa tus datos iniciales"}
 
 function TrainingImport({ onClose }: { onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
@@ -791,11 +796,11 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
   );
 }
 
-function AccountModal({ user, onClose }: { user: User; onClose: () => void }) {
+function AccountModal({ user, onClose,onAvatar }: { user: User; onClose: () => void;onAvatar:(avatar:string)=>void }) {
   const [result, setResult] = useState<{ code: string; expiresAt: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [tab,setProfileTab]=useState<"profile"|"initial"|"password"|"reminders">("profile"),[message,setMessage]=useState("");
-  const [preferences,setPreferences]=useState<{primary_goal?:string;experience_level?:string;activity_level?:string;height_cm?:number;training_days?:number;limitations?:string;reminder_email_enabled?:boolean;reminder_frequency?:string;last_summary_sent_at?:string}>({});
+  const [preferences,setPreferences]=useState<ProfilePreferences>({});
   useEffect(()=>{void api.profilePreferences().then(setPreferences)},[]);
   return (
     <div className="overlay">
@@ -807,7 +812,8 @@ function AccountModal({ user, onClose }: { user: User; onClose: () => void }) {
         <div className="profile-tabs"><button className={tab==="profile"?"active":""} onClick={()=>setProfileTab("profile")}>Perfil</button><button className={tab==="initial"?"active":""} onClick={()=>setProfileTab("initial")}>Datos iniciales</button><button className={tab==="password"?"active":""} onClick={()=>setProfileTab("password")}>Contraseña</button><button className={tab==="reminders"?"active":""} onClick={()=>setProfileTab("reminders")}>Recordatorios</button></div>
         {message&&<div className="progress-saved">{message}</div>}
         {tab==="profile"&&<>
-        <div className="account-profile"><small>MI PERFIL</small><h3>{user.displayName}</h3><p>{user.email}</p><button type="button" onClick={()=>void navigator.clipboard.writeText(user.email)}><Copy/> Copiar identificador CSV</button></div>
+        <div className="profile-identity"><label className="profile-avatar-editor" title="Cambiar fotografía">{preferences.avatar_url?<img src={preferences.avatar_url} alt={user.displayName}/>:<img className="mascot-fallback" src="/anura-mascot.png" alt=""/>}<span><Plus/>Cambiar foto</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;setBusy(true);try{const avatar=await compressAvatar(file);await api.saveAvatar(avatar);setPreferences(current=>({...current,avatar_url:avatar}));onAvatar(avatar);setMessage("Foto de perfil actualizada")}finally{setBusy(false)}}}/></label><div><small>MI PERFIL</small><h3>{user.displayName}</h3><p>{user.email}</p><em>{goalLabel(preferences.primary_goal)}</em></div></div>
+        <div className="account-profile"><button type="button" onClick={()=>void navigator.clipboard.writeText(user.email)}><Copy/> Copiar identificador CSV</button></div>
         <p>En los CSV individuales usa siempre <b>{user.email}</b> como <code>user_identifier</code>.</p>
         <p>Guarda este código fuera de ANURA. Podrás usarlo si olvidas tu contraseña; al generar otro, el anterior deja de funcionar.</p>
         <button className="primary" disabled={busy} onClick={async () => {
@@ -823,6 +829,8 @@ function AccountModal({ user, onClose }: { user: User; onClose: () => void }) {
     </div>
   );
 }
+
+function compressAvatar(file:File):Promise<string>{return new Promise((resolve,reject)=>{const image=new Image(),url=URL.createObjectURL(file);image.onload=()=>{const size=Math.min(image.width,image.height),sx=(image.width-size)/2,sy=(image.height-size)/2,canvas=document.createElement("canvas");canvas.width=512;canvas.height=512;canvas.getContext("2d")?.drawImage(image,sx,sy,size,size,0,0,512,512);URL.revokeObjectURL(url);resolve(canvas.toDataURL("image/jpeg",.82))};image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("No se pudo leer la fotografía"))};image.src=url})}
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
