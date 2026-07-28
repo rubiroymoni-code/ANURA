@@ -36,6 +36,12 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
   const [loadError, setLoadError] = useState("");
   const [todayMeals,setTodayMeals]=useState<TodayMeal[]>([]);
   const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
+  const todayRecipeNames = new Set(
+    todayMeals.map((meal) => meal.recipe.trim().toLocaleLowerCase("es")),
+  );
+  const todayRecipes = recipes.filter((recipe) =>
+    todayRecipeNames.has(recipe.name.trim().toLocaleLowerCase("es")),
+  );
   useEffect(() => {
     void nutritionApi.today().then(setTodayMeals).catch(()=>setTodayMeals([]));
     void Promise.allSettled([
@@ -130,8 +136,8 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                 </span>
               </button>
             ))}
-            <h3>Recetas</h3>
-            {recipes.map((r) => (
+            <h3>Recetas de hoy</h3>
+            {todayRecipes.map((r) => (
               <button
                 className="nutrition-row"
                 key={r.name}
@@ -144,6 +150,9 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                 <b>{r.name}</b>
               </button>
             ))}
+            {!todayRecipes.length && (
+              <p>No hay recetas asignadas para hoy.</p>
+            )}
           </>
         )}
         {section === "household" && (
