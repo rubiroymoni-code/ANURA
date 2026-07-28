@@ -132,6 +132,21 @@ public class NutritionController {
   @Transactional
   void deleteConsumed(@PathVariable UUID id){ownedConsumed(id);db.update("DELETE FROM consumed_meal WHERE id=? AND user_id=?",id,CurrentUser.id());}
 
+  @GetMapping("/consumed-meals")
+  List<Map<String,Object>> consumedMeals(
+      @RequestParam(defaultValue="2000-01-01") LocalDate from,
+      @RequestParam(required=false) LocalDate to) {
+    LocalDate until=to==null?LocalDate.now():to;
+    if(from.isAfter(until)) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_DATE_RANGE","El rango de fechas no es valido");
+    return db.queryForList(
+        "SELECT cm.id,cm.meal_date,cm.meal_type,cm.status,COALESCE(cm.custom_name,pm.meal_name,r.name) name,"
+            + " cm.portion,cm.calories,cm.protein,cm.carbohydrates,cm.fat,cm.notes,cm.completed_at,"
+            + " pm.meal_name planned_meal,r.name planned_recipe FROM consumed_meal cm"
+            + " LEFT JOIN planned_meal pm ON pm.id=cm.planned_meal_id LEFT JOIN recipe r ON r.id=pm.recipe_id"
+            + " WHERE cm.user_id=? AND cm.meal_date BETWEEN ? AND ? ORDER BY cm.meal_date,cm.completed_at,cm.meal_type",
+        CurrentUser.id(),from,until);
+  }
+
   private Map<String,Object> plannedMeal(UUID mealId){UUID user=CurrentUser.id();return db.queryForList("SELECT pm.id,pm.meal_type,pm.meal_name,ump.calories,ump.protein,ump.carbohydrates,ump.fat FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id JOIN nutrition_plan p ON p.id=d.nutrition_plan_id LEFT JOIN household_member access ON access.household_id=p.household_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE pm.id=? AND p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?)",user,mealId,user,user).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"MEAL_NOT_FOUND","Comida planificada no encontrada"));}
   private Map<String,Object> savePlanned(UUID mealId,String status,MealInput input,Map<String,Object> meal,String customName){UUID id=UUID.randomUUID();Object calories=input!=null&&input.calories()!=null?input.calories():meal.get("calories");Object protein=input!=null&&input.protein()!=null?input.protein():meal.get("protein");Object carbs=input!=null&&input.carbohydrates()!=null?input.carbohydrates():meal.get("carbohydrates");Object fat=input!=null&&input.fat()!=null?input.fat():meal.get("fat");db.update("INSERT INTO consumed_meal(id,user_id,planned_meal_id,meal_date,meal_type,status,custom_name,portion,calories,protein,carbohydrates,fat,notes,completed_at) VALUES(?,?,?,CURRENT_DATE,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(user_id,planned_meal_id,meal_date) WHERE planned_meal_id IS NOT NULL DO UPDATE SET status=EXCLUDED.status,custom_name=EXCLUDED.custom_name,portion=EXCLUDED.portion,calories=EXCLUDED.calories,protein=EXCLUDED.protein,carbohydrates=EXCLUDED.carbohydrates,fat=EXCLUDED.fat,notes=EXCLUDED.notes,completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP",id,CurrentUser.id(),mealId,normalizeMealType(meal.get("meal_type").toString()),status,customName,input==null?null:clean(input.portion()),"SKIPPED".equals(status)?null:calories,"SKIPPED".equals(status)?null:protein,"SKIPPED".equals(status)?null:carbs,"SKIPPED".equals(status)?null:fat,input==null?null:clean(input.notes()));return db.queryForMap("SELECT id,planned_meal_id,status,custom_name,calories,protein,carbohydrates,fat,notes,completed_at FROM consumed_meal WHERE user_id=? AND planned_meal_id=? AND meal_date=CURRENT_DATE",CurrentUser.id(),mealId);}
   private Map<String,Object> consumed(UUID id){return db.queryForMap("SELECT id,planned_meal_id,meal_date,meal_type,status,custom_name,portion,calories,protein,carbohydrates,fat,notes,completed_at FROM consumed_meal WHERE id=? AND user_id=?",id,CurrentUser.id());}
@@ -157,6 +172,20 @@ public class NutritionController {
         week,
         CurrentUser.id(),
         CurrentUser.id());
+  }
+
+  @GetMapping("/plans/{id}/details")
+  List<Map<String,Object>> planDetails(@PathVariable UUID id) {
+    return db.queryForList(
+        "SELECT d.week_number,d.day_number,d.day_name,pm.meal_order,pm.meal_type,pm.meal_name,r.name recipe,"
+            + " ump.portion_multiplier,ump.quantity,ump.calories,ump.protein,ump.carbohydrates,ump.fat,u.display_name"
+            + " FROM nutrition_plan_day d JOIN nutrition_plan p ON p.id=d.nutrition_plan_id"
+            + " JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN recipe r ON r.id=pm.recipe_id"
+            + " JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=?"
+            + " JOIN app_user u ON u.id=ump.user_id WHERE p.id=? AND (p.owner_id=? OR EXISTS"
+            + " (SELECT 1 FROM household_member access WHERE access.household_id=p.household_id AND access.user_id=?))"
+            + " ORDER BY d.week_number,d.day_order,pm.meal_order",
+        CurrentUser.id(),id,CurrentUser.id(),CurrentUser.id());
   }
 
   @GetMapping("/plans/{id}/summary")

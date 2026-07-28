@@ -128,15 +128,19 @@ export const trainingApi = {
     >("/workout-plans"),
 };
 
-export type WorkoutSet = { id:string; setNumber:number; setType:string; weight?:number; repetitions?:number; rir?:number; rpe?:number; restSeconds?:number; completed:boolean; clientExternalId:string };
-export type WorkoutExercise = { id:string; exerciseId:string; name:string; muscleGroup?:string; equipment?:string; order:number; targetSets?:number; targetRepsMin?:number; targetRepsMax?:number; targetRir?:number; targetRestSeconds?:number; instructions?:string; completed:boolean; painReported:boolean; painIntensity?:number; sets:WorkoutSet[] };
-export type WorkoutSession = { header:{id:string;name:string;plannedDate:string;status:string;startedAt:string;durationSeconds?:number;globalRpe?:number;painLevel?:number;clientExternalId:string;workoutPlanVersion?:number;pausedAt?:string;pausedSeconds:number}; exercises:WorkoutExercise[]; metrics:{exercises:number;sets:number;repetitions:number;volume:number;maxPain:number;personalRecords:number} };
+export type WorkoutSet = { id:string; setNumber:number; setType:string; weight?:number; repetitions?:number; rir?:number; rpe?:number; durationSeconds?:number; distanceMeters?:number; restSeconds?:number; tempo?:string; painLevel?:number; completed:boolean; clientExternalId:string };
+export type WorkoutExercise = { id:string; exerciseId:string; name:string; muscleGroup?:string; equipment?:string; order:number; targetSets?:number; targetRepsMin?:number; targetRepsMax?:number; targetRir?:number; targetRpe?:number; targetRestSeconds?:number; instructions?:string; completed:boolean; painReported:boolean; painArea?:string;painIntensity?:number;notes?:string; sets:WorkoutSet[] };
+export type WorkoutSession = { header:{id:string;name:string;plannedDate:string;status:string;startedAt:string;completedAt?:string;durationSeconds?:number;globalRpe?:number;energyLevel?:number;pumpLevel?:number;painLevel?:number;difficultyLevel?:number;notes?:string;clientExternalId:string;workoutPlanVersion?:number;pausedAt?:string;pausedSeconds:number}; exercises:WorkoutExercise[]; metrics:{exercises:number;sets:number;repetitions:number;volume:number;maxPain:number;personalRecords:number} };
 export type TodayWorkout = { planId:string;planName:string;planVersion:number;dayId:string;sessionName:string;dayName:string;weekNumber:number;dayNumber:number;estimatedMinutes:number;exerciseCount:number;exercises:Array<{exerciseId:string;name:string;muscleGroup?:string;sets:number;repsMin:number;repsMax:number;targetRir?:number;restSeconds?:number}> };
 export type WorkoutSummary = {id:string;name:string;date:string;status:string;durationSeconds?:number;globalRpe?:number;exercises:number;sets:number;volume:number};
+export type WorkoutPlan = {id:string;name:string;version:number;status:string;validFrom?:string;validUntil?:string};
+export type PlannedWorkoutExercise = {weekNumber:number;dayNumber:number;dayName?:string;sessionName:string;order:number;exercise:string;muscleGroup?:string;equipment?:string;sets:number;repsMin:number;repsMax:number;targetRir?:number;targetRpe?:number;restSeconds?:number;tempo?:string;warmupRequired:boolean;supersetGroup?:string;alternativeExerciseCode?:string;instructions?:string;notes?:string};
 export const workoutApi = {
   today:()=>request<TodayWorkout|null>("/workouts/today"),
   active:()=>request<WorkoutSession|null>("/workout-sessions/active"),
-  history:()=>request<WorkoutSummary[]>("/workout-sessions?size=30"),
+  history:(page=0,size=30)=>request<WorkoutSummary[]>(`/workout-sessions?page=${page}&size=${size}`),
+  plans:()=>request<WorkoutPlan[]>("/workout-plans"),
+  planDetails:(id:string)=>request<PlannedWorkoutExercise[]>(`/workout-plans/${id}/details`),
   one:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}`),
   start:(body:{workoutPlanDayId?:string;name?:string;clientExternalId:string})=>request<WorkoutSession>("/workout-sessions",{method:"POST",body:JSON.stringify(body)}),
   pause:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/pause`,{method:"POST"}),
@@ -171,6 +175,7 @@ export type MealType = "BREAKFAST"|"MID_MORNING"|"LUNCH"|"SNACK"|"DINNER"|"OTHER
 export type MealInput = {mealType:MealType;name:string;date?:string;portion?:string;calories?:number;protein?:number;carbohydrates?:number;fat?:number;notes?:string};
 export type TodayMeal = { planned_meal_id:string;plan_id:string;plan_name:string;version:number;day_name:string;meal_type:string;meal_name:string;recipe:string;calories:number;protein:number;carbohydrates:number;fat:number;portion_multiplier:number;status:MealStatus;consumed_meal_id?:string;custom_name?:string;notes?:string;completed_at?:string };
 export type NutritionDashboard={target:Partial<Record<"calories"|"protein"|"carbohydrates"|"fat"|"fiber",number>>;planned:Record<"calories"|"protein"|"carbohydrates"|"fat",number>;consumed:Record<"calories"|"protein"|"carbohydrates"|"fat",number>;week:Array<{date:string;calories:number}>};
+export type ConsumedMeal={id:string;meal_date:string;meal_type:string;status:MealStatus;name?:string;portion?:string;calories?:number;protein?:number;carbohydrates?:number;fat?:number;notes?:string;completed_at?:string;planned_meal?:string;planned_recipe?:string};
 export const householdApi = {
   list: () => request<Household[]>("/households"),
   create: (name: string) =>
@@ -199,6 +204,7 @@ export const householdApi = {
 export const nutritionApi = {
   today:()=>request<TodayMeal[]>("/nutrition/today"),
   dashboard:()=>request<NutritionDashboard>("/nutrition/dashboard"),
+  consumedMeals:(from="2000-01-01")=>request<ConsumedMeal[]>(`/nutrition/consumed-meals?from=${from}`),
   targets:()=>request<Array<Record<string,number|string>>>("/nutrition/targets"),
   saveTarget:(data:{validFrom:string;calories:number;protein?:number;carbohydrates?:number;fat?:number;fiber?:number})=>request<void>("/nutrition/targets",{method:"PUT",body:JSON.stringify(data)}),
   completeToday:(id:string)=>request<Record<string,unknown>>(`/nutrition/today/${id}/complete`,{method:"POST"}),
@@ -217,6 +223,7 @@ export const nutritionApi = {
     >("/nutrition/plans"),
   week: (id: string) =>
     request<Array<Record<string, unknown>>>(`/nutrition/plans/${id}/week`),
+  planDetails: (id:string) => request<Array<Record<string,unknown>>>(`/nutrition/plans/${id}/details`),
   summary: (id: string) =>
     request<Array<Record<string, unknown>>>(`/nutrition/plans/${id}/summary`),
   activate: (id: string) =>
