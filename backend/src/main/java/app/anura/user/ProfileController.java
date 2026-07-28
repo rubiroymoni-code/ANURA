@@ -3,7 +3,10 @@ package app.anura.user;
 import java.time.Instant;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,10 +43,19 @@ public class ProfileController {
     void password(@RequestBody ChangePassword request){User user=current();if(!passwords.matches(request.currentPassword(),user.passwordHash))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Contraseña actual incorrecta");if(request.newPassword()==null||request.newPassword().length()<8)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"La contraseña debe tener al menos 8 caracteres");user.passwordHash=passwords.encode(request.newPassword());user.updatedAt=Instant.now();users.save(user);}
 
     @GetMapping("/preferences")
-    java.util.Map<String,Object> preferences(){return db.queryForList("SELECT primary_goal,experience_level,activity_level,height_cm,training_days,limitations,avatar_url,reminder_email_enabled,reminder_frequency,last_summary_sent_at FROM user_preference WHERE user_id=?",CurrentUser.id()).stream().findFirst().orElse(java.util.Map.of("reminder_email_enabled",true,"reminder_frequency","MONTHLY"));}
+    java.util.Map<String,Object> preferences(){return db.queryForList("SELECT primary_goal,experience_level,activity_level,height_cm,training_days,limitations,biological_sex,avatar_url,reminder_email_enabled,reminder_frequency,last_summary_sent_at FROM user_preference WHERE user_id=?",CurrentUser.id()).stream().findFirst().orElse(java.util.Map.of("reminder_email_enabled",true,"reminder_frequency","MONTHLY"));}
 
     @PatchMapping("/preferences")
-    void preferences(@RequestBody Preferences request){db.update("INSERT INTO user_preference(user_id,primary_goal,experience_level,activity_level,height_cm,training_days,limitations,reminder_email_enabled,reminder_frequency) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET primary_goal=EXCLUDED.primary_goal,experience_level=EXCLUDED.experience_level,activity_level=EXCLUDED.activity_level,height_cm=EXCLUDED.height_cm,training_days=EXCLUDED.training_days,limitations=EXCLUDED.limitations,reminder_email_enabled=EXCLUDED.reminder_email_enabled,reminder_frequency=EXCLUDED.reminder_frequency,updated_at=CURRENT_TIMESTAMP",CurrentUser.id(),request.primaryGoal(),request.experienceLevel(),request.activityLevel(),request.heightCm(),request.trainingDays(),request.limitations(),request.reminderEmailEnabled(),"MONTHLY");}
+    void preferences(@RequestBody Preferences request){db.update("INSERT INTO user_preference(user_id,primary_goal,experience_level,activity_level,height_cm,training_days,limitations,biological_sex,reminder_email_enabled,reminder_frequency) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET primary_goal=EXCLUDED.primary_goal,experience_level=EXCLUDED.experience_level,activity_level=EXCLUDED.activity_level,height_cm=EXCLUDED.height_cm,training_days=EXCLUDED.training_days,limitations=EXCLUDED.limitations,biological_sex=EXCLUDED.biological_sex,reminder_email_enabled=EXCLUDED.reminder_email_enabled,reminder_frequency=EXCLUDED.reminder_frequency,updated_at=CURRENT_TIMESTAMP",CurrentUser.id(),request.primaryGoal(),request.experienceLevel(),request.activityLevel(),request.heightCm(),request.trainingDays(),request.limitations(),request.biologicalSex(),request.reminderEmailEnabled(),"MONTHLY");}
+
+    @GetMapping("/cycles")
+    java.util.List<java.util.Map<String,Object>> cycles(){return db.queryForList("SELECT id,start_date,end_date,flow_level,symptoms,notes FROM menstrual_cycle_record WHERE user_id=? ORDER BY start_date DESC",CurrentUser.id());}
+
+    @PostMapping("/cycles")
+    java.util.Map<String,Object> cycle(@RequestBody Cycle request){if(request.startDate()==null||(request.endDate()!=null&&request.endDate().isBefore(request.startDate())))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Fechas del ciclo no válidas");java.util.UUID id=java.util.UUID.randomUUID();db.update("INSERT INTO menstrual_cycle_record(id,user_id,start_date,end_date,flow_level,symptoms,notes) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id,start_date) DO UPDATE SET end_date=EXCLUDED.end_date,flow_level=EXCLUDED.flow_level,symptoms=EXCLUDED.symptoms,notes=EXCLUDED.notes",id,CurrentUser.id(),request.startDate(),request.endDate(),request.flowLevel(),request.symptoms(),request.notes());return db.queryForMap("SELECT id,start_date,end_date,flow_level,symptoms,notes FROM menstrual_cycle_record WHERE user_id=? AND start_date=?",CurrentUser.id(),request.startDate());}
+
+    @DeleteMapping("/cycles/{id}")
+    void deleteCycle(@PathVariable java.util.UUID id){db.update("DELETE FROM menstrual_cycle_record WHERE id=? AND user_id=?",id,CurrentUser.id());}
 
     @org.springframework.web.bind.annotation.PostMapping("/reminders/test")
     void testReminder(){summaries.send(CurrentUser.id(),false);}
@@ -55,7 +67,8 @@ public class ProfileController {
     private ProfileView view(User u) { return new ProfileView(u.id.toString(), u.email, u.displayName, u.role); }
     record UpdateProfile(@NotBlank @Size(max=100) String displayName) {}
     record ChangePassword(String currentPassword,String newPassword) {}
-    record Preferences(String primaryGoal,String experienceLevel,String activityLevel,java.math.BigDecimal heightCm,Integer trainingDays,String limitations,boolean reminderEmailEnabled) {}
+    record Preferences(String primaryGoal,String experienceLevel,String activityLevel,java.math.BigDecimal heightCm,Integer trainingDays,String limitations,String biologicalSex,boolean reminderEmailEnabled) {}
+    record Cycle(java.time.LocalDate startDate,java.time.LocalDate endDate,String flowLevel,String symptoms,String notes) {}
     record Avatar(String avatarUrl) {}
     record ProfileView(String id, String email, String displayName, String role) {}
 }
