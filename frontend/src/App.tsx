@@ -26,6 +26,7 @@ import {
   trainingApi,
   nutritionApi,
   TodayMeal,
+  NutritionDashboard,
   TodayWorkout,
   workoutApi,
   User,
@@ -69,6 +70,7 @@ export function App() {
   const [workoutOpen, setWorkoutOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [todayMeals, setTodayMeals] = useState<TodayMeal[]>([]);
+  const [nutritionDashboard,setNutritionDashboard]=useState<NutritionDashboard|null>(null);
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null>(null);
   const [todayWorkoutDone, setTodayWorkoutDone] = useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
@@ -92,6 +94,7 @@ export function App() {
       setTodayWorkout(workout);
       setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0,10) && session.status === "COMPLETED"));
     });
+    void nutritionApi.dashboard().then(setNutritionDashboard).catch(()=>setNutritionDashboard(null));
   }, [user]);
   function logout() {
     localStorage.removeItem("anura-token");
@@ -156,11 +159,11 @@ export function App() {
               <div className="daily-focus nutrition">
                 <button className="daily-focus-main" onClick={() => setMealsExpanded(value=>!value)} aria-expanded={mealsExpanded}>
                   <span className="daily-focus-icon"><Apple /></span>
-                  <span><small>COMIDAS</small><strong>{todayMeals.length ? `${todayMeals.filter(m => m.status === "PENDING").length} pendientes` : "Sin plan para hoy"}</strong><b>{todayMeals.length ? `${todayMeals.reduce((sum,m) => sum + Number(m.calories || 0),0).toFixed(0)} kcal planificadas` : "Añade una comida o abre tus planes"}</b></span>
+                  <span><small>COMIDAS</small><strong>{todayMeals.length ? `${todayMeals.filter(m => m.status === "PENDING").length} pendientes` : "Sin plan para hoy"}</strong><b>{nutritionDashboard?`${Number(nutritionDashboard.consumed.calories||0).toFixed(0)} de ${Number(nutritionDashboard.target.calories||nutritionDashboard.planned.calories||0).toFixed(0)} kcal consumidas`:todayMeals.length ? `${todayMeals.reduce((sum,m) => sum + Number(m.calories || 0),0).toFixed(0)} kcal planificadas` : "Añade una comida o abre tus planes"}</b></span>
                   <ChevronDown className={`daily-expand-icon ${mealsExpanded?"open":""}`}/>
                 </button>
                 <div className="daily-meal-actions"><button onClick={()=>setMealsExpanded(value=>!value)}>{mealsExpanded?"Ocultar comidas":"Desplegar comidas"}<ChevronDown className={mealsExpanded?"open":""}/></button><button onClick={()=>setNutritionOpen(true)}>Ver plan</button></div>
-                {mealsExpanded&&todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.status !== "PENDING" ? "completed" : ""}><button onClick={() => setMealFlowOpen(true)}><span><b>{meal.custom_name||meal.meal_name}</b><small>{meal.status === "SKIPPED" ? "Saltada" : meal.status === "SUBSTITUTED" ? "Sustituida" : `${meal.recipe} · ${Number(meal.calories || 0).toFixed(0)} kcal`}</small></span></button><button className="meal-complete" disabled={meal.status !== "PENDING" || dailyLoading} onClick={async () => {setDailyLoading(true);try{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(rows => rows.map(row => row.planned_meal_id === meal.planned_meal_id ? {...row,status:"COMPLETED"} : row));load();}finally{setDailyLoading(false)}}}>{meal.status !== "PENDING" ? "✓" : "Completar"}</button></div>)}</div>}
+                {mealsExpanded&&todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.status !== "PENDING" ? "completed" : ""}><button onClick={() => setMealFlowOpen(true)}><span><b>{meal.custom_name||meal.meal_name}</b><small>{meal.status === "SKIPPED" ? "Saltada" : meal.status === "SUBSTITUTED" ? "Sustituida" : `${meal.recipe} · ${Number(meal.calories || 0).toFixed(0)} kcal`}</small></span></button><button className="meal-complete" disabled={meal.status !== "PENDING" || dailyLoading} onClick={async () => {setDailyLoading(true);try{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(rows => rows.map(row => row.planned_meal_id === meal.planned_meal_id ? {...row,status:"COMPLETED"} : row));setNutritionDashboard(await nutritionApi.dashboard());load();}finally{setDailyLoading(false)}}}>{meal.status !== "PENDING" ? "✓" : "Completar"}</button></div>)}</div>}
                 {mealsExpanded&&<button className="daily-add-meal" onClick={() => {setEditingMeal(null);setMealFlowOpen(true)}}><Plus/>Revisar dieta o añadir comida</button>}
               </div>
             </div>
@@ -204,6 +207,7 @@ export function App() {
           </div>
         )}
         {tab === "WEIGHT" && <BodyProgress />}
+        {tab === "GOAL" && <GoalVision goals={entries.filter(entry=>entry.type==="GOAL")} onAdd={()=>setModal(true)}/>}
         {tab === "WORKOUT" && (
           <button className="workout-launch" onClick={() => setWorkoutOpen(true)}>
             <span><small>ENTRENAMIENTO DE HOY</small><strong>Entrenar ahora</strong><b>Plan, series, descanso y progreso</b></span>
@@ -273,6 +277,7 @@ export function App() {
       </nav>
       {modal && (
         <EntryModal
+          initialType={tab === "HOME" ? "WORKOUT" : tab}
           busy={loading}
           onClose={() => setModal(false)}
           onMealSelected={() => {
@@ -321,6 +326,11 @@ export function App() {
       {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} onClose={() => setMealFlowOpen(false)} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
     </main>
   );
+}
+
+function GoalVision({goals,onAdd}:{goals:Entry[];onAdd:()=>void}){
+ const active=goals[0];
+ return <section className="goal-vision"><div className="goal-frog" aria-hidden="true"/><div><small>TU DIRECCIÓN</small><h2>{active?.title||"Define hacia dónde vas"}</h2><p>{active?.details||"Bajar grasa, ganar músculo o mejorar hábitos: tu nutrición, entrenamientos y evolución trabajan sobre una misma meta."}</p><div className="goal-pill-row"><span>Bajar grasa</span><span>Ganar músculo</span><span>Mejorar hábitos</span></div><button onClick={onAdd}>{active?"Actualizar objetivo":"Crear mi objetivo"}</button></div>{active&&<strong>{Number(active.value||0).toFixed(0)}<small>% progreso</small></strong>}</section>
 }
 
 function TrainingImport({ onClose }: { onClose: () => void }) {
@@ -554,17 +564,19 @@ function EntryList({
 }
 
 function EntryModal({
+  initialType,
   onClose,
   onSave,
   onMealSelected,
   busy,
 }: {
+  initialType: EntryType;
   onClose: () => void;
   onSave: (e: Omit<Entry, "id">) => void;
   onMealSelected: () => void;
   busy: boolean;
 }) {
-  const [type, setType] = useState<EntryType>("WORKOUT");
+  const [type, setType] = useState<EntryType>(initialType);
   const m = meta[type];
   return (
     <div className="overlay">
@@ -620,7 +632,9 @@ function EntryModal({
                 ? "Pierna y core"
                 : type === "MEAL"
                   ? "Desayuno"
-                  : "Registro"
+                  : type === "GOAL"
+                    ? "Ej. Bajar grasa y ganar músculo"
+                    : "Registro"
             }
           />
         </label>
@@ -647,7 +661,7 @@ function EntryModal({
           Detalles
           <textarea
             name="details"
-            placeholder="Series, macros, sensaciones..."
+            placeholder={type === "GOAL" ? "Describe tu meta, plazo y cómo quieres medirla" : "Series, macros, sensaciones..."}
           />
         </label>
         <button className="primary" disabled={busy}>

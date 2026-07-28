@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   API_BASE,
   Household,
   householdApi,
   nutritionApi,
   NutritionImportPreview,
+  NutritionDashboard,
   TodayMeal,
 } from "./api";
 import {
@@ -35,6 +37,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
   >([]);
   const [loadError, setLoadError] = useState("");
   const [todayMeals,setTodayMeals]=useState<TodayMeal[]>([]);
+  const [dashboard,setDashboard]=useState<NutritionDashboard|null>(null);
   const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
   const todayRecipeNames = new Set(
     todayMeals.map((meal) => meal.recipe.trim().toLocaleLowerCase("es")),
@@ -44,6 +47,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
   );
   useEffect(() => {
     void nutritionApi.today().then(setTodayMeals).catch(()=>setTodayMeals([]));
+    void nutritionApi.dashboard().then(setDashboard).catch(()=>setDashboard(null));
     void Promise.allSettled([
       householdApi.list(), nutritionApi.recipes(), nutritionApi.plans(),
     ]).then(([householdResult, recipeResult, planResult]) => {
@@ -97,7 +101,8 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                 <strong>Ver mis comidas →</strong>
               </button>
             )}
-            <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3></div>{todayMeals.length?todayMeals.map(meal=><article className={meal.status==="COMPLETED"?"completed":""} key={meal.planned_meal_id}><span><small>{meal.meal_type}</small><b>{meal.meal_name}</b><em>{Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</em></span><button disabled={meal.status==="COMPLETED"} onClick={async()=>{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today())}}>{meal.status==="COMPLETED"?"Hecho":"Completar"}</button></article>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}</section>
+            {dashboard&&<NutritionBalance data={dashboard}/>}
+            <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3></div>{todayMeals.length?todayMeals.map(meal=><article className={meal.status==="COMPLETED"?"completed":""} key={meal.planned_meal_id}><span><small>{meal.meal_type}</small><b>{meal.meal_name}</b><em>{Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</em></span><button disabled={meal.status==="COMPLETED"} onClick={async()=>{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setDashboard(await nutritionApi.dashboard())}}>{meal.status==="COMPLETED"?"Hecho":"Completar"}</button></article>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}</section>
             <div className="nutrition-menu">
               <button onClick={() => setSection("household")}>
                 <Users />
@@ -175,6 +180,14 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
       </section>
     </div>
   );
+}
+function NutritionBalance({data}:{data:NutritionDashboard}){
+  const [editing,setEditing]=useState(!Number(data.target.calories||0));
+  const [current,setCurrent]=useState(data);
+  const consumed=Number(current.consumed.calories||0),recommended=Number(current.target.calories||current.planned.calories||0),percent=recommended?Math.min(100,consumed/recommended*100):0;
+  const weekConsumed=current.week.reduce((sum,row)=>sum+Number(row.calories||0),0),elapsed=Math.max(1,new Date().getDay()||7),weekTarget=recommended*elapsed;
+  const macro=(key:"protein"|"carbohydrates"|"fat",label:string)=><span><b>{Number(current.consumed[key]||0).toFixed(0)}<small> / {Number(current.target[key]||current.planned[key]||0).toFixed(0)} g</small></b><em>{label}</em></span>;
+  return <section className="nutrition-balance"><div className="balance-head"><span><small>BALANCE DE HOY</small><h3>{consumed.toFixed(0)} <em>/ {recommended.toFixed(0)} kcal</em></h3><p>{recommended?`${Math.max(0,recommended-consumed).toFixed(0)} kcal disponibles según tu objetivo`:`Configura tu objetivo para comparar el consumo.`}</p></span><div className="nutrition-ring" style={{"--nutrition-progress":`${percent*3.6}deg`} as CSSProperties}><b>{percent.toFixed(0)}%</b></div></div><div className="macro-balance">{macro("protein","Proteína")}{macro("carbohydrates","Carbohidratos")}{macro("fat","Grasas")}</div><div className="week-balance"><span><small>ESTA SEMANA</small><b>{weekConsumed.toFixed(0)} / {weekTarget.toFixed(0)} kcal</b></span><div><i style={{width:`${weekTarget?Math.min(100,weekConsumed/weekTarget*100):0}%`}}/></div></div><button className="target-edit" onClick={()=>setEditing(!editing)}>{editing?"Cancelar":"Ajustar objetivos nutricionales"}</button>{editing&&<form className="nutrition-target-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget),value=(key:string)=>Number(f.get(key)||0);await nutritionApi.saveTarget({validFrom:new Date().toISOString().slice(0,10),calories:value("calories"),protein:value("protein"),carbohydrates:value("carbohydrates"),fat:value("fat")});setCurrent(await nutritionApi.dashboard());setEditing(false)}}><label>Kcal diarias<input required name="calories" type="number" min="800" defaultValue={current.target.calories}/></label><label>Proteína (g)<input name="protein" type="number" min="0" defaultValue={current.target.protein}/></label><label>Carbos (g)<input name="carbohydrates" type="number" min="0" defaultValue={current.target.carbohydrates}/></label><label>Grasas (g)<input name="fat" type="number" min="0" defaultValue={current.target.fat}/></label><button>Guardar objetivos</button></form>}</section>
 }
 function LegacyHouseholdView({
   households,
