@@ -40,7 +40,9 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
       throw error;
     }
   }
-  return response.status === 204 ? (undefined as T) : response.json();
+  if (response.status === 204) return undefined as T;
+  const responseBody = await response.text();
+  return responseBody ? JSON.parse(responseBody) as T : undefined as T;
 }
 export const api = {
   auth: (mode: "login" | "register", data: object) =>
