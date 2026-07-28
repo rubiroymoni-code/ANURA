@@ -87,7 +87,7 @@ public class EmailService {
             <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="background:#f1f3ed;padding:32px 14px"><tr><td align="center">
               <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border-radius:24px;overflow:hidden;box-shadow:0 18px 50px rgba(18,32,24,.12)">
                 <tr><td style="background:#13251a;padding:28px 32px;color:#fff">
-                  <div style="display:inline-block;background:#c7f454;color:#13251a;border-radius:12px;padding:8px 12px;font-size:22px;font-weight:900">A</div>
+                  <img src="%s/icon-192.png" width="44" height="44" alt="ANURA" style="display:inline-block;vertical-align:middle;border-radius:12px">
                   <span style="margin-left:10px;font-size:20px;font-weight:800;letter-spacing:3px">ANURA</span>
                 </td></tr>
                 <tr><td style="padding:34px 32px 18px">
@@ -99,7 +99,7 @@ public class EmailService {
                 <tr><td style="padding:18px 32px 30px;color:#8a958d;font-size:12px;line-height:1.5">Si no has solicitado este mensaje, puedes ignorarlo con seguridad.<br>ANURA · Tu progreso, en un solo lugar.</td></tr>
               </table>
             </td></tr></table></body></html>
-            """.formatted(safeSubject, safeBody, escape(frontendUrl));
+            """.formatted(escape(frontendUrl), safeSubject, safeBody, escape(frontendUrl));
     }
 
     private String escape(String value) {
