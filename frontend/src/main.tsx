@@ -20,6 +20,7 @@ import './profile-import.css';
 import './nutrition-scroll.css';
 import './features-v2.css';
 import './profile-settings.css';
+import './shopping-v2.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
