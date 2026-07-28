@@ -3,13 +3,17 @@ package app.anura.notification;
 import app.anura.error.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.Map;
 
 @Service
 public class EmailService {
+    private static final Logger log = LoggerFactory.getLogger(EmailService.class);
     private final RestClient brevo;
     private final boolean brevoEnabled;
     private final String brevoApiKey;
@@ -55,8 +59,19 @@ public class EmailService {
                     "htmlContent", brandedHtml(subject, body)))
                 .retrieve()
                 .toBodilessEntity();
+        } catch (RestClientResponseException exception) {
+            String providerBody = exception.getResponseBodyAsString();
+            log.error("Brevo rechazó el correo: status={}, response={}", exception.getStatusCode().value(), providerBody);
+            String message = switch (exception.getStatusCode().value()) {
+                case 400 -> "Brevo rechazó los datos del correo; revisa el remitente configurado";
+                case 401, 403 -> "Brevo rechazó la API key o el remitente no está verificado";
+                case 429 -> "Se alcanzó temporalmente el límite de envíos de Brevo";
+                default -> "Brevo no pudo entregar el correo";
+            };
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "EMAIL_DELIVERY_FAILED", message);
         } catch (Exception exception) {
-            throw new ApiException(HttpStatus.BAD_GATEWAY, "EMAIL_DELIVERY_FAILED", "No se pudo enviar el correo");
+            log.error("No se pudo conectar con Brevo", exception);
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "EMAIL_DELIVERY_FAILED", "No se pudo conectar con Brevo");
         }
     }
 
