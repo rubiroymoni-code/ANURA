@@ -66,6 +66,10 @@ export const api = {
     request<Entry>("/entries", { method: "POST", body: JSON.stringify(data) }),
   update: (id:string,data:Omit<Entry,"id">)=>request<Entry>(`/entries/${id}`,{method:"PUT",body:JSON.stringify(data)}),
   remove: (id: string) => request<void>(`/entries/${id}`, { method: "DELETE" }),
+  profilePreferences:()=>request<{primary_goal?:string;experience_level?:string;activity_level?:string;height_cm?:number;training_days?:number;limitations?:string;reminder_email_enabled?:boolean;reminder_frequency?:string;last_summary_sent_at?:string}>("/profile/preferences"),
+  saveProfilePreferences:(data:{primaryGoal:string;experienceLevel:string;activityLevel:string;heightCm?:number;trainingDays?:number;limitations?:string;reminderEmailEnabled:boolean})=>request<void>("/profile/preferences",{method:"PATCH",body:JSON.stringify(data)}),
+  changePassword:(data:{currentPassword:string;newPassword:string})=>request<void>("/profile/password",{method:"PATCH",body:JSON.stringify(data)}),
+  testReminder:()=>request<void>("/profile/reminders/test",{method:"POST"}),
 };
 export const bodyProgressApi={
   list:()=>request<BodyCheckin[]>("/body-checkins"),
