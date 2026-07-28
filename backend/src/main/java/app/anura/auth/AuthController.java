@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import app.anura.config.JwtService;
 import app.anura.config.CurrentUser;
+import app.anura.error.ApiException;
 import app.anura.notification.EmailService;
 import app.anura.user.User;
 import app.anura.user.UserRepository;
@@ -76,19 +77,17 @@ public class AuthController {
     void resetPassword(@Valid @RequestBody PasswordResetRequest request) {
         User user = users.findByEmailIgnoreCase(request.email())
                 .filter(candidate -> candidate.enabled)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Código de recuperación inválido"));
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_RECOVERY_CODE", "Código inválido o caducado"));
         var rows = db.queryForList(
                 "SELECT code_hash FROM password_recovery_code WHERE user_id=?"
-                        + " AND used_at IS NULL AND expires_at>CURRENT_TIMESTAMP",
+                        + " AND used_at IS NULL AND expires_at>CURRENT_TIMESTAMP FOR UPDATE",
                 user.id);
         if (rows.isEmpty()
                 || !passwords.matches(request.code().replace(" ", "").toUpperCase(),
                         rows.getFirst().get("code_hash").toString())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Código de recuperación inválido");
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_RECOVERY_CODE", "Código inválido o caducado");
         }
-        user.passwordHash = passwords.encode(request.newPassword());
-        user.updatedAt = Instant.now();
-        users.save(user);
+        db.update("UPDATE app_user SET password_hash=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",passwords.encode(request.newPassword()),user.id);
         db.update("UPDATE password_recovery_code SET used_at=CURRENT_TIMESTAMP WHERE user_id=?", user.id);
     }
 

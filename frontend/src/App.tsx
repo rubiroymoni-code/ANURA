@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import {
   Activity,
@@ -665,6 +665,7 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
   const [busy, setBusy] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [recoverySent, setRecoverySent] = useState(false);
+  const submitLock=useRef(false);
   return (
     <main className="auth">
       <section className="auth-art">
@@ -686,6 +687,8 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
       <form
         onSubmit={async (e) => {
           e.preventDefault();
+          if(submitLock.current)return;
+          submitLock.current=true;
           const form = e.currentTarget;
           setBusy(true);
           setError("");
@@ -708,9 +711,10 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
               displayName: f.get("name"),
             });
             onAuth(r.user, r.token);
-          } catch {
-            setError("Revisa los datos e inténtalo de nuevo");
+          } catch (cause) {
+            setError(cause instanceof Error?cause.message:"Revisa los datos e inténtalo de nuevo");
           } finally {
+            submitLock.current=false;
             setBusy(false);
           }
         }}
