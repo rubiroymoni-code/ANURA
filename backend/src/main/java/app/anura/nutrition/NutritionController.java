@@ -248,8 +248,9 @@ public class NutritionController {
                     new ApiException(HttpStatus.NOT_FOUND, "PLAN_NOT_FOUND", "Plan no encontrado"));
     UUID household = (UUID) plan.get("household_id");
     if(household==null) household=db.query("SELECT household_id FROM household_member WHERE user_id=? ORDER BY joined_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),CurrentUser.id()).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.CONFLICT,"HOUSEHOLD_REQUIRED","Crea una unidad doméstica para compartir y mantener la lista de compra"));
-    Integer days=db.queryForObject("SELECT count(*) FROM nutrition_plan_day WHERE nutrition_plan_id=? AND week_number=?",Integer.class,planId,week);
-    if(days==null||days==0){Integer first=db.queryForObject("SELECT MIN(week_number) FROM nutrition_plan_day WHERE nutrition_plan_id=?",Integer.class,planId);if(first!=null)week=first;}
+    int sourceWeek=week;
+    Integer days=db.queryForObject("SELECT count(*) FROM nutrition_plan_day WHERE nutrition_plan_id=? AND week_number=?",Integer.class,planId,sourceWeek);
+    if(days==null||days==0){Integer first=db.queryForObject("SELECT MIN(week_number) FROM nutrition_plan_day WHERE nutrition_plan_id=?",Integer.class,planId);if(first!=null)sourceWeek=first;}
     List<Map<String, Object>> existing =
         db.queryForList(
             "SELECT id,manually_modified FROM shopping_list WHERE household_id=? AND"
@@ -297,7 +298,7 @@ public class NutritionController {
                 + " AND d.week_number=? GROUP BY i.id,i.name,i.category,ri.unit ORDER BY"
                 + " i.category,i.name",
             planId,
-            week);
+            sourceWeek);
     int order = 0;
     for (Map<String, Object> row : totals) {
       java.math.BigDecimal required = (java.math.BigDecimal) row.get("quantity");

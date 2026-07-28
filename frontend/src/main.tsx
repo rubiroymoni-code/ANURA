@@ -18,6 +18,8 @@ import './workout-desktop.css';
 import './body-progress-desktop.css';
 import './profile-import.css';
 import './nutrition-scroll.css';
+import './features-v2.css';
+import './profile-settings.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
