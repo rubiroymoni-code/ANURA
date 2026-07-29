@@ -7,6 +7,7 @@ import {
   nutritionApi,
   NutritionImportPreview,
   NutritionDashboard,
+  AdherenceDashboard,
   TodayMeal,
 } from "./api";
 import {
@@ -38,6 +39,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
   const [loadError, setLoadError] = useState("");
   const [todayMeals,setTodayMeals]=useState<TodayMeal[]>([]);
   const [dashboard,setDashboard]=useState<NutritionDashboard|null>(null);
+  const [adherence,setAdherence]=useState<AdherenceDashboard|null>(null);
   const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
   const todayRecipeNames = new Set(
     todayMeals.map((meal) => meal.recipe.trim().toLocaleLowerCase("es")),
@@ -48,6 +50,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     void nutritionApi.today().then(setTodayMeals).catch(()=>setTodayMeals([]));
     void nutritionApi.dashboard().then(setDashboard).catch(()=>setDashboard(null));
+    void nutritionApi.adherence().then(setAdherence).catch(()=>setAdherence(null));
     void Promise.allSettled([
       householdApi.list(), nutritionApi.recipes(), nutritionApi.plans(),
     ]).then(([householdResult, recipeResult, planResult]) => {
@@ -102,6 +105,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
               </button>
             )}
             {dashboard&&<NutritionBalance data={dashboard}/>}
+            {adherence&&<AdherenceCard data={adherence}/>}
             <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3><p>Abre una comida para consultar su receta o usa el check lateral para completarla directamente.</p></div>{todayMeals.length?todayMeals.map(meal=><article className={meal.status==="COMPLETED"?"completed":""} key={meal.planned_meal_id}><button className="today-recipe-link" onClick={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSection("recipe")}}}><small>{meal.meal_type}</small><b>{meal.recipe||meal.meal_name}</b><em>{Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</em></button><button aria-label={`Completar ${meal.meal_name}`} disabled={meal.status==="COMPLETED"} onClick={async()=>{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setDashboard(await nutritionApi.dashboard())}}>{meal.status==="COMPLETED"?"✓":"○"}</button></article>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}</section>
             <div className="nutrition-menu">
               <button onClick={() => setSection("household")}>
@@ -181,6 +185,8 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+function AdherenceCard({data}:{data:AdherenceDashboard}){const days=["","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];return <section className="adherence-card"><div><small>ÚLTIMOS {data.days} DÍAS</small><h3>Adherencia real</h3><p>Incluye también lo planificado que quedó sin registrar.</p></div><div className="adherence-scores"><span><b>{Number(data.meals.score).toFixed(0)}%</b><small>Nutrición · {data.meals.expected} previstas</small></span><span><b>{Number(data.workouts.score).toFixed(0)}%</b><small>Entreno · {data.workouts.expected} previstos</small></span></div><div className="adherence-breakdown"><span>{data.meals.completed} completas</span><span>{data.meals.substituted} sustituidas</span><span>{data.meals.partial} parciales</span><span>{data.meals.skipped} saltadas</span>{data.meals.missing>0&&<span>{data.meals.missing} sin registrar</span>}</div>{data.patterns[0]&&<p className="adherence-pattern">Más cambios registrados: <b>{days[data.patterns[0].day_number]}</b>. Es una señal para revisar contexto, no un juicio.</p>}</section>}
+
 function NutritionBalance({data}:{data:NutritionDashboard}){
   const [editing,setEditing]=useState(false);
   const [current,setCurrent]=useState(data);
