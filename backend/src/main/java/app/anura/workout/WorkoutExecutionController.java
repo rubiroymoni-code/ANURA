@@ -17,7 +17,7 @@ public class WorkoutExecutionController {
  @GetMapping("/api/v1/workout-sessions/{id}") SessionView one(@PathVariable UUID id){return service.view(id);}
  @PostMapping("/api/v1/workout-sessions/{id}/pause") SessionView pause(@PathVariable UUID id){return service.transition(id,"PAUSED","SESSION_PAUSED");}
  @PostMapping("/api/v1/workout-sessions/{id}/resume") SessionView resume(@PathVariable UUID id){return service.transition(id,"IN_PROGRESS","SESSION_RESUMED");}
- @PostMapping("/api/v1/workout-sessions/{id}/abandon") SessionView abandon(@PathVariable UUID id){return service.transition(id,"ABANDONED","SESSION_ABANDONED");}
+ @PostMapping("/api/v1/workout-sessions/{id}/abandon") SessionView abandon(@PathVariable UUID id,@RequestBody(required=false) AbandonRequest body){return service.abandon(id,body==null?null:body.reason());}
  @PostMapping("/api/v1/workout-sessions/{id}/complete") SessionView complete(@PathVariable UUID id,@RequestBody CompleteRequest r){return service.complete(id,r);}
  @PostMapping("/api/v1/workout-sessions/{id}/exercises") ExerciseView exercise(@PathVariable UUID id,@RequestBody AddExerciseRequest r){return service.addExercise(id,r);}
  @PostMapping("/api/v1/workout-sessions/{id}/exercises/{exerciseId}/substitute") ExerciseView substitute(@PathVariable UUID id,@PathVariable UUID exerciseId,@RequestBody SubstituteRequest r){return service.substitute(id,exerciseId,r);}
