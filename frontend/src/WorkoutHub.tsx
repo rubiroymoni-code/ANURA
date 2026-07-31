@@ -1,17 +1,18 @@
 import { useEffect,useMemo,useState } from "react";
 import { Check,ChevronDown,Clock,Copy,Dumbbell,FileUp,History,Pause,Play,Plus,RotateCcw,Signal,SignalZero,Trash2,X } from "lucide-react";
-import { workoutApi, type TodayWorkout,type WorkoutExercise,type WorkoutSession,type WorkoutSet,type WorkoutSummary } from "./api";
+import { nutritionApi, workoutApi, type AdherenceDashboard,type TodayWorkout,type WorkoutExercise,type WorkoutSession,type WorkoutSet,type WorkoutSummary } from "./api";
 import { pendingOperations,queueOperation,removeOperations,type OfflineOperation } from "./workoutOffline";
+import { AdherenceCard } from "./AdherenceCard";
 
 export function WorkoutHub({onClose,onImport}:{onClose:()=>void;onImport:()=>void}){
- const [today,setToday]=useState<TodayWorkout|null>(null),[session,setSession]=useState<WorkoutSession|null>(null),[history,setHistory]=useState<WorkoutSummary[]>([]),[view,setView]=useState<"today"|"active"|"history"|"summary">("today"),[busy,setBusy]=useState(false),[sync,setSync]=useState("Cambios guardados");
- const load=async()=>{const [t,a,h]=await Promise.all([workoutApi.today().catch(()=>null),workoutApi.active().catch(()=>null),workoutApi.history().catch(()=>[])]);setToday(t);setSession(a);setHistory(h);if(a)setView("active")};
+ const [today,setToday]=useState<TodayWorkout|null>(null),[session,setSession]=useState<WorkoutSession|null>(null),[history,setHistory]=useState<WorkoutSummary[]>([]),[adherence,setAdherence]=useState<AdherenceDashboard|null>(null),[view,setView]=useState<"today"|"active"|"history"|"summary">("today"),[busy,setBusy]=useState(false),[sync,setSync]=useState("Cambios guardados");
+ const load=async()=>{const [t,a,h,ad]=await Promise.all([workoutApi.today().catch(()=>null),workoutApi.active().catch(()=>null),workoutApi.history().catch(()=>[]),nutritionApi.adherence().catch(()=>null)]);setToday(t);setSession(a);setHistory(h);setAdherence(ad);if(a)setView("active")};
  useEffect(()=>{void load()},[]);
  const syncPending=async()=>{if(!navigator.onLine||!session)return;const ops=await pendingOperations(session.header.id);if(!ops.length){setSync("Cambios guardados");return}setSync("Guardando cambios…");try{const result=await workoutApi.sync(session.header.id,ops);await removeOperations(result.filter(x=>x.result==="APPLIED").map(x=>x.operationId));setSync(result.some(x=>x.result==="CONFLICT")?"Revisar cambios":"Cambios guardados");setSession(await workoutApi.one(session.header.id))}catch{setSync("Pendiente de guardar")}};
  useEffect(()=>{const online=()=>void syncPending();window.addEventListener("online",online);return()=>window.removeEventListener("online",online)},[session?.header.id]);
  const start=async(free=false)=>{setBusy(true);try{const s=await workoutApi.start({workoutPlanDayId:free?undefined:today?.dayId,name:free?"Entrenamiento libre":undefined,clientExternalId:crypto.randomUUID()});setSession(s);setView("active");navigator.vibrate?.(35)}finally{setBusy(false)}};
  return <div className="overlay"><section className="modal workout-hub"><header className="workout-top"><div><small>EJECUCIÓN REAL</small><h2>{view==="history"?"Histórico":session?.header.name||"Entrenamiento"}</h2></div><button onClick={onClose}><X/></button></header>
- {view==="today"&&<TodayScreen today={today} active={session} history={history} busy={busy} onStart={start} onContinue={()=>setView("active")} onHistory={()=>setView("history")}/>} 
+ {view==="today"&&<div className="today-workout-shell">{adherence&&<AdherenceCard data={adherence} mode="workout"/>}<TodayScreen today={today} active={session} history={history} busy={busy} onStart={start} onContinue={()=>setView("active")} onHistory={()=>setView("history")}/></div>}
  {view==="active"&&session&&<ActiveWorkout session={session} sync={sync} setSession={setSession} onSync={syncPending} onFinish={()=>setView("summary")}/>} 
  {view==="history"&&<WorkoutHistory rows={history} onOpen={async id=>{setSession(await workoutApi.one(id));setView("summary")}}/>}
  {view==="summary"&&session&&<WorkoutSummaryView session={session} onBack={()=>{void load();setView("history")}}/>}
