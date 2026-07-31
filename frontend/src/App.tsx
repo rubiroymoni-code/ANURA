@@ -11,6 +11,7 @@ import {
   FileUp,
   Home,
   CircleUserRound,
+  Droplets,
   LogOut,
   Plus,
   Scale,
@@ -38,6 +39,7 @@ import { WorkRoutinePanel } from "./WorkRoutinePanel";
 import { WorkoutHub } from "./WorkoutHub";
 import { clearWorkoutOffline } from "./workoutOffline";
 import { MealFlow } from "./MealFlow";
+import { CycleTracker } from "./CycleTracker";
 
 const meta: Record<
   EntryType,
@@ -65,7 +67,7 @@ export function App() {
     }
   });
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [tab, setTab] = useState<"HOME" | EntryType>("HOME");
+  const [tab, setTab] = useState<"HOME" | EntryType | "CYCLE">("HOME");
   const [modal, setModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -207,11 +209,12 @@ export function App() {
         ) : (
           <div className="section-title">
             <button onClick={() => setTab("HOME")}>← Inicio</button>
-            <p>{meta[tab].label}</p>
-            <h1>{meta[tab].label}s</h1>
+            <p>{tab === "CYCLE" ? "Ciclo" : meta[tab].label}</p>
+            <h1>{tab === "CYCLE" ? "Ciclo menstrual" : `${meta[tab].label}s`}</h1>
           </div>
         )}
         {tab === "WEIGHT" && <BodyProgress />}
+        {tab === "CYCLE" && <CycleTracker />}
         {tab === "GOAL" && <GoalVision goals={entries.filter(entry=>entry.type==="GOAL")} onAdd={()=>setModal(true)}/>}
         {tab === "WORKOUT" && (
           <button className="workout-launch" onClick={() => setWorkoutOpen(true)}>
@@ -220,7 +223,7 @@ export function App() {
           </button>
         )}
         {tab === "WEIGHT" && entries.some((entry) => entry.type === "WEIGHT") && <h2 className="subsection-title">Registros anteriores</h2>}
-        {(tab !== "WEIGHT" || visible.length > 0) && (
+        {tab !== "CYCLE" && (tab !== "WEIGHT" || visible.length > 0) && (
           <EntryList
             entries={visible.slice(0, 12)}
             onEdit={(entry) => {if(entry.type === "MEAL"){setEditingMeal(entry);setMealFlowOpen(true)}}}
@@ -254,7 +257,7 @@ export function App() {
           </button>
         )}
       </section>
-      {tab !== "WEIGHT" && <button className="fab" onClick={() => tab === "MEAL" ? (setEditingMeal(null),setMealFlowOpen(true)) : setModal(true)}>
+      {tab !== "WEIGHT" && tab !== "CYCLE" && <button className="fab" onClick={() => tab === "MEAL" ? (setEditingMeal(null),setMealFlowOpen(true)) : setModal(true)}>
         <Plus />
       </button>}
       <nav>
@@ -263,6 +266,7 @@ export function App() {
           { id: "WORKOUT" as const, icon: Dumbbell, label: "Entreno" },
           { id: "MEAL" as const, icon: Apple, label: "Nutrición" },
           { id: "WEIGHT" as const, icon: Activity, label: "Evolución" },
+          ...(profilePreferences.biological_sex === "FEMALE" ? [{ id: "CYCLE" as const, icon: Droplets, label: "Ciclo" }] : []),
         ].map((n) => (
           <button
             className={tab === n.id ? "active" : ""}
@@ -327,7 +331,7 @@ export function App() {
           }}
         />
       )}
-      {accountOpen && <AccountModal user={user} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} />}
+      {accountOpen && <AccountModal user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} />}
       {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} onClose={() => setMealFlowOpen(false)} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
     </main>
   );
@@ -797,13 +801,12 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
   );
 }
 
-function AccountModal({ user, onClose,onAvatar }: { user: User; onClose: () => void;onAvatar:(avatar:string)=>void }) {
+function AccountModal({ user, onClose,onAvatar,onPreferences }: { user: User; onClose: () => void;onAvatar:(avatar:string)=>void;onPreferences:(preferences:ProfilePreferences)=>void }) {
   const [result, setResult] = useState<{ code: string; expiresAt: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tab,setProfileTab]=useState<"profile"|"initial"|"work"|"cycle"|"password"|"reminders">("profile"),[message,setMessage]=useState("");
+  const [tab,setProfileTab]=useState<"profile"|"initial"|"work"|"password"|"reminders">("profile"),[message,setMessage]=useState("");
   const [preferences,setPreferences]=useState<ProfilePreferences>({});
-  const [cycles,setCycles]=useState<Awaited<ReturnType<typeof api.cycles>>>([]);
-  useEffect(()=>{void api.profilePreferences().then(setPreferences);void api.cycles().then(setCycles).catch(()=>setCycles([]))},[]);
+  useEffect(()=>{void api.profilePreferences().then(setPreferences)},[]);
   return (
     <div className="overlay">
       <section className="modal account-modal">
@@ -811,12 +814,12 @@ function AccountModal({ user, onClose,onAvatar }: { user: User; onClose: () => v
           <div><small>MI CUENTA</small><h2>Perfil y preferencias</h2></div>
           <button type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
         </div>
-        <div className="profile-tabs"><button className={tab==="profile"?"active":""} onClick={()=>setProfileTab("profile")}>Perfil</button><button className={tab==="initial"?"active":""} onClick={()=>setProfileTab("initial")}>Datos iniciales</button><button className={tab==="work"?"active":""} onClick={()=>setProfileTab("work")}>Trabajo y turnos</button>{preferences.biological_sex==="FEMALE"&&<button className={tab==="cycle"?"active":""} onClick={()=>setProfileTab("cycle")}>Ciclo</button>}<button className={tab==="password"?"active":""} onClick={()=>setProfileTab("password")}>Contraseña</button><button className={tab==="reminders"?"active":""} onClick={()=>setProfileTab("reminders")}>Recordatorios</button></div>
+        <div className="profile-tabs"><button className={tab==="profile"?"active":""} onClick={()=>setProfileTab("profile")}>Perfil</button><button className={tab==="initial"?"active":""} onClick={()=>setProfileTab("initial")}>Datos iniciales</button><button className={tab==="work"?"active":""} onClick={()=>setProfileTab("work")}>Trabajo y turnos</button><button className={tab==="password"?"active":""} onClick={()=>setProfileTab("password")}>Contraseña</button><button className={tab==="reminders"?"active":""} onClick={()=>setProfileTab("reminders")}>Recordatorios</button></div>
         {message&&<div className="progress-saved">{message}</div>}
         {tab==="work"&&<WorkRoutinePanel/>}
         {tab==="profile"&&<>
         <div className="profile-identity"><label className="profile-avatar-editor" title="Cambiar fotografía">{preferences.avatar_url?<img src={preferences.avatar_url} alt={user.displayName}/>:<img className="mascot-fallback" src="/anura-mascot.png" alt=""/>}<span><Plus/>Cambiar foto</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;setBusy(true);try{const avatar=await compressAvatar(file);await api.saveAvatar(avatar);setPreferences(current=>({...current,avatar_url:avatar}));onAvatar(avatar);setMessage("Foto de perfil actualizada")}finally{setBusy(false)}}}/></label><div><small>MI PERFIL</small><h3>{user.displayName}</h3><p>{user.email}</p><em>{goalLabel(preferences.primary_goal)}</em></div></div>
-        <form className="profile-sex-setting" onSubmit={async e=>{e.preventDefault();const sex=String(new FormData(e.currentTarget).get("sex")||"UNSPECIFIED");await api.saveProfilePreferences({primaryGoal:preferences.primary_goal||"BODY_RECOMPOSITION",experienceLevel:preferences.experience_level||"BEGINNER",activityLevel:preferences.activity_level||"MODERATE",heightCm:preferences.height_cm,trainingDays:preferences.training_days,limitations:preferences.limitations,biologicalSex:sex,reminderEmailEnabled:preferences.reminder_email_enabled!==false});const next=await api.profilePreferences();setPreferences(next);setMessage(sex==="FEMALE"?"Sexo actualizado. Seguimiento del ciclo activado":"Sexo actualizado");if(sex==="FEMALE")setProfileTab("cycle")}}>
+        <form className="profile-sex-setting" onSubmit={async e=>{e.preventDefault();const sex=String(new FormData(e.currentTarget).get("sex")||"UNSPECIFIED");await api.saveProfilePreferences({primaryGoal:preferences.primary_goal||"BODY_RECOMPOSITION",experienceLevel:preferences.experience_level||"BEGINNER",activityLevel:preferences.activity_level||"MODERATE",heightCm:preferences.height_cm,trainingDays:preferences.training_days,limitations:preferences.limitations,biologicalSex:sex,reminderEmailEnabled:preferences.reminder_email_enabled!==false});const next=await api.profilePreferences();setPreferences(next);onPreferences(next);setMessage(sex==="FEMALE"?"Sexo actualizado. La pestaña Ciclo ya está disponible abajo":"Sexo actualizado")}}>
           <label>Sexo para personalizar el seguimiento<select name="sex" value={preferences.biological_sex||"UNSPECIFIED"} onChange={e=>setPreferences(current=>({...current,biological_sex:e.target.value}))}><option value="UNSPECIFIED">Prefiero no indicarlo</option><option value="FEMALE">Mujer</option><option value="MALE">Hombre</option></select></label>
           <button className="primary" type="submit">Guardar</button>
         </form>
@@ -830,7 +833,6 @@ function AccountModal({ user, onClose,onAvatar }: { user: User; onClose: () => v
         {result && <div className="invite-code"><small>CÓDIGO PERSONAL</small><strong>{result.code}</strong><button type="button" onClick={() => void navigator.clipboard.writeText(result.code)}><Copy /> Copiar código</button><p>Válido hasta {new Date(result.expiresAt).toLocaleDateString("es")} y para un solo cambio de contraseña.</p></div>}
         </>}
         {tab==="initial"&&<form key={`${preferences.primary_goal}-${preferences.experience_level}-${preferences.activity_level}-${preferences.biological_sex}`} className="profile-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget),optionalNumber=(name:string)=>f.get(name)?Number(f.get(name)):undefined;await api.saveProfilePreferences({primaryGoal:String(f.get("goal")),experienceLevel:String(f.get("experience")),activityLevel:String(f.get("activity")),heightCm:optionalNumber("height"),trainingDays:optionalNumber("days"),limitations:String(f.get("limitations")||""),biologicalSex:String(f.get("sex")||"UNSPECIFIED"),reminderEmailEnabled:preferences.reminder_email_enabled!==false});setPreferences(await api.profilePreferences());setMessage("Datos iniciales actualizados")}}><p>Actualiza el formulario base que ANURA usa para contextualizar tus planes e informes.</p><label>Sexo<select name="sex" defaultValue={preferences.biological_sex||"UNSPECIFIED"}><option value="UNSPECIFIED">Prefiero no indicarlo</option><option value="FEMALE">Mujer</option><option value="MALE">Hombre</option></select></label><label>Objetivo principal<select name="goal" defaultValue={preferences.primary_goal||"BODY_RECOMPOSITION"}><option value="LOSE_FAT">Bajar grasa</option><option value="GAIN_MUSCLE">Ganar músculo</option><option value="BODY_RECOMPOSITION">Bajar grasa y ganar músculo</option><option value="HEALTH">Mejorar salud y hábitos</option></select></label><label>Experiencia<select name="experience" defaultValue={preferences.experience_level||"BEGINNER"}><option value="BEGINNER">Principiante</option><option value="INTERMEDIATE">Intermedia</option><option value="ADVANCED">Avanzada</option></select></label><label>Actividad diaria<select name="activity" defaultValue={preferences.activity_level||"MODERATE"}><option value="LOW">Baja</option><option value="MODERATE">Moderada</option><option value="HIGH">Alta</option></select></label><div className="profile-form-row"><label>Altura (cm)<input name="height" type="number" min="100" max="250" step="0.1" defaultValue={preferences.height_cm}/></label><label>Días de entreno/semana<input name="days" type="number" min="0" max="7" defaultValue={preferences.training_days}/></label></div><label>Lesiones, limitaciones o contexto<textarea name="limitations" defaultValue={preferences.limitations}/></label><button className="primary">Guardar datos iniciales</button></form>}
-        {tab==="cycle"&&<div className="cycle-history"><form className="profile-form" onSubmit={async e=>{e.preventDefault();const form=e.currentTarget,f=new FormData(form);await api.saveCycle({startDate:String(f.get("start")),endDate:String(f.get("end")||"")||undefined,flowLevel:String(f.get("flow")||""),symptoms:String(f.get("symptoms")||""),notes:String(f.get("notes")||"")});form.reset();setCycles(await api.cycles());setMessage("Ciclo registrado")}}><p>Registro privado para contextualizar sensaciones y adaptar la carga, nunca para limitarte automáticamente.</p><div className="profile-form-row"><label>Inicio<input required name="start" type="date"/></label><label>Fin<input name="end" type="date"/></label></div><label>Flujo<select name="flow"><option value="">Sin indicar</option><option value="LIGHT">Ligero</option><option value="MEDIUM">Medio</option><option value="HEAVY">Abundante</option></select></label><label>Síntomas<input name="symptoms" placeholder="Dolor, fatiga, hinchazón…"/></label><label>Notas<textarea name="notes" placeholder="Sensaciones o contexto del entrenamiento…"/></label><button className="primary">Guardar periodo</button></form><div className="cycle-list">{cycles.map(cycle=><article key={cycle.id}><span><b>{new Date(cycle.start_date+"T12:00").toLocaleDateString("es")}{cycle.end_date?` – ${new Date(cycle.end_date+"T12:00").toLocaleDateString("es")}`:""}</b><small>{cycle.flow_level||"Flujo sin indicar"}{cycle.symptoms?` · ${cycle.symptoms}`:""}</small>{cycle.notes&&<em>{cycle.notes}</em>}</span><button onClick={async()=>{await api.deleteCycle(cycle.id);setCycles(await api.cycles())}}><Trash2/></button></article>)}</div></div>}
         {tab==="password"&&<form className="profile-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);await api.changePassword({currentPassword:String(f.get("current")),newPassword:String(f.get("next"))});e.currentTarget.reset();setMessage("Contraseña cambiada correctamente")}}><label>Contraseña actual<input required name="current" type="password" autoComplete="current-password"/></label><label>Nueva contraseña<input required minLength={8} name="next" type="password" autoComplete="new-password"/></label><button className="primary">Cambiar contraseña</button></form>}
         {tab==="reminders"&&<div className="reminder-settings"><div className="reminder-card"><span><b>Resumen mensual por email</b><small>El primer resumen se enviará un mes después de activarlo.</small></span><input type="checkbox" checked={preferences.reminder_email_enabled!==false} onChange={async e=>{const enabled=e.target.checked;await api.saveProfilePreferences({primaryGoal:preferences.primary_goal||"BODY_RECOMPOSITION",experienceLevel:preferences.experience_level||"BEGINNER",activityLevel:preferences.activity_level||"MODERATE",heightCm:preferences.height_cm,trainingDays:preferences.training_days,limitations:preferences.limitations,biologicalSex:preferences.biological_sex,reminderEmailEnabled:enabled});setPreferences({...preferences,reminder_email_enabled:enabled});setMessage("Preferencia guardada")}}/></div>{preferences.last_summary_sent_at&&<p>Último envío: {new Date(preferences.last_summary_sent_at).toLocaleString("es")}</p>}<button className="primary secondary" disabled={busy} onClick={async()=>{setBusy(true);try{await api.testReminder();setMessage("Email de prueba enviado");setPreferences(await api.profilePreferences())}finally{setBusy(false)}}}>{busy?"Enviando…":"Enviar resumen de prueba ahora"}</button></div>}
       </section>
