@@ -1,0 +1,6 @@
+@media(max-width:720px){
+ .account-modal{display:flex!important;flex-direction:column!important;height:100dvh!important;max-height:100dvh!important;overflow:hidden!important}
+ .account-modal>.modal-head,.account-modal>.profile-tabs,.account-modal>.progress-saved{flex:0 0 auto}
+ .account-modal>.work-routine{flex:1 1 auto;min-height:0;max-height:none;overflow-y:auto!important;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:2px 2px calc(28px + env(safe-area-inset-bottom))}
+ .work-routine>section{flex:0 0 auto}
+}
