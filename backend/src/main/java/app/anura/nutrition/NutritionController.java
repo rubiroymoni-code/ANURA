@@ -107,6 +107,36 @@ public class NutritionController {
     return savePlanned(mealId,"SUBSTITUTED",input,meal,input.name().trim());
   }
 
+  @PostMapping("/today/{mealId}/partial")
+  @Transactional
+  Map<String,Object> partialTodayMeal(@PathVariable UUID mealId,@RequestBody PartialMeal input) {
+    if(input==null||input.percent()==null||input.percent()<1||input.percent()>99) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_ADHERENCE","Indica un porcentaje entre 1 y 99");
+    Map<String,Object> meal=plannedMeal(mealId);
+    Map<String,Object> saved=savePlanned(mealId,"PARTIAL",new MealInput(null,null,null,input.portion(),null,null,null,null,input.notes()),meal,null);
+    db.update("UPDATE consumed_meal SET adherence_percent=?,deviation_reason=?,calories=calories*?/100,protein=protein*?/100,carbohydrates=carbohydrates*?/100,fat=fat*?/100 WHERE user_id=? AND planned_meal_id=? AND meal_date=CURRENT_DATE",input.percent(),clean(input.reason()),input.percent(),input.percent(),input.percent(),input.percent(),CurrentUser.id(),mealId);
+    return consumed((UUID)saved.get("id"));
+  }
+
+  @GetMapping("/adherence")
+  Map<String,Object> adherence(@RequestParam(defaultValue="28") int days) {
+    int period=Math.min(Math.max(days,7),365);UUID user=CurrentUser.id();
+    Map<String,Object> meals=db.queryForMap("SELECT COUNT(*) FILTER(WHERE status='COMPLETED') completed,COUNT(*) FILTER(WHERE status='SUBSTITUTED') substituted,COUNT(*) FILTER(WHERE status='PARTIAL') partial,COUNT(*) FILTER(WHERE status='SKIPPED') skipped,ROUND(COALESCE(AVG(COALESCE(adherence_percent,CASE status WHEN 'COMPLETED' THEN 100 WHEN 'SUBSTITUTED' THEN 85 ELSE 0 END)),0),1) score FROM consumed_meal WHERE user_id=? AND meal_date>=CURRENT_DATE-?",user,period-1);
+    Map<String,Object> workouts=db.queryForMap("SELECT COUNT(*) FILTER(WHERE status='COMPLETED' AND COALESCE(adherence_percent,100)=100) completed,COUNT(*) FILTER(WHERE status='COMPLETED' AND adherence_percent<100) partial,COUNT(*) FILTER(WHERE status='ABANDONED') abandoned,ROUND(COALESCE(AVG(COALESCE(adherence_percent,CASE WHEN status='COMPLETED' THEN 100 WHEN status='ABANDONED' THEN 0 END)),0),1) score FROM workout_session WHERE user_id=? AND planned_date>=CURRENT_DATE-? AND deleted_at IS NULL",user,period-1);
+    Integer expectedMeals=db.queryForObject("SELECT COUNT(*) FROM generate_series(CURRENT_DATE-?,CURRENT_DATE,INTERVAL '1 day') AS calendar(day) JOIN nutrition_plan p ON p.status='ACTIVE' JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id AND d.day_number=EXTRACT(ISODOW FROM calendar.day) JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)",Integer.class,period-1,user,user,user);
+    Integer expectedWorkouts=db.queryForObject("SELECT COUNT(*) FROM generate_series(CURRENT_DATE-?,CURRENT_DATE,INTERVAL '1 day') AS calendar(day) JOIN (SELECT DISTINCT d.day_number FROM workout_plan p JOIN workout_plan_day d ON d.workout_plan_id=p.id WHERE p.user_id=? AND p.status='ACTIVE') planned ON planned.day_number=EXTRACT(ISODOW FROM calendar.day)",Integer.class,period-1,user);
+    long mealRecorded=((Number)meals.get("completed")).longValue()+((Number)meals.get("substituted")).longValue()+((Number)meals.get("partial")).longValue()+((Number)meals.get("skipped")).longValue();
+    long workoutRecorded=((Number)workouts.get("completed")).longValue()+((Number)workouts.get("partial")).longValue()+((Number)workouts.get("abandoned")).longValue();
+    int mealExpected=Math.max(expectedMeals==null?0:expectedMeals,(int)mealRecorded),workoutExpected=Math.max(expectedWorkouts==null?0:expectedWorkouts,(int)workoutRecorded);
+    java.math.BigDecimal mealPoints=(java.math.BigDecimal)db.queryForObject("SELECT COALESCE(SUM(COALESCE(adherence_percent,CASE status WHEN 'COMPLETED' THEN 100 WHEN 'SUBSTITUTED' THEN 85 ELSE 0 END)),0) FROM consumed_meal WHERE user_id=? AND meal_date>=CURRENT_DATE-?",java.math.BigDecimal.class,user,period-1);
+    meals.put("expected",mealExpected);meals.put("missing",Math.max(0,mealExpected-mealRecorded));meals.put("score",mealExpected==0?0:mealPoints.divide(java.math.BigDecimal.valueOf(mealExpected),1,java.math.RoundingMode.HALF_UP));
+    java.math.BigDecimal workoutPoints=(java.math.BigDecimal)db.queryForObject("SELECT COALESCE(SUM(COALESCE(adherence_percent,CASE WHEN status='COMPLETED' THEN 100 WHEN status='ABANDONED' THEN 0 END)),0) FROM workout_session WHERE user_id=? AND planned_date>=CURRENT_DATE-? AND deleted_at IS NULL",java.math.BigDecimal.class,user,period-1);
+    workouts.put("expected",workoutExpected);workouts.put("missing",Math.max(0,workoutExpected-workoutRecorded));workouts.put("score",workoutExpected==0?0:workoutPoints.divide(java.math.BigDecimal.valueOf(workoutExpected),1,java.math.RoundingMode.HALF_UP));
+    List<Map<String,Object>> patterns=db.queryForList("SELECT EXTRACT(ISODOW FROM meal_date)::int day_number,COUNT(*) incidents FROM consumed_meal WHERE user_id=? AND meal_date>=CURRENT_DATE-? AND status IN ('SKIPPED','PARTIAL','SUBSTITUTED') GROUP BY 1 ORDER BY incidents DESC,day_number",user,period-1);
+    List<Map<String,Object>> weekly=db.queryForList("SELECT week,ROUND(AVG(meal_score),1) meal_score,ROUND(AVG(workout_score),1) workout_score FROM (SELECT date_trunc('week',meal_date)::date week,COALESCE(adherence_percent,CASE status WHEN 'COMPLETED' THEN 100 WHEN 'SUBSTITUTED' THEN 85 ELSE 0 END) meal_score,NULL::numeric workout_score FROM consumed_meal WHERE user_id=? AND meal_date>=CURRENT_DATE-? UNION ALL SELECT date_trunc('week',planned_date)::date,NULL::numeric,COALESCE(adherence_percent,CASE status WHEN 'COMPLETED' THEN 100 WHEN 'ABANDONED' THEN 0 END) FROM workout_session WHERE user_id=? AND planned_date>=CURRENT_DATE-? AND deleted_at IS NULL) x GROUP BY week ORDER BY week",user,period-1,user,period-1);
+    List<Map<String,Object>> workoutReasons=db.queryForList("SELECT adherence_reason reason,COUNT(*) incidents FROM workout_session WHERE user_id=? AND planned_date>=CURRENT_DATE-? AND adherence_reason IS NOT NULL AND adherence_reason<>'' GROUP BY adherence_reason ORDER BY incidents DESC",user,period-1);
+    Map<String,Object> result=new LinkedHashMap<>();result.put("days",period);result.put("meals",meals);result.put("workouts",workouts);result.put("patterns",patterns);result.put("weekly",weekly);result.put("workoutReasons",workoutReasons);return result;
+  }
+
   @PostMapping("/meals/custom")
   @ResponseStatus(HttpStatus.CREATED)
   @Transactional
@@ -140,7 +170,7 @@ public class NutritionController {
     if(from.isAfter(until)) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_DATE_RANGE","El rango de fechas no es valido");
     return db.queryForList(
         "SELECT cm.id,cm.meal_date,cm.meal_type,cm.status,COALESCE(cm.custom_name,pm.meal_name,r.name) name,"
-            + " cm.portion,cm.calories,cm.protein,cm.carbohydrates,cm.fat,cm.notes,cm.completed_at,"
+            + " cm.portion,cm.calories,cm.protein,cm.carbohydrates,cm.fat,cm.notes,cm.adherence_percent,cm.deviation_reason,cm.completed_at,"
             + " pm.meal_name planned_meal,r.name planned_recipe FROM consumed_meal cm"
             + " LEFT JOIN planned_meal pm ON pm.id=cm.planned_meal_id LEFT JOIN recipe r ON r.id=pm.recipe_id"
             + " WHERE cm.user_id=? AND cm.meal_date BETWEEN ? AND ? ORDER BY cm.meal_date,cm.completed_at,cm.meal_type",
@@ -155,6 +185,7 @@ public class NutritionController {
   private static String normalizeMealType(String value){String v=value.toUpperCase(Locale.ROOT);if(v.contains("DESAY")||v.equals("BREAKFAST"))return"BREAKFAST";if(v.contains("MEDIA")||v.equals("MID_MORNING"))return"MID_MORNING";if(v.equals("COMIDA")||v.equals("LUNCH"))return"LUNCH";if(v.contains("MERIEN")||v.equals("SNACK"))return"SNACK";if(v.contains("CENA")||v.equals("DINNER"))return"DINNER";return"OTHER";}
   private static String clean(String value){return value==null||value.isBlank()?null:value.trim();}
   record MealInput(String mealType,String name,LocalDate date,String portion,java.math.BigDecimal calories,java.math.BigDecimal protein,java.math.BigDecimal carbohydrates,java.math.BigDecimal fat,String notes){}
+  record PartialMeal(Integer percent,String reason,String portion,String notes){}
 
   @GetMapping("/plans/{id}/week")
   List<Map<String, Object>> week(
@@ -363,7 +394,7 @@ public class NutritionController {
     return db.queryForList(
         "SELECT i.id,i.name,i.category,i.quantity,i.required_quantity,i.pantry_used,i.unit,i.purchased,i.manual FROM"
             + " shopping_list_item i JOIN shopping_list s ON s.id=i.shopping_list_id JOIN"
-            + " household_member m ON m.household_id=s.household_id WHERE i.shopping_list_id=? AND"
+            + " household_member m ON m.household_id=s.household_id WHERE i.shopping_list_id=? AND i.quantity>0 AND"
             + " m.user_id=? ORDER BY i.item_order",
         id,
         CurrentUser.id());

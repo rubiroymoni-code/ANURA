@@ -66,8 +66,11 @@ export const api = {
     request<Entry>("/entries", { method: "POST", body: JSON.stringify(data) }),
   update: (id:string,data:Omit<Entry,"id">)=>request<Entry>(`/entries/${id}`,{method:"PUT",body:JSON.stringify(data)}),
   remove: (id: string) => request<void>(`/entries/${id}`, { method: "DELETE" }),
-  profilePreferences:()=>request<{primary_goal?:string;experience_level?:string;activity_level?:string;height_cm?:number;training_days?:number;limitations?:string;avatar_url?:string;reminder_email_enabled?:boolean;reminder_frequency?:string;last_summary_sent_at?:string}>("/profile/preferences"),
-  saveProfilePreferences:(data:{primaryGoal:string;experienceLevel:string;activityLevel:string;heightCm?:number;trainingDays?:number;limitations?:string;reminderEmailEnabled:boolean})=>request<void>("/profile/preferences",{method:"PATCH",body:JSON.stringify(data)}),
+  profilePreferences:()=>request<{primary_goal?:string;experience_level?:string;activity_level?:string;height_cm?:number;training_days?:number;limitations?:string;biological_sex?:string;avatar_url?:string;reminder_email_enabled?:boolean;reminder_frequency?:string;last_summary_sent_at?:string}>("/profile/preferences"),
+  saveProfilePreferences:(data:{primaryGoal:string;experienceLevel:string;activityLevel:string;heightCm?:number;trainingDays?:number;limitations?:string;biologicalSex?:string;reminderEmailEnabled:boolean})=>request<void>("/profile/preferences",{method:"PATCH",body:JSON.stringify(data)}),
+  cycles:()=>request<Array<{id:string;start_date:string;end_date?:string;flow_level?:string;symptoms?:string;notes?:string}>>("/profile/cycles"),
+  saveCycle:(data:{startDate:string;endDate?:string;flowLevel?:string;symptoms?:string;notes?:string})=>request<Record<string,unknown>>("/profile/cycles",{method:"POST",body:JSON.stringify(data)}),
+  deleteCycle:(id:string)=>request<void>(`/profile/cycles/${id}`,{method:"DELETE"}),
   changePassword:(data:{currentPassword:string;newPassword:string})=>request<void>("/profile/password",{method:"PATCH",body:JSON.stringify(data)}),
   testReminder:()=>request<void>("/profile/reminders/test",{method:"POST"}),
   saveAvatar:(avatarUrl:string)=>request<void>("/profile/avatar",{method:"PATCH",body:JSON.stringify({avatarUrl})}),
@@ -146,6 +149,7 @@ export const workoutApi = {
   pause:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/pause`,{method:"POST"}),
   resume:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/resume`,{method:"POST"}),
   complete:(id:string,body:object)=>request<WorkoutSession>(`/workout-sessions/${id}/complete`,{method:"POST",body:JSON.stringify(body)}),
+  abandon:(id:string,reason?:string)=>request<WorkoutSession>(`/workout-sessions/${id}/abandon`,{method:"POST",body:JSON.stringify({reason})}),
   addExercise:(session:string,body:object)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises`,{method:"POST",body:JSON.stringify(body)}),
   addSet:(session:string,exercise:string,body:object)=>request<WorkoutSet>(`/workout-sessions/${session}/exercises/${exercise}/sets`,{method:"POST",body:JSON.stringify(body)}),
   updateSet:(session:string,exercise:string,set:string,body:object)=>request<WorkoutSet>(`/workout-sessions/${session}/exercises/${exercise}/sets/${set}`,{method:"PATCH",body:JSON.stringify(body)}),
@@ -170,12 +174,13 @@ export type NutritionImportPreview = {
   users: string[];
   issues: Array<{ row?: number; column?: string; message: string }>;
 };
-export type MealStatus = "PENDING"|"COMPLETED"|"SKIPPED"|"SUBSTITUTED";
+export type MealStatus = "PENDING"|"COMPLETED"|"PARTIAL"|"SKIPPED"|"SUBSTITUTED";
 export type MealType = "BREAKFAST"|"MID_MORNING"|"LUNCH"|"SNACK"|"DINNER"|"OTHER";
 export type MealInput = {mealType:MealType;name:string;date?:string;portion?:string;calories?:number;protein?:number;carbohydrates?:number;fat?:number;notes?:string};
 export type TodayMeal = { planned_meal_id:string;plan_id:string;plan_name:string;version:number;day_name:string;meal_type:string;meal_name:string;recipe:string;calories:number;protein:number;carbohydrates:number;fat:number;portion_multiplier:number;status:MealStatus;consumed_meal_id?:string;custom_name?:string;notes?:string;completed_at?:string };
 export type NutritionDashboard={target:Partial<Record<"calories"|"protein"|"carbohydrates"|"fat"|"fiber",number>>;planned:Record<"calories"|"protein"|"carbohydrates"|"fat",number>;consumed:Record<"calories"|"protein"|"carbohydrates"|"fat",number>;week:Array<{date:string;calories:number}>};
-export type ConsumedMeal={id:string;meal_date:string;meal_type:string;status:MealStatus;name?:string;portion?:string;calories?:number;protein?:number;carbohydrates?:number;fat?:number;notes?:string;completed_at?:string;planned_meal?:string;planned_recipe?:string};
+export type AdherenceDashboard={days:number;meals:{completed:number;substituted:number;partial:number;skipped:number;missing:number;expected:number;score:number};workouts:{completed:number;partial:number;abandoned:number;missing:number;expected:number;score:number};patterns:Array<{day_number:number;incidents:number}>;weekly:Array<{week:string;meal_score?:number;workout_score?:number}>;workoutReasons:Array<{reason:string;incidents:number}>};
+export type ConsumedMeal={id:string;meal_date:string;meal_type:string;status:MealStatus;name?:string;portion?:string;calories?:number;protein?:number;carbohydrates?:number;fat?:number;notes?:string;adherence_percent?:number;deviation_reason?:string;completed_at?:string;planned_meal?:string;planned_recipe?:string};
 export const householdApi = {
   list: () => request<Household[]>("/households"),
   create: (name: string) =>
@@ -187,6 +192,7 @@ export const householdApi = {
     request<
       Array<{ id: string; email: string; display_name: string; role: string }>
     >(`/households/${id}/members`),
+  promptContext:(id:string)=>request<Record<string,unknown>>(`/households/${id}/prompt-context`),
   rename: (id:string,name:string)=>request<Household>(`/households/${id}`,{method:"PATCH",body:JSON.stringify({name})}),
   leave: (id:string)=>request<void>(`/households/${id}/leave`,{method:"POST"}),
   remove: (id:string)=>request<void>(`/households/${id}`,{method:"DELETE"}),
@@ -201,15 +207,26 @@ export const householdApi = {
       body: JSON.stringify({ code }),
     }),
 };
+export type WorkRoutineData={profile:Record<string,unknown>;templates:Array<Record<string,unknown>&{id:string;name:string}>;calendar:Array<Record<string,unknown>&{assignment_date:string;template_id:string;name:string}>};
+export const workRoutineApi={
+  get:()=>request<WorkRoutineData>("/profile/work-routine"),
+  saveProfile:(data:object)=>request<void>("/profile/work-routine/profile",{method:"PUT",body:JSON.stringify(data)}),
+  addTemplate:(data:object)=>request<{id:string;name:string}>("/profile/work-routine/templates",{method:"POST",body:JSON.stringify(data)}),
+  deleteTemplate:(id:string)=>request<void>(`/profile/work-routine/templates/${id}`,{method:"DELETE"}),
+  assign:(date:string,templateId:string,notes?:string)=>request<void>(`/profile/work-routine/calendar/${date}`,{method:"PUT",body:JSON.stringify({templateId,notes})}),
+  unassign:(date:string)=>request<void>(`/profile/work-routine/calendar/${date}`,{method:"DELETE"}),
+};
 export const nutritionApi = {
   today:()=>request<TodayMeal[]>("/nutrition/today"),
   dashboard:()=>request<NutritionDashboard>("/nutrition/dashboard"),
+  adherence:(days=28)=>request<AdherenceDashboard>(`/nutrition/adherence?days=${days}`),
   consumedMeals:(from="2000-01-01")=>request<ConsumedMeal[]>(`/nutrition/consumed-meals?from=${from}`),
   targets:()=>request<Array<Record<string,number|string>>>("/nutrition/targets"),
   saveTarget:(data:{validFrom:string;calories:number;protein?:number;carbohydrates?:number;fat?:number;fiber?:number})=>request<void>("/nutrition/targets",{method:"PUT",body:JSON.stringify(data)}),
   completeToday:(id:string)=>request<Record<string,unknown>>(`/nutrition/today/${id}/complete`,{method:"POST"}),
   skipToday:(id:string,notes?:string)=>request<Record<string,unknown>>(`/nutrition/today/${id}/skip`,{method:"POST",body:JSON.stringify({notes})}),
   substituteToday:(id:string,data:Omit<MealInput,"mealType"|"date">)=>request<Record<string,unknown>>(`/nutrition/today/${id}/substitute`,{method:"POST",body:JSON.stringify(data)}),
+  partialToday:(id:string,data:{percent:number;reason?:string;portion?:string;notes?:string})=>request<Record<string,unknown>>(`/nutrition/today/${id}/partial`,{method:"POST",body:JSON.stringify(data)}),
   customMeal:(data:MealInput)=>request<Record<string,unknown>>("/nutrition/meals/custom",{method:"POST",body:JSON.stringify(data)}),
   updateConsumed:(id:string,data:MealInput)=>request<Record<string,unknown>>(`/nutrition/consumed-meals/${id}`,{method:"PATCH",body:JSON.stringify(data)}),
   deleteConsumed:(id:string)=>request<void>(`/nutrition/consumed-meals/${id}`,{method:"DELETE"}),

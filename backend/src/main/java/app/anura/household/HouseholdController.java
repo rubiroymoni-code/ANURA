@@ -63,6 +63,24 @@ public class HouseholdController {
     return db.queryForList("SELECT u.id,u.email,u.display_name,m.role FROM household_member m JOIN app_user u ON u.id=m.user_id WHERE m.household_id=? ORDER BY m.joined_at", id);
   }
 
+  @GetMapping("/{id}/prompt-context")
+  Map<String,Object> promptContext(@PathVariable UUID id) {
+    member(id);Map<String,Object> out=new LinkedHashMap<>();out.put("household",db.queryForMap("SELECT id,name FROM household WHERE id=?",id));
+    List<Map<String,Object>> people=new java.util.ArrayList<>();
+    for(Map<String,Object> base:db.queryForList("SELECT u.id,u.display_name,u.email,m.role FROM household_member m JOIN app_user u ON u.id=m.user_id WHERE m.household_id=? ORDER BY m.joined_at",id)){
+      UUID user=(UUID)base.get("id");Map<String,Object> person=new LinkedHashMap<>(base);
+      person.put("preferences",db.queryForList("SELECT primary_goal,experience_level,activity_level,height_cm,training_days,limitations,biological_sex FROM user_preference WHERE user_id=?",user).stream().findFirst().orElse(Map.of()));
+      person.put("nutritionTarget",db.queryForList("SELECT valid_from,calories,protein,carbohydrates,fat,fiber FROM nutrition_target WHERE user_id=? AND valid_from<=CURRENT_DATE ORDER BY valid_from DESC LIMIT 1",user).stream().findFirst().orElse(Map.of()));
+      person.put("workProfile",db.queryForList("SELECT occupation,work_activity,rotating_shifts,fridge_available,microwave_available,meal_break_minutes,work_notes FROM user_work_profile WHERE user_id=?",user).stream().findFirst().orElse(Map.of()));
+      person.put("routineTemplates",db.queryForList("SELECT id,name,work_start,work_end,training_moment,fasted_training,breakfast_location,lunch_location,snack_location,dinner_location,portable_meals,days_of_week,notes FROM daily_routine_template WHERE user_id=? ORDER BY name",user));
+      person.put("calendar",db.queryForList("SELECT a.assignment_date,t.name,t.work_start,t.work_end,t.training_moment,t.fasted_training,t.breakfast_location,t.lunch_location,t.snack_location,t.dinner_location,t.portable_meals,a.notes FROM routine_calendar_assignment a JOIN daily_routine_template t ON t.id=a.template_id WHERE a.user_id=? AND a.assignment_date BETWEEN CURRENT_DATE-7 AND CURRENT_DATE+60 ORDER BY a.assignment_date",user));
+      person.put("recentBody",db.queryForList("SELECT checkin_date,weight,body_fat_percentage,waist_cm,chest_cm,hip_cm,notes FROM body_checkin WHERE user_id=? ORDER BY checkin_date DESC LIMIT 12",user));
+      if("FEMALE".equals(((Map<?,?>)person.get("preferences")).get("biological_sex")))person.put("cycles",db.queryForList("SELECT start_date,end_date,flow_level,symptoms,notes FROM menstrual_cycle_record WHERE user_id=? ORDER BY start_date DESC LIMIT 12",user));
+      people.add(person);
+    }
+    out.put("members",people);out.put("sharingNotice","Al aceptar la unidad doméstica, sus miembros aceptan usar estos datos dentro de ANURA para generar planificación conjunta.");return out;
+  }
+
   @PatchMapping("/{id}")
   @Transactional
   Map<String, Object> rename(@PathVariable UUID id, @RequestBody Name body) {
