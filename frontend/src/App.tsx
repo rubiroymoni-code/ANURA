@@ -254,9 +254,9 @@ export function App() {
           </button>
         )}
       </section>
-      <button className="fab" onClick={() => tab === "MEAL" ? (setEditingMeal(null),setMealFlowOpen(true)) : setModal(true)}>
+      {tab !== "WEIGHT" && <button className="fab" onClick={() => tab === "MEAL" ? (setEditingMeal(null),setMealFlowOpen(true)) : setModal(true)}>
         <Plus />
-      </button>
+      </button>}
       <nav>
         {[
           { id: "HOME" as const, icon: Home, label: "Inicio" },
@@ -282,7 +282,7 @@ export function App() {
       </nav>
       {modal && (
         <EntryModal
-          initialType={tab === "HOME" ? "WORKOUT" : tab}
+          initialType={tab === "GOAL" ? "GOAL" : tab === "MEAL" ? "MEAL" : "WORKOUT"}
           busy={loading}
           onClose={() => setModal(false)}
           onMealSelected={() => {
@@ -613,7 +613,7 @@ function EntryModal({
           </button>
         </div>
         <div className="types">
-          {(Object.keys(meta) as EntryType[]).map((t) => {
+          {(Object.keys(meta) as EntryType[]).filter(t => t !== "WEIGHT" && t !== "MEASUREMENT").map((t) => {
             const I = meta[t].icon;
             return (
               <button
@@ -816,6 +816,10 @@ function AccountModal({ user, onClose,onAvatar }: { user: User; onClose: () => v
         {tab==="work"&&<WorkRoutinePanel/>}
         {tab==="profile"&&<>
         <div className="profile-identity"><label className="profile-avatar-editor" title="Cambiar fotografía">{preferences.avatar_url?<img src={preferences.avatar_url} alt={user.displayName}/>:<img className="mascot-fallback" src="/anura-mascot.png" alt=""/>}<span><Plus/>Cambiar foto</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;setBusy(true);try{const avatar=await compressAvatar(file);await api.saveAvatar(avatar);setPreferences(current=>({...current,avatar_url:avatar}));onAvatar(avatar);setMessage("Foto de perfil actualizada")}finally{setBusy(false)}}}/></label><div><small>MI PERFIL</small><h3>{user.displayName}</h3><p>{user.email}</p><em>{goalLabel(preferences.primary_goal)}</em></div></div>
+        <form className="profile-sex-setting" onSubmit={async e=>{e.preventDefault();const sex=String(new FormData(e.currentTarget).get("sex")||"UNSPECIFIED");await api.saveProfilePreferences({primaryGoal:preferences.primary_goal||"BODY_RECOMPOSITION",experienceLevel:preferences.experience_level||"BEGINNER",activityLevel:preferences.activity_level||"MODERATE",heightCm:preferences.height_cm,trainingDays:preferences.training_days,limitations:preferences.limitations,biologicalSex:sex,reminderEmailEnabled:preferences.reminder_email_enabled!==false});const next=await api.profilePreferences();setPreferences(next);setMessage(sex==="FEMALE"?"Sexo actualizado. Seguimiento del ciclo activado":"Sexo actualizado");if(sex==="FEMALE")setProfileTab("cycle")}}>
+          <label>Sexo para personalizar el seguimiento<select name="sex" value={preferences.biological_sex||"UNSPECIFIED"} onChange={e=>setPreferences(current=>({...current,biological_sex:e.target.value}))}><option value="UNSPECIFIED">Prefiero no indicarlo</option><option value="FEMALE">Mujer</option><option value="MALE">Hombre</option></select></label>
+          <button className="primary" type="submit">Guardar</button>
+        </form>
         <div className="account-profile"><button type="button" onClick={()=>void navigator.clipboard.writeText(user.email)}><Copy/> Copiar identificador CSV</button></div>
         <p>En los CSV individuales usa siempre <b>{user.email}</b> como <code>user_identifier</code>.</p>
         <p>Guarda este código fuera de ANURA. Podrás usarlo si olvidas tu contraseña; al generar otro, el anterior deja de funcionar.</p>
