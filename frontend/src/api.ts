@@ -192,6 +192,7 @@ export const householdApi = {
     request<
       Array<{ id: string; email: string; display_name: string; role: string }>
     >(`/households/${id}/members`),
+  promptContext:(id:string)=>request<Record<string,unknown>>(`/households/${id}/prompt-context`),
   rename: (id:string,name:string)=>request<Household>(`/households/${id}`,{method:"PATCH",body:JSON.stringify({name})}),
   leave: (id:string)=>request<void>(`/households/${id}/leave`,{method:"POST"}),
   remove: (id:string)=>request<void>(`/households/${id}`,{method:"DELETE"}),
@@ -205,6 +206,15 @@ export const householdApi = {
       method: "POST",
       body: JSON.stringify({ code }),
     }),
+};
+export type WorkRoutineData={profile:Record<string,unknown>;templates:Array<Record<string,unknown>&{id:string;name:string}>;calendar:Array<Record<string,unknown>&{assignment_date:string;template_id:string;name:string}>};
+export const workRoutineApi={
+  get:()=>request<WorkRoutineData>("/profile/work-routine"),
+  saveProfile:(data:object)=>request<void>("/profile/work-routine/profile",{method:"PUT",body:JSON.stringify(data)}),
+  addTemplate:(data:object)=>request<{id:string;name:string}>("/profile/work-routine/templates",{method:"POST",body:JSON.stringify(data)}),
+  deleteTemplate:(id:string)=>request<void>(`/profile/work-routine/templates/${id}`,{method:"DELETE"}),
+  assign:(date:string,templateId:string,notes?:string)=>request<void>(`/profile/work-routine/calendar/${date}`,{method:"PUT",body:JSON.stringify({templateId,notes})}),
+  unassign:(date:string)=>request<void>(`/profile/work-routine/calendar/${date}`,{method:"DELETE"}),
 };
 export const nutritionApi = {
   today:()=>request<TodayMeal[]>("/nutrition/today"),

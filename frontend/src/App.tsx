@@ -34,6 +34,7 @@ import {
 } from "./api";
 import { NutritionHub } from "./NutritionHub";
 import { BodyProgress } from "./BodyProgress";
+import { WorkRoutinePanel } from "./WorkRoutinePanel";
 import { WorkoutHub } from "./WorkoutHub";
 import { clearWorkoutOffline } from "./workoutOffline";
 import { MealFlow } from "./MealFlow";
@@ -799,7 +800,7 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
 function AccountModal({ user, onClose,onAvatar }: { user: User; onClose: () => void;onAvatar:(avatar:string)=>void }) {
   const [result, setResult] = useState<{ code: string; expiresAt: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tab,setProfileTab]=useState<"profile"|"initial"|"cycle"|"password"|"reminders">("profile"),[message,setMessage]=useState("");
+  const [tab,setProfileTab]=useState<"profile"|"initial"|"work"|"cycle"|"password"|"reminders">("profile"),[message,setMessage]=useState("");
   const [preferences,setPreferences]=useState<ProfilePreferences>({});
   const [cycles,setCycles]=useState<Awaited<ReturnType<typeof api.cycles>>>([]);
   useEffect(()=>{void api.profilePreferences().then(setPreferences);void api.cycles().then(setCycles).catch(()=>setCycles([]))},[]);
@@ -810,8 +811,9 @@ function AccountModal({ user, onClose,onAvatar }: { user: User; onClose: () => v
           <div><small>MI CUENTA</small><h2>Perfil y preferencias</h2></div>
           <button type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
         </div>
-        <div className="profile-tabs"><button className={tab==="profile"?"active":""} onClick={()=>setProfileTab("profile")}>Perfil</button><button className={tab==="initial"?"active":""} onClick={()=>setProfileTab("initial")}>Datos iniciales</button>{preferences.biological_sex==="FEMALE"&&<button className={tab==="cycle"?"active":""} onClick={()=>setProfileTab("cycle")}>Ciclo</button>}<button className={tab==="password"?"active":""} onClick={()=>setProfileTab("password")}>Contraseña</button><button className={tab==="reminders"?"active":""} onClick={()=>setProfileTab("reminders")}>Recordatorios</button></div>
+        <div className="profile-tabs"><button className={tab==="profile"?"active":""} onClick={()=>setProfileTab("profile")}>Perfil</button><button className={tab==="initial"?"active":""} onClick={()=>setProfileTab("initial")}>Datos iniciales</button><button className={tab==="work"?"active":""} onClick={()=>setProfileTab("work")}>Trabajo y turnos</button>{preferences.biological_sex==="FEMALE"&&<button className={tab==="cycle"?"active":""} onClick={()=>setProfileTab("cycle")}>Ciclo</button>}<button className={tab==="password"?"active":""} onClick={()=>setProfileTab("password")}>Contraseña</button><button className={tab==="reminders"?"active":""} onClick={()=>setProfileTab("reminders")}>Recordatorios</button></div>
         {message&&<div className="progress-saved">{message}</div>}
+        {tab==="work"&&<WorkRoutinePanel/>}
         {tab==="profile"&&<>
         <div className="profile-identity"><label className="profile-avatar-editor" title="Cambiar fotografía">{preferences.avatar_url?<img src={preferences.avatar_url} alt={user.displayName}/>:<img className="mascot-fallback" src="/anura-mascot.png" alt=""/>}<span><Plus/>Cambiar foto</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={async e=>{const file=e.target.files?.[0];if(!file)return;setBusy(true);try{const avatar=await compressAvatar(file);await api.saveAvatar(avatar);setPreferences(current=>({...current,avatar_url:avatar}));onAvatar(avatar);setMessage("Foto de perfil actualizada")}finally{setBusy(false)}}}/></label><div><small>MI PERFIL</small><h3>{user.displayName}</h3><p>{user.email}</p><em>{goalLabel(preferences.primary_goal)}</em></div></div>
         <div className="account-profile"><button type="button" onClick={()=>void navigator.clipboard.writeText(user.email)}><Copy/> Copiar identificador CSV</button></div>

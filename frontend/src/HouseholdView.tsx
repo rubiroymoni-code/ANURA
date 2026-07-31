@@ -17,6 +17,7 @@ export function HouseholdView({ households, refresh }: { households: Household[]
   const [editingName, setEditingName] = useState(false);
   const [renameName, setRenameName] = useState("");
   const [confirmAction, setConfirmAction] = useState<"delete"|"leave"|null>(null);
+  const [sharingAccepted,setSharingAccepted]=useState(false);
 
   const fail = (cause: unknown) => setError(cause instanceof Error ? cause.message : "No se pudo completar la operación");
   useEffect(() => {
@@ -87,7 +88,8 @@ export function HouseholdView({ households, refresh }: { households: Household[]
       {invitation}{message && <p className="success">{message}</p>}
       <div className="or">o aceptar invitación</div>
       <label>Código<input value={code} onChange={event => setCode(event.target.value.toUpperCase())} placeholder="ANURA-XXXX-XXXX" /></label>
-      <button className="primary secondary" disabled={busy || !code.trim()} onClick={async () => {
+      <label className="household-sharing-notice"><input type="checkbox" checked={sharingAccepted} onChange={event=>setSharingAccepted(event.target.checked)}/><span><b>Planificación conjunta y uso de datos</b><small>Al unirte, tus datos de perfil, objetivos, macros, evolución, ciclo, trabajo y turnos podrán incluirse junto a los del resto de miembros en los prompts conjuntos de ANURA. Salir de la unidad detiene este uso compartido.</small></span></label>
+      <button className="primary secondary" disabled={busy || !code.trim() || !sharingAccepted} onClick={async () => {
         if (busy) return; setBusy(true); setError("");
         try { await householdApi.accept(code); refresh(); } catch (cause) { fail(cause); } finally { setBusy(false); }
       }}>{busy ? "Comprobando…" : "Unirme"}</button>

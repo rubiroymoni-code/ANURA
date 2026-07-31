@@ -1,7 +1,7 @@
 import { useEffect,useMemo,useState } from "react";
 import { createPortal } from "react-dom";
 import { Activity,Bot,Camera,ChevronDown,Copy,Edit3,Flame,Plus,Save,Scale,Trash2,TrendingDown,TrendingUp,X } from "lucide-react";
-import { api,bodyProgressApi,nutritionApi,workoutApi,type BodyCheckin,type BodyCheckinInput,type BodyEvolution,type EvolutionPoint } from "./api";
+import { api,bodyProgressApi,householdApi,nutritionApi,workoutApi,workRoutineApi,type BodyCheckin,type BodyCheckinInput,type BodyEvolution,type EvolutionPoint } from "./api";
 
 type Range="1M"|"3M"|"6M"|"1Y"|"ALL";type Metric="weight"|"waistCm"|"chestCm"|"hipCm"|"arms"|"thighs";
 const metrics:Array<{id:Metric;label:string;unit:string}>=[{id:"weight",label:"Peso",unit:"kg"},{id:"waistCm",label:"Cintura",unit:"cm"},{id:"chestCm",label:"Pecho",unit:"cm"},{id:"hipCm",label:"Cadera",unit:"cm"},{id:"arms",label:"Brazos",unit:"cm"},{id:"thighs",label:"Muslos",unit:"cm"}];
@@ -30,15 +30,17 @@ export function BodyProgress(){
 }
 
 async function buildCoachPrompt(checkins:BodyCheckin[],evolution:BodyEvolution|null){
- const [entries,profile,cycles,adherence,targets,nutritionPlans,consumedMeals,workoutPlans,workoutHistory]=await Promise.all([
-  api.entries().catch(()=>[]),api.profilePreferences().catch(()=>null),api.cycles().catch(()=>[]),nutritionApi.adherence().catch(()=>null),nutritionApi.targets().catch(()=>[]),nutritionApi.plans().catch(()=>[]),nutritionApi.consumedMeals().catch(()=>[]),workoutApi.plans().catch(()=>[]),allWorkoutHistory().catch(()=>[])
+ const [entries,profile,cycles,workRoutine,adherence,targets,nutritionPlans,consumedMeals,workoutPlans,workoutHistory]=await Promise.all([
+  api.entries().catch(()=>[]),api.profilePreferences().catch(()=>null),api.cycles().catch(()=>[]),workRoutineApi.get().catch(()=>null),nutritionApi.adherence().catch(()=>null),nutritionApi.targets().catch(()=>[]),nutritionApi.plans().catch(()=>[]),nutritionApi.consumedMeals().catch(()=>[]),workoutApi.plans().catch(()=>[]),allWorkoutHistory().catch(()=>[])
  ]);
  const dietPlans=await Promise.all(nutritionPlans.slice(0,2).map(async plan=>({plan,meals:await nutritionApi.planDetails(plan.id).catch(()=>[])})));
+ const household=(await householdApi.list().catch(()=>[]))[0];
+ const householdContext=household?await householdApi.promptContext(household.id).catch(()=>null):null;
  const trainingPlans=await Promise.all(workoutPlans.slice(0,2).map(async plan=>({plan,exercises:await workoutApi.planDetails(plan.id).catch(()=>[])})));
  const realSessions=await Promise.all(workoutHistory.map(item=>workoutApi.one(item.id).catch(()=>null)));
  const cycleText=profile?.biological_sex==="FEMALE"?(cycles.map(c=>`- ${c.start_date}${c.end_date?` a ${c.end_date}`:" (en curso)"} | flujo ${fmt(c.flow_level)} | síntomas ${fmt(c.symptoms)} | notas ${fmt(c.notes)}`).join("\n")||"- Sin periodos registrados"):"- No aplica o no indicado";
  const statedGoals=entries.filter(entry=>entry.type==="GOAL").map(entry=>`- ${entry.title}: ${entry.value??"sin valor"}${entry.unit||""}${entry.details?` | ${entry.details}`:""}${entry.notes?` | Notas: ${entry.notes}`:""}`).join("\n")||"- Sin objetivos registrados";
- const goals=`${statedGoals}\n\nHISTORIAL MENSTRUAL\n${cycleText}\nUsa el ciclo solo como contexto individual de síntomas, recuperación y tolerancia observada. No presupongas menor rendimiento por una fase; adapta el entreno únicamente cuando los datos y sensaciones lo justifiquen.`;
+ const goals=`${statedGoals}\n\nHISTORIAL MENSTRUAL\n${cycleText}\nUsa el ciclo solo como contexto individual de síntomas, recuperación y tolerancia observada. No presupongas menor rendimiento por una fase; adapta el entreno únicamente cuando los datos y sensaciones lo justifiquen.\n\nRUTINA LABORAL, PLANTILLAS Y CALENDARIO PROPIOS\n${workRoutine?JSON.stringify(workRoutine,null,2):"Sin datos laborales"}${householdContext?`\n\nUNIDAD DOMÉSTICA Y DATOS DE TODOS LOS MIEMBROS\n${JSON.stringify(householdContext,null,2)}\n\nPara el plan conjunto conserva objetivos y macros individuales. Prioriza platos base, ingredientes y preparaciones comunes, pero adapta cantidades, número de comidas, horarios, lugar de consumo, transporte, turnos y entrenamiento de cada persona. No igualar cantidades automáticamente.`:""}`;
  const body=[...checkins].reverse().map((row,index,list)=>{const previous=list[index-1],delta=previous?Number(row.weight)-Number(previous.weight):null;return `- ${row.checkinDate} | Peso ${fmt(row.weight)} kg${delta==null?"":` (${delta>=0?"+":""}${delta.toFixed(1)} kg vs. registro anterior)`} | Grasa ${fmt(row.bodyFatPercentage)} % | Cintura ${fmt(row.waistCm)} cm | Pecho ${fmt(row.chestCm)} cm | Cadera ${fmt(row.hipCm)} cm | Brazo I/D ${fmt(row.leftArmCm)}/${fmt(row.rightArmCm)} cm | Muslo I/D ${fmt(row.leftThighCm)}/${fmt(row.rightThighCm)} cm | Fotos ${row.photos.length}${row.notes?` | Notas: ${row.notes}`:""}`}).join("\n")||"- Sin check-ins";
  const targetsText=targets.map(target=>`- Desde ${fmt(target.valid_from)}: ${fmt(target.calories)} kcal, P ${fmt(target.protein)} g, C ${fmt(target.carbohydrates)} g, G ${fmt(target.fat)} g, fibra ${fmt(target.fiber)} g`).join("\n")||"- Sin objetivos nutricionales";
  const plannedDiet=dietPlans.map(({plan,meals})=>{const rows=meals.map(meal=>`  - Semana ${fmt(meal.week_number)} · Día ${fmt(meal.day_number)} ${fmt(meal.day_name)} | ${fmt(meal.meal_type)} | ${fmt(meal.meal_name||meal.recipe)} | Ración x${fmt(meal.portion_multiplier)}${meal.quantity?` (cantidad ${fmt(meal.quantity)})`:""} | ${fmt(meal.calories)} kcal, P ${fmt(meal.protein)}, C ${fmt(meal.carbohydrates)}, G ${fmt(meal.fat)}`).join("\n");return `- PLAN: ${plan.name} v${plan.version} [${plan.status}]\n${rows||"  - Sin detalle disponible"}`}).join("\n")||"- Sin dietas importadas";
