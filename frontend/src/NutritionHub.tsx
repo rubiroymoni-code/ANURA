@@ -130,6 +130,11 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                 <b>Lista de compra</b>
                 <span>Consolidada por semana</span>
               </button>
+              <button onClick={() => setSection("supplements")}>
+                <Pill />
+                <b>Suplementos</b>
+                <span>Lo que tomas actualmente</span>
+              </button>
             </div>
             <h3>Planes nutricionales</h3>
             {plans.map((p) => (
@@ -162,11 +167,6 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
               >
                 <Utensils />
                 <b>{r.name}</b>
-              </button>
-              <button onClick={() => setSection("supplements")}>
-                <Pill />
-                <b>Suplementos</b>
-                <span>Lo que tomas actualmente</span>
               </button>
             ))}
             {!todayRecipes.length && (
