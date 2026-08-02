@@ -18,15 +18,17 @@ import {
   ShoppingBasket,
   Copy,
   MessageCircle,
+  Pill,
   Users,
   Utensils,
   X,
 } from "lucide-react";
 import { HouseholdView } from "./HouseholdView";
 import { AdherenceCard as SplitAdherenceCard } from "./AdherenceCard";
+import { SupplementsPanel } from "./SupplementsPanel";
 export function NutritionHub({ onClose }: { onClose: () => void }) {
   const [section, setSection] = useState<
-    "home" | "household" | "import" | "shopping" | "plan" | "recipe"
+    "home" | "household" | "import" | "shopping" | "supplements" | "plan" | "recipe"
   >("home");
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<string | null>(null);
@@ -77,6 +79,8 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                     ? "Importar dieta"
                     : section === "shopping"
                       ? "Lista de compra"
+                      : section === "supplements"
+                        ? "Suplementos"
                       : section === "plan"
                         ? "Plan nutricional"
                         : "Receta"}
@@ -159,6 +163,11 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                 <Utensils />
                 <b>{r.name}</b>
               </button>
+              <button onClick={() => setSection("supplements")}>
+                <Pill />
+                <b>Suplementos</b>
+                <span>Lo que tomas actualmente</span>
+              </button>
             ))}
             {!todayRecipes.length && (
               <p>No hay recetas asignadas para hoy.</p>
@@ -173,6 +182,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
         )}{" "}
         {section === "import" && <NutritionImport />}
         {section === "shopping" && <Shopping plans={plans} />}
+        {section === "supplements" && <SupplementsPanel />}
         {section === "plan" && selectedPlan && <PlanView id={selectedPlan} />}
         {section === "recipe" && selectedRecipe && (
           <RecipeView id={selectedRecipe} />
