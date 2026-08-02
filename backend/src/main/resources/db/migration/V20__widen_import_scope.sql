@@ -1,0 +1,1 @@
+ALTER TABLE import_job ALTER COLUMN import_scope TYPE VARCHAR(160);
