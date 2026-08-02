@@ -32,6 +32,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
   >("home");
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<string | null>(null);
+  const [selectedMeal,setSelectedMeal]=useState<string|null>(null);
   const [households, setHouseholds] = useState<Household[]>([]);
   const [recipes, setRecipes] = useState<Array<{ id: string; name: string }>>(
     [],
@@ -111,7 +112,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
             )}
             {dashboard&&<NutritionBalance data={dashboard}/>}
             {adherence&&<SplitAdherenceCard data={adherence} mode="nutrition"/>}
-            <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3><p>Abre una comida para consultar su receta o usa el check lateral para completarla directamente.</p></div>{todayMeals.length?todayMeals.map(meal=><article className={meal.status==="COMPLETED"?"completed":""} key={meal.planned_meal_id}><button className="today-recipe-link" onClick={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSection("recipe")}}}><small>{meal.meal_type}</small><b>{meal.recipe||meal.meal_name}</b><em>{Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</em></button><button aria-label={`Completar ${meal.meal_name}`} disabled={meal.status==="COMPLETED"} onClick={async()=>{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setDashboard(await nutritionApi.dashboard())}}>{meal.status==="COMPLETED"?"✓":"○"}</button></article>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}</section>
+            <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3><p>Abre una comida para consultar su receta o usa el check lateral para completarla directamente.</p></div>{todayMeals.length?todayMeals.map(meal=><article className={meal.status==="COMPLETED"?"completed":""} key={meal.planned_meal_id}><button className="today-recipe-link" onClick={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);setSection("recipe")}}}><small>{meal.meal_type}</small><b>{meal.recipe||meal.meal_name}</b><em>{Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</em></button><button aria-label={`Completar ${meal.meal_name}`} disabled={meal.status==="COMPLETED"} onClick={async()=>{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setDashboard(await nutritionApi.dashboard())}}>{meal.status==="COMPLETED"?"✓":"○"}</button></article>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}</section>
             <div className="nutrition-menu">
               <button onClick={() => setSection("household")}>
                 <Users />
@@ -162,6 +163,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                 key={r.name}
                 onClick={() => {
                   setSelectedRecipe(r.id);
+                  setSelectedMeal(todayMeals.find(meal=>meal.recipe.trim().toLocaleLowerCase("es")===r.name.trim().toLocaleLowerCase("es"))?.planned_meal_id||null);
                   setSection("recipe");
                 }}
               >
@@ -185,7 +187,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
         {section === "supplements" && <SupplementsPanel />}
         {section === "plan" && selectedPlan && <PlanView id={selectedPlan} />}
         {section === "recipe" && selectedRecipe && (
-          <RecipeView id={selectedRecipe} />
+          <RecipeView id={selectedRecipe} mealId={selectedMeal} />
         )}
         {section !== "home" && (
           <button className="text-btn" onClick={() => setSection("home")}>
@@ -454,11 +456,13 @@ function NutritionImport() {
     </div>
   );
 }
-function RecipeView({ id }: { id: string }) {
+function RecipeView({ id,mealId }: { id: string;mealId:string|null }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
+  const [portions,setPortions]=useState<Array<Record<string,unknown>>>([]);
   useEffect(() => {
     void nutritionApi.recipe(id).then(setRows);
-  }, [id]);
+    if(mealId)void nutritionApi.mealPortions(mealId).then(setPortions);else setPortions([]);
+  }, [id,mealId]);
   const calories = rows.reduce(
     (sum, r) =>
       sum + (Number(r.calories_100 || 0) * Number(r.quantity || 0)) / 100,
@@ -473,6 +477,7 @@ function RecipeView({ id }: { id: string }) {
           <small>{calories.toFixed(0)} kcal totales calculadas</small>
         </div>
       </div>
+      {portions.length>0&&<section className="recipe-person-portions"><div><small>CANTIDADES PARA ESTA COMIDA</small><h3>Qué corresponde a cada persona</h3></div>{portions.map(person=><article key={String(person.user_id)}><header><b>{String(person.display_name)}</b><span>{Number(person.quantity||0).toFixed(0)} g · {Number(person.calories||0).toFixed(0)} kcal</span></header><div className="portion-ingredients">{ingredientRows(person.ingredients).map((ingredient,index)=><span key={`${ingredient.name}-${index}`}><b>{ingredient.name}</b><em>{ingredient.quantity.toFixed(0)} {ingredient.unit}</em></span>)}</div></article>)}<article className="recipe-combined"><header><b>Total para cocinar</b><span>{portions.reduce((sum,p)=>sum+Number(p.quantity||0),0).toFixed(0)} g</span></header><div className="portion-ingredients combined">{combinedIngredients(portions).map((ingredient,index)=><span key={`${ingredient.name}-${index}`}><b>{ingredient.name}</b><em>{ingredient.quantity.toFixed(0)} {ingredient.unit}</em></span>)}</div></article></section>}
       {rows.map((r, n) => (
         <div className="nutrition-row" key={n}>
           <span>
@@ -565,7 +570,7 @@ function PlanView({ id }: { id: string }) {
                   <b>{String(p.display_name)}</b>
                   <span>{Number(p.quantity || 0).toFixed(0)} g totales · {Number(p.calories || 0).toFixed(0)} kcal</span>
                   <small>P {Number(p.protein || 0).toFixed(0)} · C {Number(p.carbohydrates || 0).toFixed(0)} · G {Number(p.fat || 0).toFixed(0)}</small>
-                  {Array.isArray(p.ingredients)&&<div className="portion-ingredients">{(p.ingredients as Array<{name:string;quantity:number;unit:string}>).map((ingredient,index)=><span key={`${ingredient.name}-${index}`}><b>{ingredient.name}</b><em>{Number(ingredient.quantity||0).toFixed(0)} {ingredient.unit||"g"}</em></span>)}</div>}
+                  {ingredientRows(p.ingredients).length>0&&<div className="portion-ingredients">{ingredientRows(p.ingredients).map((ingredient,index)=><span key={`${ingredient.name}-${index}`}><b>{ingredient.name}</b><em>{Number(ingredient.quantity||0).toFixed(0)} {ingredient.unit||"g"}</em></span>)}</div>}
                 </div>
               ))
             )}
@@ -579,7 +584,8 @@ function PlanView({ id }: { id: string }) {
   );
 }
 
-function combinedIngredients(people:Array<Record<string,unknown>>){const totals=new Map<string,{name:string;quantity:number;unit:string}>();people.forEach(person=>{if(!Array.isArray(person.ingredients))return;(person.ingredients as Array<{name:string;quantity:number;unit:string}>).forEach(ingredient=>{const key=`${ingredient.name}|${ingredient.unit}`,current=totals.get(key);totals.set(key,{name:ingredient.name,unit:ingredient.unit||"g",quantity:(current?.quantity||0)+Number(ingredient.quantity||0)})})});return [...totals.values()]}
+function ingredientRows(value:unknown):Array<{name:string;quantity:number;unit:string}>{if(Array.isArray(value))return value as Array<{name:string;quantity:number;unit:string}>;if(typeof value==="string")try{const parsed=JSON.parse(value);return Array.isArray(parsed)?parsed:[]}catch{return[]}return[]}
+function combinedIngredients(people:Array<Record<string,unknown>>){const totals=new Map<string,{name:string;quantity:number;unit:string}>();people.forEach(person=>ingredientRows(person.ingredients).forEach(ingredient=>{const key=`${ingredient.name}|${ingredient.unit}`,current=totals.get(key);totals.set(key,{name:ingredient.name,unit:ingredient.unit||"g",quantity:(current?.quantity||0)+Number(ingredient.quantity||0)})}));return [...totals.values()]}
 
 function Shopping({ plans }: { plans: Array<{ id: string;name:string;status:string }> }) {
   const weekOptions=calendarWeeks();
