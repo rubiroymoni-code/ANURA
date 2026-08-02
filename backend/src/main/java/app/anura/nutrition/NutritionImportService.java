@@ -139,9 +139,10 @@ public class NutritionImportService {
           db
               .query(
                   "SELECT h.id FROM household h JOIN household_member m ON m.household_id=h.id"
-                      + " WHERE m.user_id=? AND lower(h.name)=lower(?)",
+                      + " WHERE m.user_id=? AND (lower(h.name)=lower(?) OR CAST(h.id AS VARCHAR)=?)",
                   (r, n) -> r.getObject(1, UUID.class),
                   user,
+                  p.scope,
                   p.scope)
               .stream()
               .findFirst()
