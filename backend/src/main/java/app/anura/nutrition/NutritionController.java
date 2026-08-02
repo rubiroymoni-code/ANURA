@@ -192,7 +192,8 @@ public class NutritionController {
       @PathVariable UUID id, @RequestParam(required=false) Integer week) {
     return db.queryForList(
         "SELECT d.day_number,d.day_name,pm.meal_type,pm.meal_name,r.name recipe,u.id user_id,u.display_name,"
-            + " ump.portion_multiplier,ump.calories,ump.protein,ump.carbohydrates,ump.fat FROM"
+            + " ump.portion_multiplier,COALESCE(ump.quantity,(SELECT SUM(ri.quantity*ump.portion_multiplier) FROM recipe_ingredient ri WHERE ri.recipe_id=r.id)) quantity,ump.calories,ump.protein,ump.carbohydrates,ump.fat,"
+            + " COALESCE((SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',x.quantity,'unit',x.unit) ORDER BY i.name) FROM user_meal_ingredient_portion x JOIN ingredient i ON i.id=x.ingredient_id WHERE x.planned_meal_id=pm.id AND x.user_id=u.id),(SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',ri.quantity*ump.portion_multiplier,'unit',ri.unit) ORDER BY ri.ingredient_order) FROM recipe_ingredient ri JOIN ingredient i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id)) ingredients FROM"
             + " nutrition_plan_day d JOIN nutrition_plan p ON p.id=d.nutrition_plan_id LEFT JOIN"
             + " household_member hm ON hm.household_id=p.household_id JOIN planned_meal pm ON"
             + " pm.nutrition_plan_day_id=d.id JOIN recipe r ON r.id=pm.recipe_id JOIN"

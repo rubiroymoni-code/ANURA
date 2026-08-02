@@ -490,7 +490,7 @@ function RecipeView({ id }: { id: string }) {
 
 function PlanView({ id }: { id: string }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
-  const [mode, setMode] = useState<"mine" | "both" | "total">("mine");
+  const [mode, setMode] = useState<"mine" | "both" | "total">("both");
   const [expanded, setExpanded] = useState<number | null>(null);
   const currentUser = JSON.parse(localStorage.getItem("anura-user") || "{}");
   useEffect(() => {
@@ -532,7 +532,7 @@ function PlanView({ id }: { id: string }) {
           className={mode === "both" ? "selected" : ""}
           onClick={() => setMode("both")}
         >
-          Ambos
+          Ambos · cocinar
         </button>
         <button
           className={mode === "total" ? "selected" : ""}
@@ -558,13 +558,14 @@ function PlanView({ id }: { id: string }) {
           </button>
           <div className="meal-card-body">
             {mode === "total" ? (
-              <div className="portion-total"><b>Total de la receta</b><strong>{g.people.reduce((s, p) => s + Number(p.calories || 0), 0).toFixed(0)} kcal</strong></div>
+              <div className="portion-total-wrap"><div className="portion-total"><b>Total conjunto</b><strong>{g.people.reduce((s, p) => s + Number(p.quantity || 0), 0).toFixed(0)} g · {g.people.reduce((s, p) => s + Number(p.calories || 0), 0).toFixed(0)} kcal</strong></div><div className="portion-ingredients combined">{combinedIngredients(g.people).map((ingredient,index)=><span key={`${ingredient.name}-${index}`}><b>{ingredient.name}</b><em>{ingredient.quantity.toFixed(0)} {ingredient.unit}</em></span>)}</div></div>
             ) : (
               g.people.map((p, i) => (
                 <div className="portion" key={i}>
                   <b>{String(p.display_name)}</b>
-                  <span>× {String(p.portion_multiplier)} · {Number(p.calories || 0).toFixed(0)} kcal</span>
+                  <span>{Number(p.quantity || 0).toFixed(0)} g totales · {Number(p.calories || 0).toFixed(0)} kcal</span>
                   <small>P {Number(p.protein || 0).toFixed(0)} · C {Number(p.carbohydrates || 0).toFixed(0)} · G {Number(p.fat || 0).toFixed(0)}</small>
+                  {Array.isArray(p.ingredients)&&<div className="portion-ingredients">{(p.ingredients as Array<{name:string;quantity:number;unit:string}>).map((ingredient,index)=><span key={`${ingredient.name}-${index}`}><b>{ingredient.name}</b><em>{Number(ingredient.quantity||0).toFixed(0)} {ingredient.unit||"g"}</em></span>)}</div>}
                 </div>
               ))
             )}
@@ -577,6 +578,8 @@ function PlanView({ id }: { id: string }) {
     </div>
   );
 }
+
+function combinedIngredients(people:Array<Record<string,unknown>>){const totals=new Map<string,{name:string;quantity:number;unit:string}>();people.forEach(person=>{if(!Array.isArray(person.ingredients))return;(person.ingredients as Array<{name:string;quantity:number;unit:string}>).forEach(ingredient=>{const key=`${ingredient.name}|${ingredient.unit}`,current=totals.get(key);totals.set(key,{name:ingredient.name,unit:ingredient.unit||"g",quantity:(current?.quantity||0)+Number(ingredient.quantity||0)})})});return [...totals.values()]}
 
 function Shopping({ plans }: { plans: Array<{ id: string;name:string;status:string }> }) {
   const weekOptions=calendarWeeks();
