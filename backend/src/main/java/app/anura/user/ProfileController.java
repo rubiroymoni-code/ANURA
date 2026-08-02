@@ -57,6 +57,18 @@ public class ProfileController {
     @DeleteMapping("/cycles/{id}")
     void deleteCycle(@PathVariable java.util.UUID id){db.update("DELETE FROM menstrual_cycle_record WHERE id=? AND user_id=?",id,CurrentUser.id());}
 
+    @GetMapping("/supplements")
+    java.util.List<java.util.Map<String,Object>> supplements(){return db.queryForList("SELECT id,name,dose,schedule,purpose,notes,active FROM user_supplement WHERE user_id=? ORDER BY active DESC,name",CurrentUser.id());}
+
+    @PostMapping("/supplements")
+    java.util.Map<String,Object> supplement(@RequestBody Supplement request){String name=cleanSupplementName(request.name());java.util.UUID id=java.util.UUID.randomUUID();db.update("INSERT INTO user_supplement(id,user_id,name,dose,schedule,purpose,notes,active) VALUES(?,?,?,?,?,?,?,?)",id,CurrentUser.id(),name,clean(request.dose(),80),clean(request.schedule(),120),clean(request.purpose(),240),clean(request.notes(),2000),request.active()==null||request.active());return supplement(id);}
+
+    @PatchMapping("/supplements/{id}")
+    java.util.Map<String,Object> supplement(@PathVariable java.util.UUID id,@RequestBody Supplement request){String name=cleanSupplementName(request.name());int changed=db.update("UPDATE user_supplement SET name=?,dose=?,schedule=?,purpose=?,notes=?,active=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?",name,clean(request.dose(),80),clean(request.schedule(),120),clean(request.purpose(),240),clean(request.notes(),2000),request.active()==null||request.active(),id,CurrentUser.id());if(changed==0)throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Suplemento no encontrado");return supplement(id);}
+
+    @DeleteMapping("/supplements/{id}")
+    void deleteSupplement(@PathVariable java.util.UUID id){db.update("DELETE FROM user_supplement WHERE id=? AND user_id=?",id,CurrentUser.id());}
+
     @org.springframework.web.bind.annotation.PostMapping("/reminders/test")
     void testReminder(){summaries.send(CurrentUser.id(),false);}
 
@@ -64,11 +76,15 @@ public class ProfileController {
     void avatar(@RequestBody Avatar request){String value=request.avatarUrl();if(value==null||!value.matches("^data:image/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$")||value.length()>1_200_000)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Imagen no válida o demasiado grande");db.update("INSERT INTO user_preference(user_id,avatar_url) VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET avatar_url=EXCLUDED.avatar_url,updated_at=CURRENT_TIMESTAMP",CurrentUser.id(),value);}
 
     private User current() { return users.findById(CurrentUser.id()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND)); }
+    private java.util.Map<String,Object> supplement(java.util.UUID id){return db.queryForMap("SELECT id,name,dose,schedule,purpose,notes,active FROM user_supplement WHERE id=? AND user_id=?",id,CurrentUser.id());}
+    private String cleanSupplementName(String value){String cleaned=clean(value,120);if(cleaned==null)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Indica el nombre del suplemento");return cleaned;}
+    private String clean(String value,int max){if(value==null||value.isBlank())return null;String cleaned=value.trim();return cleaned.substring(0,Math.min(max,cleaned.length()));}
     private ProfileView view(User u) { return new ProfileView(u.id.toString(), u.email, u.displayName, u.role); }
     record UpdateProfile(@NotBlank @Size(max=100) String displayName) {}
     record ChangePassword(String currentPassword,String newPassword) {}
     record Preferences(String primaryGoal,String experienceLevel,String activityLevel,java.math.BigDecimal heightCm,Integer trainingDays,String limitations,String biologicalSex,boolean reminderEmailEnabled) {}
     record Cycle(java.time.LocalDate startDate,java.time.LocalDate endDate,String flowLevel,String symptoms,String notes) {}
+    record Supplement(String name,String dose,String schedule,String purpose,String notes,Boolean active) {}
     record Avatar(String avatarUrl) {}
     record ProfileView(String id, String email, String displayName, String role) {}
 }

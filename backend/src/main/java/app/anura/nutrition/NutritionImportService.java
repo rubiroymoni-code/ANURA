@@ -91,7 +91,7 @@ public class NutritionImportService {
     } catch (ApiException e) {
       throw e;
     } catch (Exception e) {
-      throw bad("INVALID_CSV", "CSV inválido; usa UTF-8 y separador punto y coma");
+      throw bad("IMPORT_PREVIEW_FAILED", "No se pudo preparar la previsualización del CSV");
     }
   }
 
