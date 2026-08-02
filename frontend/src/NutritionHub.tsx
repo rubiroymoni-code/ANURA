@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { HouseholdView } from "./HouseholdView";
+import { AdherenceCard as SplitAdherenceCard } from "./AdherenceCard";
 export function NutritionHub({ onClose }: { onClose: () => void }) {
   const [section, setSection] = useState<
     "home" | "household" | "import" | "shopping" | "plan" | "recipe"
@@ -105,7 +106,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
               </button>
             )}
             {dashboard&&<NutritionBalance data={dashboard}/>}
-            {adherence&&<AdherenceCard data={adherence}/>}
+            {adherence&&<SplitAdherenceCard data={adherence} mode="nutrition"/>}
             <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3><p>Abre una comida para consultar su receta o usa el check lateral para completarla directamente.</p></div>{todayMeals.length?todayMeals.map(meal=><article className={meal.status==="COMPLETED"?"completed":""} key={meal.planned_meal_id}><button className="today-recipe-link" onClick={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSection("recipe")}}}><small>{meal.meal_type}</small><b>{meal.recipe||meal.meal_name}</b><em>{Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</em></button><button aria-label={`Completar ${meal.meal_name}`} disabled={meal.status==="COMPLETED"} onClick={async()=>{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setDashboard(await nutritionApi.dashboard())}}>{meal.status==="COMPLETED"?"✓":"○"}</button></article>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}</section>
             <div className="nutrition-menu">
               <button onClick={() => setSection("household")}>

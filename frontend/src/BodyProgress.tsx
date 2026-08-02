@@ -2,20 +2,22 @@ import { useEffect,useMemo,useState } from "react";
 import { createPortal } from "react-dom";
 import { Activity,Bot,Camera,ChevronDown,Copy,Edit3,Flame,Plus,Save,Scale,Trash2,TrendingDown,TrendingUp,X } from "lucide-react";
 import { api,bodyProgressApi,householdApi,nutritionApi,workoutApi,workRoutineApi,type BodyCheckin,type BodyCheckinInput,type BodyEvolution,type EvolutionPoint } from "./api";
+import { AdherenceCard } from "./AdherenceCard";
 
 type Range="1M"|"3M"|"6M"|"1Y"|"ALL";type Metric="weight"|"waistCm"|"chestCm"|"hipCm"|"arms"|"thighs";
 const metrics:Array<{id:Metric;label:string;unit:string}>=[{id:"weight",label:"Peso",unit:"kg"},{id:"waistCm",label:"Cintura",unit:"cm"},{id:"chestCm",label:"Pecho",unit:"cm"},{id:"hipCm",label:"Cadera",unit:"cm"},{id:"arms",label:"Brazos",unit:"cm"},{id:"thighs",label:"Muslos",unit:"cm"}];
 
 export function BodyProgress(){
- const [rows,setRows]=useState<BodyCheckin[]>([]),[evolution,setEvolution]=useState<BodyEvolution|null>(null),[range,setRange]=useState<Range>("3M"),[metric,setMetric]=useState<Metric>("weight"),[editing,setEditing]=useState<BodyCheckin|null|undefined>(undefined),[deleting,setDeleting]=useState<BodyCheckin|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[saved,setSaved]=useState(""),[report,setReport]=useState(""),[reportBusy,setReportBusy]=useState(false);
+ const [rows,setRows]=useState<BodyCheckin[]>([]),[evolution,setEvolution]=useState<BodyEvolution|null>(null),[adherence,setAdherence]=useState<Awaited<ReturnType<typeof nutritionApi.adherence>>|null>(null),[range,setRange]=useState<Range>("3M"),[metric,setMetric]=useState<Metric>("weight"),[editing,setEditing]=useState<BodyCheckin|null|undefined>(undefined),[deleting,setDeleting]=useState<BodyCheckin|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[saved,setSaved]=useState(""),[report,setReport]=useState(""),[reportBusy,setReportBusy]=useState(false);
  const dates=useMemo(()=>period(range),[range]);
- const load=async()=>{setLoading(true);setError("");try{const [list,trend]=await Promise.all([bodyProgressApi.list(),bodyProgressApi.evolution(dates.from,dates.to)]);setRows(list);setEvolution(trend)}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo cargar la evolución")}finally{setLoading(false)}};
+ const load=async()=>{setLoading(true);setError("");try{const [list,trend,ad]=await Promise.all([bodyProgressApi.list(),bodyProgressApi.evolution(dates.from,dates.to),nutritionApi.adherence().catch(()=>null)]);setRows(list);setEvolution(trend);setAdherence(ad)}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo cargar la evolución")}finally{setLoading(false)}};
  useEffect(()=>{void load()},[dates.from,dates.to]);
  if(loading)return <div className="progress-loading"><Activity/><span>Cargando evolución…</span></div>;
  const latest=rows[0];
  return <section className="body-progress">
   <div className="body-summary"><div className="body-summary-head"><span><small>EVOLUCIÓN CORPORAL</small><h2>{latest?`${Number(latest.weight).toFixed(1)} kg`:"Tu punto de partida"}</h2><p>{latest?`Último check-in · ${formatDate(latest.checkinDate)}`:"Registra tu primer check-in semanal"}</p></span><button onClick={()=>setEditing(null)}><Plus/>Nuevo check-in</button></div>{latest&&<div className="body-kpis"><Kpi label="Último cambio" value={signed(evolution?.previousWeightChange,"kg")} tone={(evolution?.previousWeightChange||0)<=0?"good":"warm"}/><Kpi label="En el periodo" value={signed(evolution?.totalWeightChange,"kg")} tone="neutral"/><Kpi label="Racha semanal" value={`${evolution?.weeklyStreak||0} sem.`} tone="lime"/><Kpi label="Check-ins" value={String(evolution?.checkinCount||0)} tone="neutral"/></div>}</div>
   <div className="progress-range">{(["1M","3M","6M","1Y","ALL"] as Range[]).map(r=><button className={range===r?"active":""} onClick={()=>setRange(r)} key={r}>{r==="ALL"?"Todo":r}</button>)}</div>
+  {adherence&&<AdherenceCard data={adherence} mode="total"/>}
   {error&&<div className="error">{error}<button onClick={()=>void load()}>Reintentar</button></div>}{saved&&<div className="progress-saved"><Save/>{saved}</div>}
   {!rows.length?<div className="body-empty"><Scale/><h3>Empieza a ver tu tendencia</h3><p>Un check-in semanal es suficiente para entender el rumbo sin obsesionarte con cada día.</p><button onClick={()=>setEditing(null)}>Registrar primer check-in</button></div>:<>
    <div className="metric-tabs">{metrics.map(m=><button key={m.id} className={metric===m.id?"active":""} onClick={()=>setMetric(m.id)}>{m.label}</button>)}</div>
