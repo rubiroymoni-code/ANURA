@@ -191,9 +191,9 @@ public class NutritionController {
   List<Map<String, Object>> week(
       @PathVariable UUID id, @RequestParam(required=false) Integer week) {
     return db.queryForList(
-        "SELECT d.day_number,d.day_name,pm.meal_type,pm.meal_name,r.name recipe,u.id user_id,u.display_name,"
+        "SELECT pm.id planned_meal_id,d.day_number,d.day_name,pm.meal_type,pm.meal_name,r.name recipe,u.id user_id,u.display_name,"
             + " ump.portion_multiplier,COALESCE(ump.quantity,(SELECT SUM(ri.quantity*ump.portion_multiplier) FROM recipe_ingredient ri WHERE ri.recipe_id=r.id)) quantity,ump.calories,ump.protein,ump.carbohydrates,ump.fat,"
-            + " COALESCE((SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',x.quantity,'unit',x.unit) ORDER BY i.name) FROM user_meal_ingredient_portion x JOIN ingredient i ON i.id=x.ingredient_id WHERE x.planned_meal_id=pm.id AND x.user_id=u.id),(SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',ri.quantity*ump.portion_multiplier,'unit',ri.unit) ORDER BY ri.ingredient_order) FROM recipe_ingredient ri JOIN ingredient i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id)) ingredients FROM"
+            + " CAST(COALESCE((SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',x.quantity,'unit',x.unit) ORDER BY i.name) FROM user_meal_ingredient_portion x JOIN ingredient i ON i.id=x.ingredient_id WHERE x.planned_meal_id=pm.id AND x.user_id=u.id),(SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',ri.quantity*ump.portion_multiplier,'unit',ri.unit) ORDER BY ri.ingredient_order) FROM recipe_ingredient ri JOIN ingredient i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id)) AS TEXT) ingredients FROM"
             + " nutrition_plan_day d JOIN nutrition_plan p ON p.id=d.nutrition_plan_id LEFT JOIN"
             + " household_member hm ON hm.household_id=p.household_id JOIN planned_meal pm ON"
             + " pm.nutrition_plan_day_id=d.id JOIN recipe r ON r.id=pm.recipe_id JOIN"
@@ -205,6 +205,9 @@ public class NutritionController {
         CurrentUser.id(),
         CurrentUser.id());
   }
+
+  @GetMapping("/meals/{id}/portions")
+  List<Map<String,Object>> mealPortions(@PathVariable UUID id){UUID user=CurrentUser.id();return db.queryForList("SELECT u.id user_id,u.display_name,COALESCE(ump.quantity,(SELECT SUM(ri.quantity*ump.portion_multiplier) FROM recipe_ingredient ri WHERE ri.recipe_id=r.id)) quantity,ump.calories,ump.protein,ump.carbohydrates,ump.fat,CAST(COALESCE((SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',x.quantity,'unit',x.unit) ORDER BY i.name) FROM user_meal_ingredient_portion x JOIN ingredient i ON i.id=x.ingredient_id WHERE x.planned_meal_id=pm.id AND x.user_id=u.id),(SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',ri.quantity*ump.portion_multiplier,'unit',ri.unit) ORDER BY ri.ingredient_order) FROM recipe_ingredient ri JOIN ingredient i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id)) AS TEXT) ingredients FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id JOIN nutrition_plan p ON p.id=d.nutrition_plan_id JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id JOIN app_user u ON u.id=ump.user_id WHERE pm.id=? AND (p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)) ORDER BY u.display_name",id,user,user);}
 
   @GetMapping("/plans/{id}/details")
   List<Map<String,Object>> planDetails(@PathVariable UUID id) {
