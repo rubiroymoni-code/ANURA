@@ -229,10 +229,12 @@ public class NutritionImportService {
         UUID uid = userByEmail(portion.getKey(), householdScope, user);
         var factor =
             r.quantity.divide(java.math.BigDecimal.valueOf(100)).multiply(portion.getValue());
+        var individualQuantity = r.quantity.multiply(portion.getValue());
         db.update(
             "INSERT INTO"
-                + " user_meal_portion(id,planned_meal_id,user_id,portion_multiplier,calories,protein,carbohydrates,fat)"
-                + " VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(planned_meal_id,user_id) DO UPDATE SET"
+                + " user_meal_portion(id,planned_meal_id,user_id,portion_multiplier,quantity,calories,protein,carbohydrates,fat)"
+                + " VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(planned_meal_id,user_id) DO UPDATE SET"
+                + " quantity=COALESCE(user_meal_portion.quantity,0)+EXCLUDED.quantity,"
                 + " calories=user_meal_portion.calories+EXCLUDED.calories,"
                 + " protein=user_meal_portion.protein+EXCLUDED.protein,"
                 + " carbohydrates=user_meal_portion.carbohydrates+EXCLUDED.carbohydrates,"
@@ -241,10 +243,13 @@ public class NutritionImportService {
             meal,
             uid,
             portion.getValue(),
+            individualQuantity,
             r.calories.multiply(factor),
             r.protein.multiply(factor),
             r.carbs.multiply(factor),
             r.fat.multiply(factor));
+        UUID ingredientId=db.queryForObject("SELECT id FROM ingredient WHERE code=? AND (owner_id=? OR household_id=?) ORDER BY household_id NULLS LAST LIMIT 1",UUID.class,r.ingredientCode,user,householdScope);
+        db.update("INSERT INTO user_meal_ingredient_portion(planned_meal_id,user_id,ingredient_id,quantity,unit) VALUES(?,?,?,?,?) ON CONFLICT(planned_meal_id,user_id,ingredient_id) DO UPDATE SET quantity=EXCLUDED.quantity,unit=EXCLUDED.unit",meal,uid,ingredientId,individualQuantity,r.unit);
       }
     }
   }

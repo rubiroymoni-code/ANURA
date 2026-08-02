@@ -558,13 +558,14 @@ function PlanView({ id }: { id: string }) {
           </button>
           <div className="meal-card-body">
             {mode === "total" ? (
-              <div className="portion-total"><b>Total de la receta</b><strong>{g.people.reduce((s, p) => s + Number(p.calories || 0), 0).toFixed(0)} kcal</strong></div>
+              <div className="portion-total"><b>Total de la receta</b><strong>{g.people.reduce((s, p) => s + Number(p.quantity || 0), 0).toFixed(0)} g · {g.people.reduce((s, p) => s + Number(p.calories || 0), 0).toFixed(0)} kcal</strong></div>
             ) : (
               g.people.map((p, i) => (
                 <div className="portion" key={i}>
                   <b>{String(p.display_name)}</b>
-                  <span>× {String(p.portion_multiplier)} · {Number(p.calories || 0).toFixed(0)} kcal</span>
+                  <span>{Number(p.quantity || 0).toFixed(0)} g totales · {Number(p.calories || 0).toFixed(0)} kcal</span>
                   <small>P {Number(p.protein || 0).toFixed(0)} · C {Number(p.carbohydrates || 0).toFixed(0)} · G {Number(p.fat || 0).toFixed(0)}</small>
+                  {Array.isArray(p.ingredients)&&<div className="portion-ingredients">{(p.ingredients as Array<{name:string;quantity:number;unit:string}>).map((ingredient,index)=><span key={`${ingredient.name}-${index}`}><b>{ingredient.name}</b><em>{Number(ingredient.quantity||0).toFixed(0)} {ingredient.unit||"g"}</em></span>)}</div>}
                 </div>
               ))
             )}
