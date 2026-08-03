@@ -91,7 +91,7 @@ export function NutritionHub({ onClose,onRegisterMeal }: { onClose: () => void;o
             <X />
           </button>
         </div>
-        <nav className="nutrition-primary-nav"><button className={section==="home"?"active":""} onClick={()=>setSection("home")}><Utensils/>Hoy</button><button className={section==="plan"?"active":""} disabled={!activePlan} onClick={()=>{if(activePlan){setSelectedPlan(activePlan.id);setSection("plan")}}}><CalendarDays/>Plan</button><button className={section==="cook"||section==="recipe"?"active":""} onClick={()=>setSection("cook")}><ChefHat/>Cocina</button><button className={section==="shopping"?"active":""} onClick={()=>setSection("shopping")}><ShoppingBasket/>Compra</button><button className={section==="preferences"?"active":""} onClick={()=>setSection("preferences")}><SlidersHorizontal/>Preferencias</button></nav>
+        <nav className="nutrition-primary-nav"><button className={section==="home"?"active":""} onClick={()=>setSection("home")}><Utensils/>Hoy</button><button className={section==="plan"?"active":""} disabled={!activePlan} onClick={()=>{if(activePlan){setSelectedPlan(activePlan.id);setSection("plan")}}}><CalendarDays/>Plan</button><button className={section==="cook"||section==="recipe"?"active":""} onClick={()=>setSection("cook")}><ChefHat/>Cocina</button><button className={section==="shopping"?"active":""} onClick={()=>setSection("shopping")}><ShoppingBasket/>Compra</button><button className={section==="supplements"?"active":""} onClick={()=>setSection("supplements")}><Pill/>Suplementos</button></nav>
         <div className="nutrition-hub-content" onClickCapture={(event)=>{const target=(event.target as HTMLElement).closest(".nutrition-today .today-recipe-link");if(!target||!onRegisterMeal)return;event.preventDefault();event.stopPropagation();const buttons=Array.from(event.currentTarget.querySelectorAll(".nutrition-today .today-recipe-link"));const meal=todayMeals[buttons.indexOf(target as HTMLButtonElement)];if(meal)onRegisterMeal(meal)}}>
         {loadError && <div className="error" role="alert">{loadError}</div>}
         {section === "home" && (
@@ -111,15 +111,10 @@ export function NutritionHub({ onClose,onRegisterMeal }: { onClose: () => void;o
                 <b>Importar dieta</b>
                 <span>Individual, compartida o recetas</span>
               </button>
-              <button onClick={() => setSection("shopping")}>
-                <ShoppingBasket />
-                <b>Lista de compra</b>
-                <span>Consolidada por semana</span>
-              </button>
-              <button onClick={() => setSection("supplements")}>
-                <Pill />
-                <b>Suplementos</b>
-                <span>Lo que tomas actualmente</span>
+              <button onClick={() => setSection("preferences")}>
+                <SlidersHorizontal />
+                <b>Preferencias alimentarias</b>
+                <span>Gustos, exclusiones y planificación</span>
               </button>
             </div></details>
             <details className="nutrition-tools nutrition-history"><summary>Planes anteriores y versiones</summary>
