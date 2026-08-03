@@ -230,12 +230,11 @@ public class NutritionController {
         "SELECT pm.id planned_meal_id,d.day_number,d.day_name,pm.meal_type,pm.meal_name,r.name recipe,u.id user_id,u.display_name,"
             + " ump.portion_multiplier,COALESCE(ump.quantity,(SELECT SUM(ri.quantity*ump.portion_multiplier) FROM recipe_ingredient ri WHERE ri.recipe_id=r.id)) quantity,ump.calories,ump.protein,ump.carbohydrates,ump.fat,"
             + " CAST(COALESCE((SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',x.quantity,'unit',x.unit) ORDER BY i.name) FROM user_meal_ingredient_portion x JOIN ingredient i ON i.id=x.ingredient_id WHERE x.planned_meal_id=pm.id AND x.user_id=u.id),(SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',ri.quantity*ump.portion_multiplier,'unit',ri.unit) ORDER BY ri.ingredient_order) FROM recipe_ingredient ri JOIN ingredient i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id)) AS TEXT) ingredients FROM"
-            + " nutrition_plan_day d JOIN nutrition_plan p ON p.id=d.nutrition_plan_id LEFT JOIN"
-            + " household_member hm ON hm.household_id=p.household_id JOIN planned_meal pm ON"
+            + " nutrition_plan_day d JOIN nutrition_plan p ON p.id=d.nutrition_plan_id JOIN planned_meal pm ON"
             + " pm.nutrition_plan_day_id=d.id JOIN recipe r ON r.id=pm.recipe_id JOIN"
             + " user_meal_portion ump ON ump.planned_meal_id=pm.id JOIN app_user u ON"
             + " u.id=ump.user_id WHERE p.id=? AND d.week_number=COALESCE(?,(SELECT MIN(dx.week_number) FROM nutrition_plan_day dx WHERE dx.nutrition_plan_id=p.id)) AND (p.owner_id=? OR"
-            + " hm.user_id=?) ORDER BY d.day_order,pm.meal_order,u.display_name",
+            + " EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)) ORDER BY d.day_order,pm.meal_order,u.display_name",
         id,
         week,
         CurrentUser.id(),
