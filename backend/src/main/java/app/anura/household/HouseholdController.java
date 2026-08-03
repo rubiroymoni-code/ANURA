@@ -80,7 +80,9 @@ public class HouseholdController {
       if("FEMALE".equals(((Map<?,?>)person.get("preferences")).get("biological_sex")))person.put("cycles",db.queryForList("SELECT start_date,end_date,flow_level,symptoms,notes FROM menstrual_cycle_record WHERE user_id=? ORDER BY start_date DESC LIMIT 12",user));
       people.add(person);
     }
-    out.put("members",people);out.put("sharingNotice","Al aceptar la unidad doméstica, sus miembros aceptan usar estos datos dentro de ANURA para generar planificación conjunta.");return out;
+    out.put("members",people);
+    out.put("pantry",db.queryForList("SELECT i.name,s.quantity,s.unit,s.updated_at FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id WHERE s.household_id=? AND s.quantity>0 ORDER BY i.name",id));
+    out.put("sharingNotice","Al aceptar la unidad doméstica, sus miembros aceptan usar estos datos dentro de ANURA para generar planificación conjunta.");return out;
   }
 
   @PatchMapping("/{id}")

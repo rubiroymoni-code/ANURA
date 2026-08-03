@@ -98,6 +98,13 @@ public class NutritionController {
     return savePlanned(mealId,"COMPLETED",null,meal,null);
   }
 
+  @DeleteMapping("/today/{mealId}/completion")
+  @Transactional
+  void undoTodayMeal(@PathVariable UUID mealId){
+    plannedMeal(mealId);
+    db.update("DELETE FROM consumed_meal WHERE user_id=? AND planned_meal_id=? AND meal_date=CURRENT_DATE",CurrentUser.id(),mealId);
+  }
+
   @PostMapping("/today/{mealId}/skip")
   @Transactional
   Map<String,Object> skipTodayMeal(@PathVariable UUID mealId,@RequestBody(required=false) MealInput input) {
