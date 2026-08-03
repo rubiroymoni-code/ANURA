@@ -120,6 +120,19 @@ public class NutritionController {
     return savePlanned(mealId,"SUBSTITUTED",input,meal,input.name().trim());
   }
 
+  @PostMapping("/today/{mealId}/additional")
+  @ResponseStatus(HttpStatus.CREATED)
+  @Transactional
+  Map<String,Object> additionalTodayMeal(@PathVariable UUID mealId,@RequestBody MealInput input) {
+    validateMealType(input==null?null:input.mealType());
+    if(input.name()==null||input.name().isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST,"MEAL_NAME_REQUIRED","Escribe lo que has comido ademas");
+    Map<String,Object> meal=plannedMeal(mealId);
+    savePlanned(mealId,"COMPLETED",null,meal,null);
+    UUID id=UUID.randomUUID();LocalDate date=input.date()==null?LocalDate.now():input.date();
+    db.update("INSERT INTO consumed_meal(id,user_id,meal_date,meal_type,status,custom_name,portion,calories,protein,carbohydrates,fat,notes,completed_at) VALUES(?,?,?,?, 'COMPLETED',?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",id,CurrentUser.id(),date,input.mealType(),input.name().trim(),clean(input.portion()),input.calories(),input.protein(),input.carbohydrates(),input.fat(),clean(input.notes()));
+    return consumed(id);
+  }
+
   @PostMapping("/today/{mealId}/partial")
   @Transactional
   Map<String,Object> partialTodayMeal(@PathVariable UUID mealId,@RequestBody PartialMeal input) {
@@ -350,8 +363,12 @@ public class NutritionController {
     if(body.name()==null||body.name().isBlank()||body.unit()==null||body.unit().isBlank()||body.quantity()==null||body.quantity().signum()<0)throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PANTRY_ITEM","Revisa el alimento, la cantidad y la unidad");
     UUID household=db.query("SELECT household_id FROM household_member WHERE user_id=? ORDER BY joined_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),CurrentUser.id()).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.CONFLICT,"HOUSEHOLD_REQUIRED","Crea o acepta una unidad doméstica"));
     String unit=body.unit().trim().toLowerCase(),name=body.name().trim(),category=body.category()==null||body.category().isBlank()?"OTHER":body.category().trim().toUpperCase();
-    UUID ingredient=db.query("SELECT id FROM ingredient WHERE household_id=? AND lower(trim(name))=lower(?) AND lower(base_unit)=? ORDER BY created_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),household,name,unit).stream().findFirst().orElseGet(()->{UUID id=UUID.randomUUID();db.update("INSERT INTO ingredient(id,household_id,code,name,category,base_unit) VALUES(?,?,?,?,?,?)",id,household,"PANTRY_"+id,name,category,unit);return id;});
-    db.update("INSERT INTO household_pantry_stock(household_id,ingredient_id,unit,quantity) VALUES(?,?,?,?) ON CONFLICT(household_id,ingredient_id,unit) DO UPDATE SET quantity=household_pantry_stock.quantity+EXCLUDED.quantity,updated_at=CURRENT_TIMESTAMP",household,ingredient,unit,body.quantity());
+    java.math.BigDecimal quantity=body.quantity();
+    if(unit.equals("kg")){unit="g";quantity=quantity.multiply(java.math.BigDecimal.valueOf(1000));}
+    if(unit.equals("l")){unit="ml";quantity=quantity.multiply(java.math.BigDecimal.valueOf(1000));}
+    final String normalizedUnit=unit;
+    UUID ingredient=db.query("SELECT id FROM ingredient WHERE household_id=? AND lower(trim(name))=lower(?) AND lower(base_unit)=? ORDER BY created_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),household,name,normalizedUnit).stream().findFirst().orElseGet(()->{UUID id=UUID.randomUUID();db.update("INSERT INTO ingredient(id,household_id,code,name,category,base_unit) VALUES(?,?,?,?,?,?)",id,household,"PANTRY_"+id,name,category,normalizedUnit);return id;});
+    db.update("INSERT INTO household_pantry_stock(household_id,ingredient_id,unit,quantity) VALUES(?,?,?,?) ON CONFLICT(household_id,ingredient_id,unit) DO UPDATE SET quantity=household_pantry_stock.quantity+EXCLUDED.quantity,updated_at=CURRENT_TIMESTAMP",household,ingredient,normalizedUnit,quantity);
     return Map.of("ingredientId",ingredient,"name",name);
   }
 
@@ -548,6 +565,10 @@ public class NutritionController {
       throw new org.springframework.web.server.ResponseStatusException(
           org.springframework.http.HttpStatus.FORBIDDEN);
     UUID item = UUID.randomUUID();
+    String itemUnit=body.unit()==null?"ud":body.unit().trim().toLowerCase();
+    java.math.BigDecimal itemQuantity=body.quantity();
+    if(itemUnit.equals("kg")){itemUnit="g";itemQuantity=itemQuantity.multiply(java.math.BigDecimal.valueOf(1000));}
+    if(itemUnit.equals("l")){itemUnit="ml";itemQuantity=itemQuantity.multiply(java.math.BigDecimal.valueOf(1000));}
     Integer order =
         db.queryForObject(
             "SELECT coalesce(max(item_order),0)+1 FROM shopping_list_item WHERE shopping_list_id=?",
@@ -561,9 +582,9 @@ public class NutritionController {
         id,
         body.name(),
         body.category(),
-        body.quantity(),
-        body.quantity(),
-        body.unit(),
+        itemQuantity,
+        itemQuantity,
+        itemUnit,
         order);
     db.update(
         "UPDATE shopping_list SET manually_modified=TRUE,updated_at=CURRENT_TIMESTAMP WHERE id=?",
