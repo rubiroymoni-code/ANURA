@@ -120,6 +120,19 @@ public class NutritionController {
     return savePlanned(mealId,"SUBSTITUTED",input,meal,input.name().trim());
   }
 
+  @PostMapping("/today/{mealId}/additional")
+  @ResponseStatus(HttpStatus.CREATED)
+  @Transactional
+  Map<String,Object> additionalTodayMeal(@PathVariable UUID mealId,@RequestBody MealInput input) {
+    validateMealType(input==null?null:input.mealType());
+    if(input.name()==null||input.name().isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST,"MEAL_NAME_REQUIRED","Escribe lo que has comido ademas");
+    Map<String,Object> meal=plannedMeal(mealId);
+    savePlanned(mealId,"COMPLETED",null,meal,null);
+    UUID id=UUID.randomUUID();LocalDate date=input.date()==null?LocalDate.now():input.date();
+    db.update("INSERT INTO consumed_meal(id,user_id,meal_date,meal_type,status,custom_name,portion,calories,protein,carbohydrates,fat,notes,completed_at) VALUES(?,?,?,?, 'COMPLETED',?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",id,CurrentUser.id(),date,input.mealType(),input.name().trim(),clean(input.portion()),input.calories(),input.protein(),input.carbohydrates(),input.fat(),clean(input.notes()));
+    return consumed(id);
+  }
+
   @PostMapping("/today/{mealId}/partial")
   @Transactional
   Map<String,Object> partialTodayMeal(@PathVariable UUID mealId,@RequestBody PartialMeal input) {
