@@ -466,92 +466,21 @@ function RecipeView({ id,mealId }: { id: string;mealId:string|null }) {
 
 function PlanView({ id }: { id: string }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
-  const [mode, setMode] = useState<"mine" | "both" | "total">("both");
-  const [expanded, setExpanded] = useState<number | null>(null);
   const [selectedDay,setSelectedDay]=useState(new Date().getDay()||7);
   const currentUser = JSON.parse(localStorage.getItem("anura-user") || "{}");
   useEffect(() => {
     void nutritionApi.week(id).then(setRows);
   }, [id]);
-  const visible =
-    mode === "mine"
-      ? rows.filter((r) => r.user_id === currentUser.id)
-      : rows;
-  const shared=new Set(rows.map(r=>String(r.user_id))).size>1;
   const todayDay=new Date().getDay()||7;
-  const days=[...new Map(rows.map(row=>[Number(row.day_number),String(row.day_name||`Día ${row.day_number}`)])).entries()].sort((a,b)=>a[0]-b[0]);
-  const dayRows=visible.filter(row=>selectedDay===0||Number(row.day_number)===selectedDay);
-  const grouped = Object.values(
-    dayRows.reduce<
-      Record<
-        string,
-        { meal: string; recipe: string; people: Array<Record<string, unknown>> }
-      >
-    >((acc, row) => {
-      const key = `${row.day_number}-${row.meal_name}`;
-      acc[key] ||= {
-        meal: String(row.meal_name),
-        recipe: String(row.recipe),
-        people: [],
-      };
-      acc[key].people.push(row);
-      return acc;
-    }, {}),
-  ).sort((a,b)=>{const ad=Number(a.people[0]?.day_number),bd=Number(b.people[0]?.day_number);return (ad===todayDay?-1:bd===todayDay?1:ad-bd)});
+  const mine=rows.filter(row=>String(row.user_id)===String(currentUser.id));
+  const days=[...new Map(mine.map(row=>[Number(row.day_number),String(row.day_name||`Día ${row.day_number}`)])).entries()].sort((a,b)=>a[0]-b[0]);
+  const dayRows=mine.filter(row=>selectedDay===0||Number(row.day_number)===selectedDay).sort((a,b)=>Number(a.day_number)-Number(b.day_number)||Number(a.meal_order||0)-Number(b.meal_order||0));
   return (
-    <div>
-      <div className="plan-day-tabs">{days.map(([day,name])=><button key={day} className={selectedDay===day?"active":""} onClick={()=>{setSelectedDay(day);setExpanded(null)}}><b>{day===todayDay?"Hoy":name.slice(0,3)}</b><small>Día {day}</small></button>)}<button className={selectedDay===0?"active":""} onClick={()=>{setSelectedDay(0);setExpanded(null)}}><b>Todo</b><small>semana</small></button></div>
-      {shared&&<div className="import-types">
-        <button
-          className={mode === "mine" ? "selected" : ""}
-          onClick={() => setMode("mine")}
-        >
-          Mis cantidades
-        </button>
-        <button
-          className={mode === "both" ? "selected" : ""}
-          onClick={() => setMode("both")}
-        >
-          Ambos · cocinar
-        </button>
-        <button
-          className={mode === "total" ? "selected" : ""}
-          onClick={() => setMode("total")}
-        >
-          Total receta
-        </button>
-      </div>}
-      {!shared&&<div className="plan-owner-label">Tu planificación y cantidades</div>}
-      <div className="plan-collapsed-note"><span><b>Plan completo</b><small>Las comidas de hoy aparecen primero. El resto permanece colapsado hasta que quieras revisarlo.</small></span></div>
-      {!grouped.length&&<div className="empty">Este plan no contiene comidas visibles. Revisa su semana e identificador de usuario.</div>}
-      {grouped.map((g, n) => (
-        <article className={`meal-card ${expanded === n ? "expanded" : ""}`} key={n}>
-          <button className="meal-card-head" onClick={() => setExpanded(expanded === n ? null : n)} aria-expanded={expanded === n}>
-            <span className="meal-index">{String(g.people[0]?.day_number).padStart(2, "0")}</span>
-            <span>
-              <small>DÍA {String(g.people[0]?.day_number)}</small>
-              <h3>{g.meal}</h3>
-              <p>{g.recipe}</p>
-            </span>
-            <span className="meal-kcal">{g.people.reduce((s, p) => s + Number(p.calories || 0), 0).toFixed(0)}<small>kcal</small></span>
-            <ChevronDown className="meal-chevron" />
-          </button>
-          <div className="meal-card-body">
-            {mode === "total" ? (
-              <div className="portion-total-wrap"><div className="portion-total"><b>Total conjunto</b><strong>{g.people.reduce((s, p) => s + Number(p.quantity || 0), 0).toFixed(0)} g · {g.people.reduce((s, p) => s + Number(p.calories || 0), 0).toFixed(0)} kcal</strong></div><div className="portion-ingredients combined">{combinedIngredients(g.people).map((ingredient,index)=><span key={`${ingredient.name}-${index}`}><b>{ingredient.name}</b><em>{ingredient.quantity.toFixed(0)} {ingredient.unit}</em></span>)}</div></div>
-            ) : (
-              g.people.map((p, i) => (
-                <div className="portion" key={i}>
-                  <b>{String(p.display_name)}</b>
-                  <span>{Number(p.quantity || 0).toFixed(0)} g totales · {Number(p.calories || 0).toFixed(0)} kcal</span>
-                  <small>P {Number(p.protein || 0).toFixed(0)} · C {Number(p.carbohydrates || 0).toFixed(0)} · G {Number(p.fat || 0).toFixed(0)}</small>
-                  {ingredientRows(p.ingredients).length>0&&<div className="portion-ingredients">{ingredientRows(p.ingredients).map((ingredient,index)=><span key={`${ingredient.name}-${index}`}><b>{ingredient.name}</b><em>{Number(ingredient.quantity||0).toFixed(0)} {ingredient.unit||"g"}</em></span>)}</div>}
-                </div>
-              ))
-            )}
-          </div>
-        </article>
-      ))}
+    <div className="plan-agenda">
+      <div className="plan-day-tabs">{days.map(([day,name])=><button key={day} className={selectedDay===day?"active":""} onClick={()=>setSelectedDay(day)}><b>{day===todayDay?"Hoy":name.slice(0,3)}</b><small>Día {day}</small></button>)}<button className={selectedDay===0?"active":""} onClick={()=>setSelectedDay(0)}><b>Todo</b><small>semana</small></button></div>
+      <div className="plan-agenda-intro"><CalendarDays/><span><b>{selectedDay===todayDay?"Tu menú de hoy":selectedDay===0?"Tu semana completa":`Tu menú del día ${selectedDay}`}</b><small>Para cantidades conjuntas y reparto abre Cocina.</small></span></div>
+      {!dayRows.length&&<div className="empty">No tienes comidas asignadas para este día.</div>}
+      <div className="plan-agenda-list">{dayRows.map((meal,index)=><article key={`${meal.planned_meal_id||meal.meal_name}-${index}`}><span className="agenda-time"><small>{mealTypeLabel(String(meal.meal_type))}</small><b>{String(meal.meal_name)}</b><em>{String(meal.recipe)}</em></span><span className="agenda-macros"><b>{Number(meal.calories||0).toFixed(0)} kcal</b><small>P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</small></span>{selectedDay===0&&<i>Día {String(meal.day_number)}</i>}</article>)}</div>
       <button className="primary" onClick={() => nutritionApi.activate(id)}>
         Activar este plan
       </button>
