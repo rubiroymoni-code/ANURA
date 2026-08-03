@@ -1,0 +1,104 @@
+:root{
+  --anura-green:#102219;
+  --anura-green-2:#254431;
+  --anura-lime:#c8f15d;
+  --anura-cream:#f8f6ef;
+  --anura-line:rgba(21,39,27,.10);
+  --anura-glow:0 24px 70px rgba(22,43,28,.14);
+  --anura-soft:0 10px 30px rgba(22,43,28,.07);
+  --anura-ease:cubic-bezier(.2,.8,.2,1);
+}
+
+html{scroll-behavior:smooth;background:#e9ede5}
+body{background:
+  radial-gradient(circle at 12% 8%,rgba(200,241,93,.20),transparent 26rem),
+  radial-gradient(circle at 90% 25%,rgba(74,126,87,.13),transparent 31rem),
+  linear-gradient(150deg,#eef1ea,#e6e8e1 52%,#eff1eb);background-attachment:fixed}
+button{-webkit-tap-highlight-color:transparent}
+button:active:not(:disabled){transform:translateY(1px) scale(.985)!important}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid rgba(151,194,61,.28)!important;outline-offset:2px}
+
+.shell{isolation:isolate;border-inline:1px solid rgba(255,255,255,.65)}
+.shell:after{content:"";position:absolute;z-index:-1;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.28) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.2) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(to bottom,black,transparent 34%);opacity:.24}
+.shell>header{box-shadow:0 8px 30px rgba(25,44,31,.045)}
+.brand img{filter:drop-shadow(0 7px 10px rgba(110,154,32,.22));transition:transform .35s var(--anura-ease),filter .35s}
+.brand:hover img{transform:rotate(-5deg) scale(1.08);filter:drop-shadow(0 9px 15px rgba(151,200,57,.34))}
+
+.overlay{background:rgba(8,20,12,.62)!important;backdrop-filter:blur(12px) saturate(.8);animation:anura-fade .22s both}
+.modal{position:relative;border:1px solid rgba(255,255,255,.72);box-shadow:0 35px 110px rgba(7,20,11,.35)!important;background:
+  radial-gradient(circle at 92% 2%,rgba(200,241,93,.16),transparent 18rem),
+  linear-gradient(145deg,#faf9f4,#f4f3ec)!important}
+.modal:before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;box-shadow:inset 0 1px 0 rgba(255,255,255,.9)}
+.modal-head{position:relative;z-index:2}
+.modal-head>button,.close-button{display:grid!important;place-items:center;width:48px!important;height:48px!important;border-radius:16px!important;background:rgba(255,255,255,.9)!important;box-shadow:0 8px 25px rgba(20,38,25,.10)!important;transition:transform .22s,box-shadow .22s!important}
+.modal-head>button:hover,.close-button:hover{transform:rotate(4deg) scale(1.04);box-shadow:0 12px 30px rgba(20,38,25,.15)!important}
+
+.primary{position:relative;overflow:hidden;box-shadow:0 9px 22px rgba(129,170,43,.16);transition:transform .2s var(--anura-ease),box-shadow .2s,filter .2s}
+.primary:before{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 20%,rgba(255,255,255,.45) 43%,transparent 66%);transform:translateX(-130%);transition:transform .65s var(--anura-ease)}
+.primary:hover:not(:disabled):before{transform:translateX(130%)}
+.primary:hover:not(:disabled){box-shadow:0 14px 30px rgba(113,158,36,.27);filter:saturate(1.08)}
+
+.home-hero{border:1px solid rgba(255,255,255,.08);box-shadow:0 30px 75px rgba(14,32,20,.26),inset 0 1px rgba(255,255,255,.08)}
+.home-hero:before{animation:anura-orbit 14s linear infinite}.home-hero:after{animation:anura-orbit 10s linear reverse infinite}
+.home-hero-visual>img{animation:anura-float 5s ease-in-out infinite;transform-origin:50% 80%}
+.home-progress-ring{animation:anura-ring-in .9s var(--anura-ease) both}
+.home-progress-ring:after{content:"";position:absolute;inset:-3px;border-radius:50%;border:1px solid rgba(200,241,93,.32);animation:anura-pulse 2.8s ease-out infinite}
+.home-streak{backdrop-filter:blur(10px);box-shadow:inset 0 1px rgba(255,255,255,.08)}
+
+.daily-focus,.quick,.entries article,.nutrition-today>article,.plan-agenda-list article,.shopping-category,.pantry-manager,.recipe-person-portions article,.planned-card,.live-exercise,.history-card{border-color:var(--anura-line)!important;box-shadow:var(--anura-soft);transition:transform .25s var(--anura-ease),box-shadow .25s,border-color .25s!important}
+.daily-focus:hover,.quick:hover,.nutrition-today>article:hover,.plan-agenda-list article:hover,.shopping-category:hover,.recipe-person-portions article:hover,.live-exercise:hover{transform:translateY(-3px);box-shadow:var(--anura-glow);border-color:rgba(111,151,48,.23)!important}
+
+.shell .nutrition-primary-nav{position:sticky;z-index:12;top:0;padding:7px!important;border:1px solid rgba(28,47,33,.08)!important;border-radius:21px!important;background:rgba(235,240,231,.78)!important;backdrop-filter:blur(18px);box-shadow:0 13px 35px rgba(24,43,29,.09)!important}
+.nutrition-primary-nav button{position:relative;border-radius:15px!important;transition:background .25s,transform .25s,color .25s,box-shadow .25s!important}
+.nutrition-primary-nav button.active{background:#fff!important;color:var(--anura-green)!important;box-shadow:0 8px 24px rgba(20,39,25,.12)!important;transform:translateY(-1px)}
+.nutrition-primary-nav button.active:after{content:"";position:absolute;width:5px;height:5px;left:50%;bottom:5px;border-radius:50%;background:#7fa538;box-shadow:0 0 0 4px rgba(127,165,56,.10)}
+.nutrition-balance{position:relative;overflow:hidden;background:linear-gradient(135deg,#0d2117,#284b32)!important}
+.nutrition-balance:after{content:"";position:absolute;width:190px;height:190px;right:-95px;top:-110px;border-radius:50%;border:26px solid rgba(200,241,93,.07);animation:anura-breathe 5s ease-in-out infinite}
+.nutrition-ring{filter:drop-shadow(0 9px 20px rgba(200,241,93,.18))}
+.nutrition-today>article{animation:anura-card-in .42s var(--anura-ease) both}.nutrition-today>article:nth-of-type(2){animation-delay:.05s}.nutrition-today>article:nth-of-type(3){animation-delay:.1s}.nutrition-today>article:nth-of-type(4){animation-delay:.15s}.nutrition-today>article:nth-of-type(5){animation-delay:.2s}
+
+.shopping-category{overflow:hidden;background:rgba(255,255,255,.88)!important}
+.shopping-category h4{background:linear-gradient(90deg,rgba(223,239,203,.55),transparent);padding-block:15px!important}
+.shopping-item{transition:background .2s,opacity .2s!important}.shopping-item:hover{background:#fafcf7}.shopping-check{transition:transform .2s,background .2s,box-shadow .2s}.shopping-check:hover{transform:scale(1.08);box-shadow:0 7px 16px rgba(99,137,44,.16)}
+.pantry-manager{background:linear-gradient(145deg,#edf4e6,#f7f9f4)!important;box-shadow:inset 0 1px rgba(255,255,255,.9),var(--anura-soft)}
+.pantry-manager>article{box-shadow:0 5px 18px rgba(24,43,29,.045);animation:anura-card-in .38s var(--anura-ease) both}
+.pantry-explanation{border-left:4px solid #a8d442;box-shadow:0 6px 20px rgba(31,52,35,.05)}
+
+.workout-hub{background:radial-gradient(circle at 90% 0,rgba(200,241,93,.10),transparent 23rem),var(--paper)!important}
+.workout-tabs{backdrop-filter:blur(18px)}
+.exercise-card{background:linear-gradient(145deg,#fff,#fbfcf9)!important}
+.live-exercise{background:linear-gradient(145deg,#fff,#fbfcf9)!important;animation:anura-card-in .4s var(--anura-ease) both}.live-exercise:nth-of-type(2){animation-delay:.04s}.live-exercise:nth-of-type(3){animation-delay:.08s}.live-exercise:nth-of-type(4){animation-delay:.12s}.live-exercise:nth-of-type(5){animation-delay:.16s}.live-exercise:nth-of-type(6){animation-delay:.2s}
+.active-status{box-shadow:0 18px 40px rgba(14,36,22,.20)}
+.active-status .timer{font-variant-numeric:tabular-nums;text-shadow:0 0 24px rgba(200,241,93,.18)}
+
+.evolution-panel,.adherence-card,.goal-vision{border:1px solid rgba(255,255,255,.08);box-shadow:0 28px 75px rgba(15,35,22,.22)!important}
+.chart-point{filter:drop-shadow(0 0 3px var(--acid))}.chart-line{filter:drop-shadow(0 3px 4px rgba(200,241,93,.18))}
+.evolution-stats div{transition:transform .22s,background .22s}.evolution-stats div:hover{transform:translateY(-2px);background:rgba(255,255,255,.075)}
+
+.auth{background:linear-gradient(120deg,#f7f5ef,#fbfaf6)}
+.auth-art{background:radial-gradient(circle at 80% 75%,#294f33 0,#102219 43%,#0a1710 100%)!important}
+.auth-art:before{opacity:.36!important;animation:anura-auth-float 7s ease-in-out infinite;filter:drop-shadow(0 25px 38px rgba(0,0,0,.4)) saturate(1.15)!important}
+.auth form{padding:34px;border:1px solid rgba(29,48,34,.08);border-radius:28px;background:rgba(255,255,255,.48);box-shadow:0 24px 70px rgba(25,42,30,.08);backdrop-filter:blur(14px);animation:anura-form-in .6s var(--anura-ease) both}
+.auth input{transition:border-color .2s,box-shadow .2s,transform .2s}.auth input:focus{transform:translateY(-1px)}
+
+@keyframes anura-fade{from{opacity:0}to{opacity:1}}
+@keyframes anura-card-in{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes anura-form-in{from{opacity:0;transform:translateY(18px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes anura-float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-9px) rotate(1deg)}}
+@keyframes anura-auth-float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-14px) scale(1.025)}}
+@keyframes anura-ring-in{from{opacity:0;transform:scale(.6) rotate(-80deg)}to{opacity:1;transform:none}}
+@keyframes anura-pulse{0%{opacity:.7;transform:scale(.9)}75%,100%{opacity:0;transform:scale(1.22)}}
+@keyframes anura-orbit{to{transform:rotate(360deg)}}
+@keyframes anura-breathe{50%{transform:scale(1.12);opacity:.8}}
+
+@media(min-width:900px){
+  .content{padding-top:44px!important}.nutrition-hub{border-radius:32px!important}
+  .shell nav{background:rgba(255,255,255,.82)!important;backdrop-filter:blur(22px) saturate(1.2);box-shadow:0 20px 60px rgba(17,35,22,.18)!important}
+}
+@media(max-width:720px){
+  .auth form{padding:24px;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none}
+  .modal{box-shadow:0 -24px 70px rgba(7,20,11,.26)!important}
+  .nutrition-primary-nav{top:-1px;border-radius:17px!important}
+  .pantry-manager{padding:13px}.pantry-manager>article{padding:12px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01ms!important}}
