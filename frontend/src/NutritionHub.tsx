@@ -28,7 +28,7 @@ import {
 import { HouseholdView } from "./HouseholdView";
 import { SupplementsPanel } from "./SupplementsPanel";
 import { NutritionPreferencesPanel } from "./NutritionPreferencesPanel";
-export function NutritionHub({ onClose }: { onClose: () => void }) {
+export function NutritionHub({ onClose,onRegisterMeal }: { onClose: () => void;onRegisterMeal?:(mealId:string)=>void }) {
   const [section, setSection] = useState<
     "home" | "cook" | "preferences" | "household" | "import" | "shopping" | "supplements" | "plan" | "recipe"
   >("home");
@@ -92,7 +92,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <nav className="nutrition-primary-nav"><button className={section==="home"?"active":""} onClick={()=>setSection("home")}><Utensils/>Hoy</button><button className={section==="plan"?"active":""} disabled={!activePlan} onClick={()=>{if(activePlan){setSelectedPlan(activePlan.id);setSection("plan")}}}><CalendarDays/>Plan</button><button className={section==="cook"||section==="recipe"?"active":""} onClick={()=>setSection("cook")}><ChefHat/>Cocina</button><button className={section==="shopping"?"active":""} onClick={()=>setSection("shopping")}><ShoppingBasket/>Compra</button><button className={section==="preferences"?"active":""} onClick={()=>setSection("preferences")}><SlidersHorizontal/>Preferencias</button></nav>
-        <div className="nutrition-hub-content">
+        <div className="nutrition-hub-content" onClickCapture={(event)=>{const target=(event.target as HTMLElement).closest(".nutrition-today .today-recipe-link");if(!target||!onRegisterMeal)return;event.preventDefault();event.stopPropagation();const buttons=Array.from(event.currentTarget.querySelectorAll(".nutrition-today .today-recipe-link"));const meal=todayMeals[buttons.indexOf(target as HTMLButtonElement)];if(meal)onRegisterMeal(meal.planned_meal_id)}}>
         {loadError && <div className="error" role="alert">{loadError}</div>}
         {section === "home" && (
           <>

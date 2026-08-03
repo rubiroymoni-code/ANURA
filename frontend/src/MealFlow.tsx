@@ -11,10 +11,12 @@ const moments:Array<{id:MealType;label:string;matches:string[]}>= [
  {id:"OTHER",label:"Otro",matches:["OTHER","OTRO"]},
 ];
 
-export function MealFlow({meals,editing,onClose,onDone}:{meals:TodayMeal[];editing?:Entry|null;onClose:()=>void;onDone:()=>void}){
- const [moment,setMoment]=useState<MealType|undefined>(editing?"OTHER":undefined),[mode,setMode]=useState<"proposal"|"substitute"|"custom">(editing?"custom":"proposal"),[busy,setBusy]=useState(false),[error,setError]=useState(""),[skip,setSkip]=useState(false);const close=useRef<HTMLButtonElement>(null);
+export function MealFlow({meals,editing,initialMealId,onClose,onDone}:{meals:TodayMeal[];editing?:Entry|null;initialMealId?:string|null;onClose:()=>void;onDone:()=>void}){
+ const initialMeal=initialMealId?meals.find(meal=>meal.planned_meal_id===initialMealId):undefined;
+ const initialMoment=initialMeal?moments.find(moment=>moment.matches.some(match=>initialMeal.meal_type.toLowerCase().includes(match.toLowerCase())))?.id:undefined;
+ const [moment,setMoment]=useState<MealType|undefined>(editing?"OTHER":initialMoment),[mode,setMode]=useState<"proposal"|"substitute"|"custom">(editing?"custom":"proposal"),[busy,setBusy]=useState(false),[error,setError]=useState(""),[skip,setSkip]=useState(false);const close=useRef<HTMLButtonElement>(null);
  useEffect(()=>{close.current?.focus();const key=(e:KeyboardEvent)=>{if(e.key==="Escape"&&!busy)onClose()};document.body.classList.add("modal-open");addEventListener("keydown",key);return()=>{document.body.classList.remove("modal-open");removeEventListener("keydown",key)}},[busy,onClose]);
- const planned=useMemo(()=>meals.find(meal=>meal.status==="PENDING"&&moments.find(x=>x.id===moment)?.matches.includes(meal.meal_type.toUpperCase())),[meals,moment]);
+ const planned=useMemo(()=>initialMeal?.status==="PENDING"?initialMeal:meals.find(meal=>meal.status==="PENDING"&&moments.find(x=>x.id===moment)?.matches.includes(meal.meal_type.toUpperCase())),[initialMeal,meals,moment]);
  const run=async(action:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError("");try{await action();onDone()}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo guardar la comida")}finally{setBusy(false)}};
  const heading=!moment?"¿Qué comida es?":planned&&mode==="proposal"?"Tu comida prevista":editing?"Editar comida":"Registrar comida";
  return <div className="overlay meal-flow-overlay" role="presentation"><section className="modal meal-flow" role="dialog" aria-modal="true" aria-labelledby="meal-flow-title"><div className="modal-head"><div><small>NUTRICIÓN DE HOY</small><h2 id="meal-flow-title">{heading}</h2></div><button ref={close} type="button" onClick={onClose} aria-label="Cerrar"><X/></button></div>

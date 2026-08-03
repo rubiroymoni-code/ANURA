@@ -83,6 +83,7 @@ export function App() {
   const [dailyLoading, setDailyLoading] = useState(false);
   const [mealsExpanded,setMealsExpanded]=useState(false);
   const [mealFlowOpen, setMealFlowOpen] = useState(false);
+  const [selectedPlannedMeal,setSelectedPlannedMeal]=useState<string|null>(null);
   const [editingMeal, setEditingMeal] = useState<Entry | null>(null);
   const load = () => {
     if (user)
@@ -301,7 +302,7 @@ export function App() {
       )}
       {importOpen && <TrainingImport onClose={() => setImportOpen(false)} />}
       {nutritionOpen && (
-        <NutritionHub onClose={() => setNutritionOpen(false)} />
+        <NutritionHub onClose={() => setNutritionOpen(false)} onRegisterMeal={(mealId)=>{setSelectedPlannedMeal(mealId);setNutritionOpen(false);setEditingMeal(null);setMealFlowOpen(true)}} />
       )}
       {workoutOpen && (
         <WorkoutHub
@@ -325,7 +326,7 @@ export function App() {
         />
       )}
       {accountOpen && <AccountModal user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} />}
-      {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} onClose={() => setMealFlowOpen(false)} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
+      {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} initialMealId={selectedPlannedMeal} onClose={() => {setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);setSelectedPlannedMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
     </main>
   );
 }
