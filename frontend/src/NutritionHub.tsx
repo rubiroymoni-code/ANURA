@@ -40,13 +40,14 @@ export function NutritionHub({ onClose,onRegisterMeal }: { onClose: () => void;o
     [],
   );
   const [plans, setPlans] = useState<
-    Array<{ id: string; name: string; version: number; status: string }>
+    Array<{ id: string; name: string; version: number; status: string; valid_from?:string;valid_until?:string }>
   >([]);
   const [loadError, setLoadError] = useState("");
   const [todayMeals,setTodayMeals]=useState<TodayMeal[]>([]);
   const [dashboard,setDashboard]=useState<NutritionDashboard|null>(null);
   const [balanceExpanded,setBalanceExpanded]=useState(false);
   const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
+  const expiry=nutritionPlanExpiry(activePlan?.valid_until);
   useEffect(() => {
     void nutritionApi.today().then(rows=>setTodayMeals(rows.map(localizeMeal))).catch(()=>setTodayMeals([]));
     void nutritionApi.dashboard().then(setDashboard).catch(()=>setDashboard(null));
@@ -94,6 +95,7 @@ export function NutritionHub({ onClose,onRegisterMeal }: { onClose: () => void;o
         <nav className="nutrition-primary-nav"><button className={section==="home"?"active":""} onClick={()=>setSection("home")}><Utensils/>Hoy</button><button className={section==="plan"?"active":""} disabled={!activePlan} onClick={()=>{if(activePlan){setSelectedPlan(activePlan.id);setSection("plan")}}}><CalendarDays/>Plan</button><button className={section==="cook"||section==="recipe"?"active":""} onClick={()=>setSection("cook")}><ChefHat/>Cocina</button><button className={section==="shopping"?"active":""} onClick={()=>setSection("shopping")}><ShoppingBasket/>Compra</button><button className={section==="supplements"?"active":""} onClick={()=>setSection("supplements")}><Pill/>Suplementos</button></nav>
         <div className="nutrition-hub-content" onClickCapture={(event)=>{const target=(event.target as HTMLElement).closest(".nutrition-today .today-recipe-link");if(!target||!onRegisterMeal)return;event.preventDefault();event.stopPropagation();const buttons=Array.from(event.currentTarget.querySelectorAll(".nutrition-today .today-recipe-link"));const meal=todayMeals[buttons.indexOf(target as HTMLButtonElement)];if(meal)onRegisterMeal(meal)}}>
         {loadError && <div className="error" role="alert">{loadError}</div>}
+        {expiry.urgent&&<section className="nutrition-expiry-warning" role="alert"><CalendarDays/><span><b>{expiry.expired?"Plan caducado":"Actualiza tu plan"}</b><small>{expiry.message} Genera el prompt con tu progreso e importa la siguiente versión para mantener comidas, macros y compra al día.</small></span></section>}
         {section === "home" && (
           <>
             {dashboard&&<section className={`nutrition-overview ${balanceExpanded?"expanded":""}`}><button className="nutrition-overview-summary" onClick={()=>setBalanceExpanded(value=>!value)}><span><small>BALANCE DE HOY</small><b>{Number(dashboard.consumed.calories||0).toFixed(0)} / {Number(dashboard.target.calories||dashboard.planned.calories||0).toFixed(0)} kcal</b><em>{activePlan?`${activePlan.name} · versión ${activePlan.version}`:"Sin plan activo"}</em></span><strong>{Math.round(Number(dashboard.target.calories||dashboard.planned.calories||0)?Number(dashboard.consumed.calories||0)/Number(dashboard.target.calories||dashboard.planned.calories||1)*100:0)}%</strong><ChevronDown/></button>{balanceExpanded&&<div className="nutrition-overview-detail"><NutritionBalance data={dashboard}/>{activePlan&&<button className="primary" onClick={()=>{setSelectedPlan(activePlan.id);setSection("plan")}}>Ver plan actual</button>}</div>}</section>}
@@ -164,6 +166,8 @@ export function NutritionHub({ onClose,onRegisterMeal }: { onClose: () => void;o
     </div>
   );
 }
+
+function nutritionPlanExpiry(value?:string){if(!value)return{urgent:false,expired:false,message:""};const days=Math.ceil((new Date(`${value}T23:59:59`).getTime()-Date.now())/86400000);return{urgent:days<=1,expired:days<0,message:days<0?"El plan ya ha terminado.":days===0?"El plan termina hoy.":"Al plan le queda un día."}}
 function NutritionBalance({data}:{data:NutritionDashboard}){
   const [editing,setEditing]=useState(false);
   const [current,setCurrent]=useState(data);

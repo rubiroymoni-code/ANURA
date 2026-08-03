@@ -253,7 +253,7 @@ export const nutritionApi = {
     >("/nutrition/recipes"),
   plans: () =>
     request<
-      Array<{ id: string; name: string; version: number; status: string }>
+      Array<{ id: string; name: string; version: number; status: string; valid_from?: string; valid_until?: string }>
     >("/nutrition/plans"),
   week: (id: string) =>
     request<Array<Record<string, unknown>>>(`/nutrition/plans/${id}/week`),

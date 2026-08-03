@@ -27,6 +27,8 @@ import './household-sharing.css';
 import './work-routine-mobile.css';
 import './cycle-tracker.css';
 import './evolution-motion.css';
+import './plan-expiry.css';
+import './expiring-card.css';
 import './supplements.css';
 import './nutrition-redesign.css';
 import './nutrition-polish.css';
