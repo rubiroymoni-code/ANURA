@@ -80,8 +80,12 @@ public class NutritionController {
   List<Map<String, Object>> today() {
     return db.queryForList(
         "SELECT pm.id planned_meal_id,p.id plan_id,p.name plan_name,p.version,d.day_name,pm.meal_type,pm.meal_name,r.name recipe,"
-            + " ump.calories,ump.protein,ump.carbohydrates,ump.fat,ump.portion_multiplier,"
-            + " COALESCE(cm.status,'PENDING') status,cm.id consumed_meal_id,cm.custom_name,cm.notes,cm.completed_at"
+            + " CASE WHEN cm.status='SKIPPED' THEN 0 ELSE COALESCE(cm.calories,ump.calories) END calories,"
+            + " CASE WHEN cm.status='SKIPPED' THEN 0 ELSE COALESCE(cm.protein,ump.protein) END protein,"
+            + " CASE WHEN cm.status='SKIPPED' THEN 0 ELSE COALESCE(cm.carbohydrates,ump.carbohydrates) END carbohydrates,"
+            + " CASE WHEN cm.status='SKIPPED' THEN 0 ELSE COALESCE(cm.fat,ump.fat) END fat,ump.portion_multiplier,"
+            + " ump.calories planned_calories,ump.protein planned_protein,ump.carbohydrates planned_carbohydrates,ump.fat planned_fat,"
+            + " COALESCE(cm.status,'PENDING') status,cm.id consumed_meal_id,cm.custom_name,cm.portion actual_portion,cm.notes,cm.completed_at"
             + " FROM nutrition_plan p LEFT JOIN household_member access ON access.household_id=p.household_id"
             + " JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id"
             + " JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=?"

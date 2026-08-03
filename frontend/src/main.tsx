@@ -27,12 +27,16 @@ import './household-sharing.css';
 import './work-routine-mobile.css';
 import './cycle-tracker.css';
 import './evolution-motion.css';
+import './plan-expiry.css';
+import './expiring-card.css';
 import './supplements.css';
 import './nutrition-redesign.css';
 import './nutrition-polish.css';
 import './home-premium.css';
 import './wow-polish.css';
 import './quick-activity.css';
+import './workout-change-modal.css';
+import './meal-substitution.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));

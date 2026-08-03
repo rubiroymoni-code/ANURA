@@ -86,6 +86,8 @@ export function App() {
   const [mealFlowOpen, setMealFlowOpen] = useState(false);
   const [selectedPlannedMeal,setSelectedPlannedMeal]=useState<string|null>(null);
   const [editingMeal, setEditingMeal] = useState<Entry | null>(null);
+  const [progressAddSignal,setProgressAddSignal]=useState(0);
+  const [nutritionPlans,setNutritionPlans]=useState<Awaited<ReturnType<typeof nutritionApi.plans>>>([]);
   const load = () => {
     if (user)
       void api
@@ -104,6 +106,7 @@ export function App() {
       setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0,10) && session.status === "COMPLETED"));
     });
     void nutritionApi.dashboard().then(setNutritionDashboard).catch(()=>setNutritionDashboard(null));
+    void nutritionApi.plans().then(setNutritionPlans).catch(()=>setNutritionPlans([]));
     void api.profilePreferences().then(setProfilePreferences).catch(()=>setProfilePreferences({}));
   }, [user]);
   function logout() {
@@ -129,6 +132,8 @@ export function App() {
   const plannedToday=todayMeals.length+(todayWorkout?1:0);
   const completedToday=todayMeals.filter(meal=>meal.status!=="PENDING").length+(todayWorkoutDone||todayItems.some(item=>item.type==="WORKOUT")?1:0);
   const dailyPercent=plannedToday?Math.round(completedToday/plannedToday*100):0;
+  const activeNutritionPlan=nutritionPlans.find(plan=>plan.status==="ACTIVE");
+  const nutritionExpiry=planExpiry(activeNutritionPlan?.valid_until);
   return (
     <main className="shell">
       <header>
@@ -145,6 +150,7 @@ export function App() {
         </div>
       </header>
       <section className="content">
+        {nutritionExpiry.urgent&&<button className="plan-expiry-alert" onClick={()=>setNutritionOpen(true)}><Apple/><span><b>{nutritionExpiry.expired?"Tu plan nutricional ha terminado":"Tu plan nutricional está a punto de terminar"}</b><small>{nutritionExpiry.message} Abre Nutrición, genera el prompt actualizado e importa el siguiente plan.</small></span></button>}
         {tab === "HOME" ? (
           <>
             <section className="home-hero">
@@ -158,7 +164,7 @@ export function App() {
                 <span><small>ENTRENAMIENTO</small><strong>{todayWorkout?.sessionName || "Sesión libre"}</strong><b>{todayWorkout ? `${todayWorkout.exerciseCount} ejercicios · ~${todayWorkout.estimatedMinutes || 45} min` : "No hay plan asignado hoy"}</b></span>
                 <em>{todayWorkoutDone || todayItems.some((e) => e.type === "WORKOUT") ? "Hecho" : "Pendiente"}</em>
               </button>
-              <div className="daily-focus nutrition">
+              <div className={`daily-focus nutrition ${nutritionExpiry.urgent?"plan-expiring":""}`}>
                 <button className="daily-focus-main" onClick={() => setMealsExpanded(value=>!value)} aria-expanded={mealsExpanded}>
                   <span className="daily-focus-icon"><Apple /></span>
                   <span><small>COMIDAS</small><strong>{todayMeals.length ? `${todayMeals.filter(m => m.status === "PENDING").length} pendientes` : "Sin plan para hoy"}</strong><b>{nutritionDashboard?`${Number(nutritionDashboard.consumed.calories||0).toFixed(0)} de ${Number(nutritionDashboard.target.calories||nutritionDashboard.planned.calories||0).toFixed(0)} kcal consumidas`:todayMeals.length ? `${todayMeals.reduce((sum,m) => sum + Number(m.calories || 0),0).toFixed(0)} kcal planificadas` : "Añade una comida o abre tus planes"}</b></span>
@@ -205,10 +211,10 @@ export function App() {
           <div className="section-title">
             <button onClick={() => setTab("HOME")}>← Inicio</button>
             <p>{tab === "CYCLE" ? "Ciclo" : meta[tab].label}</p>
-            <h1>{tab === "CYCLE" ? "Ciclo menstrual" : `${meta[tab].label}s`}</h1>
+            {tab !== "WEIGHT"&&<h1>{tab === "CYCLE" ? "Ciclo menstrual" : `${meta[tab].label}s`}</h1>}
           </div>
         )}
-        {tab === "WEIGHT" && <BodyProgress />}
+        {tab === "WEIGHT" && <BodyProgress addSignal={progressAddSignal}/>}
         {tab === "CYCLE" && <CycleTracker />}
         {tab === "GOAL" && <GoalVision goals={entries.filter(entry=>entry.type==="GOAL")} onAdd={()=>setModal(true)}/>}
         {tab === "WORKOUT" && (
@@ -252,7 +258,7 @@ export function App() {
           </button>
         )}
       </section>
-      {tab !== "WEIGHT" && tab !== "CYCLE" && <button className="fab" onClick={() => tab === "MEAL" ? (setEditingMeal(null),setMealFlowOpen(true)) : setModal(true)}>
+      {tab !== "CYCLE" && <button className="fab" aria-label={tab==="WEIGHT"?"Registrar check-in":"Añadir registro"} onClick={() => tab === "WEIGHT" ? setProgressAddSignal(value=>value+1) : tab === "MEAL" ? (setEditingMeal(null),setMealFlowOpen(true)) : setModal(true)}>
         <Plus />
       </button>}
       <nav>
@@ -331,6 +337,8 @@ export function App() {
     </main>
   );
 }
+
+function planExpiry(value?:string){if(!value)return{urgent:false,expired:false,message:""};const end=new Date(`${value}T23:59:59`),now=new Date(),days=Math.ceil((end.getTime()-now.getTime())/86400000);return{urgent:days<=1,expired:days<0,message:days<0?"Necesitas subir una nueva versión.":days===0?"Caduca hoy.":"Caduca mañana."}}
 
 function GoalVision({goals,onAdd}:{goals:Entry[];onAdd:()=>void}){
  const active=goals[0];
