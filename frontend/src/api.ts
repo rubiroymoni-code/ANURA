@@ -144,11 +144,13 @@ export type WorkoutSession = { header:{id:string;name:string;plannedDate:string;
 export type TodayWorkout = { planId:string;planName:string;planVersion:number;dayId:string;sessionName:string;dayName:string;weekNumber:number;dayNumber:number;estimatedMinutes:number;exerciseCount:number;exercises:Array<{exerciseId:string;name:string;muscleGroup?:string;sets:number;repsMin:number;repsMax:number;targetRir?:number;restSeconds?:number}> };
 export type WorkoutSummary = {id:string;name:string;date:string;status:string;durationSeconds?:number;globalRpe?:number;exercises:number;sets:number;volume:number};
 export type WorkoutPlan = {id:string;name:string;version:number;status:string;validFrom?:string;validUntil?:string};
-export type PlannedWorkoutExercise = {weekNumber:number;dayNumber:number;dayName?:string;sessionName:string;order:number;exercise:string;muscleGroup?:string;equipment?:string;sets:number;repsMin:number;repsMax:number;targetRir?:number;targetRpe?:number;restSeconds?:number;tempo?:string;warmupRequired:boolean;supersetGroup?:string;alternativeExerciseCode?:string;instructions?:string;notes?:string};
+export type PlannedWorkoutExercise = {weekNumber:number;dayNumber:number;dayName?:string;sessionName:string;order:number;exercise:string;muscleGroup?:string;equipment?:string;sets:number;repsMin:number;repsMax:number;targetRir?:number;targetRpe?:number;restSeconds?:number;tempo?:string;warmupRequired:boolean;supersetGroup?:string;alternativeExerciseCode?:string;instructions?:string;notes?:string;dayId:string};
 export const workoutApi = {
   today:()=>request<TodayWorkout|null>("/workouts/today"),
   rescheduleToday:(date:string)=>request<TodayWorkout>("/workouts/today/reschedule",{method:"POST",body:JSON.stringify({date})}),
   skipToday:(reason?:string)=>request<void>("/workouts/today/skip",{method:"POST",body:JSON.stringify({reason})}),
+  rescheduleDay:(dayId:string,originalDate:string,targetDate:string)=>request<void>(`/workout-plan-days/${dayId}/reschedule`,{method:"POST",body:JSON.stringify({originalDate,targetDate})}),
+  skipDay:(dayId:string,originalDate:string,reason?:string)=>request<void>(`/workout-plan-days/${dayId}/skip`,{method:"POST",body:JSON.stringify({originalDate,reason})}),
   active:()=>request<WorkoutSession|null>("/workout-sessions/active"),
   history:(page=0,size=30)=>request<WorkoutSummary[]>(`/workout-sessions?page=${page}&size=${size}`),
   plans:()=>request<WorkoutPlan[]>("/workout-plans"),
