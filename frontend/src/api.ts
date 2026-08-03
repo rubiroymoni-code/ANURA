@@ -255,6 +255,7 @@ export const nutritionApi = {
     request<Array<Record<string, unknown>>>(`/nutrition/plans/${id}/summary`),
   activate: (id: string) =>
     request<void>(`/nutrition/plans/${id}/activate`, { method: "POST" }),
+  deletePlan:(id:string)=>request<void>(`/nutrition/plans/${id}`,{method:"DELETE"}),
   recipe: (id: string) =>
     request<Array<Record<string, unknown>>>(`/nutrition/recipes/${id}`),
   mealPortions:(id:string)=>request<Array<Record<string,unknown>>>(`/nutrition/meals/${id}/portions`),

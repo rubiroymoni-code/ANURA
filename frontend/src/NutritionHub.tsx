@@ -155,7 +155,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
         {section === "preferences" && <NutritionPreferencesPanel />}
         {section === "cook" && <CookToday meals={todayMeals} recipes={recipes} open={(recipeId,mealId)=>{setSelectedRecipe(recipeId);setSelectedMeal(mealId);setSection("recipe")}} />}
         {section === "supplements" && <SupplementsPanel />}
-        {section === "plan" && selectedPlan && <PlanView id={selectedPlan} />}
+        {section === "plan" && selectedPlan && <PlanView id={selectedPlan} status={plans.find(plan=>plan.id===selectedPlan)?.status||""} onDeleted={async()=>{setPlans(await nutritionApi.plans());setSelectedPlan(null);setSection("home")}} />}
         {section === "recipe" && selectedRecipe && (
           <RecipeView id={selectedRecipe} mealId={selectedMeal} />
         )}
@@ -464,7 +464,7 @@ function RecipeView({ id,mealId }: { id: string;mealId:string|null }) {
   );
 }
 
-function PlanView({ id }: { id: string }) {
+function PlanView({ id,status,onDeleted }: { id: string;status:string;onDeleted:()=>void }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [selectedDay,setSelectedDay]=useState(new Date().getDay()||7);
   const currentUser = JSON.parse(localStorage.getItem("anura-user") || "{}");
@@ -481,9 +481,7 @@ function PlanView({ id }: { id: string }) {
       <div className="plan-agenda-intro"><CalendarDays/><span><b>{selectedDay===todayDay?"Tu menú de hoy":selectedDay===0?"Tu semana completa":`Tu menú del día ${selectedDay}`}</b><small>Para cantidades conjuntas y reparto abre Cocina.</small></span></div>
       {!dayRows.length&&<div className="empty">No tienes comidas asignadas para este día.</div>}
       <div className="plan-agenda-list">{dayRows.map((meal,index)=><article key={`${meal.planned_meal_id||meal.meal_name}-${index}`}><span className="agenda-time"><small>{mealTypeLabel(String(meal.meal_type))}</small><b>{String(meal.meal_name)}</b><em>{String(meal.recipe)}</em></span><span className="agenda-macros"><b>{Number(meal.calories||0).toFixed(0)} kcal</b><small>P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</small></span>{selectedDay===0&&<i>Día {String(meal.day_number)}</i>}</article>)}</div>
-      <button className="primary" onClick={() => nutritionApi.activate(id)}>
-        Activar este plan
-      </button>
+      <div className="plan-actions"><span className={status==="ACTIVE"?"active":""}>{status==="ACTIVE"?"● Plan activo":status||"Plan"}</span>{status!=="ACTIVE"&&<button className="primary" onClick={async()=>{await nutritionApi.activate(id);location.reload()}}>Activar este plan</button>}<button className="danger" onClick={async()=>{if(confirm("¿Eliminar este plan nutricional? Se borrarán sus días y comidas planificadas. Esta acción no se puede deshacer.")){await nutritionApi.deletePlan(id);onDeleted()}}}>Eliminar plan</button></div>
     </div>
   );
 }
