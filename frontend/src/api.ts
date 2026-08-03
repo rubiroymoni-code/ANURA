@@ -19,6 +19,7 @@ export type EvolutionPoint={date:string;weight:number;movingAverage7d?:number;wa
 export type BodyEvolution={from:string;to:string;points:EvolutionPoint[];totalWeightChange?:number;previousWeightChange?:number;minimumWeight?:number;maximumWeight?:number;checkinCount:number;trend:"UP"|"DOWN"|"STABLE";weeklyStreak:number};
 export type Supplement={id:string;name:string;dose?:string;schedule?:string;purpose?:string;notes?:string;active:boolean};
 export type SupplementInput=Omit<Supplement,"id">;
+export type NutritionPreferences={liked_foods?:string;disliked_foods?:string;exclusions?:string;usual_drinks?:string;pantry_staples?:string;cooking_notes?:string;planning_notes?:string;minimize_waste:boolean;practical_portions:boolean};
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("anura-token");
@@ -223,6 +224,8 @@ export const workRoutineApi={
   unassign:(date:string)=>request<void>(`/profile/work-routine/calendar/${date}`,{method:"DELETE"}),
 };
 export const nutritionApi = {
+  preferences:()=>request<NutritionPreferences>("/nutrition/preferences"),
+  savePreferences:(data:{likedFoods:string;dislikedFoods:string;exclusions:string;usualDrinks:string;pantryStaples:string;cookingNotes:string;planningNotes:string;minimizeWaste:boolean;practicalPortions:boolean})=>request<void>("/nutrition/preferences",{method:"PUT",body:JSON.stringify(data)}),
   today:()=>request<TodayMeal[]>("/nutrition/today"),
   dashboard:()=>request<NutritionDashboard>("/nutrition/dashboard"),
   adherence:(days=28)=>request<AdherenceDashboard>(`/nutrition/adherence?days=${days}`),

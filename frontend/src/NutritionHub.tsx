@@ -12,6 +12,8 @@ import {
 } from "./api";
 import {
   ChevronDown,
+  CalendarDays,
+  ChefHat,
   Download,
   FileUp,
   Home,
@@ -19,6 +21,7 @@ import {
   Copy,
   MessageCircle,
   Pill,
+  SlidersHorizontal,
   Users,
   Utensils,
   X,
@@ -26,9 +29,10 @@ import {
 import { HouseholdView } from "./HouseholdView";
 import { AdherenceCard as SplitAdherenceCard } from "./AdherenceCard";
 import { SupplementsPanel } from "./SupplementsPanel";
+import { NutritionPreferencesPanel } from "./NutritionPreferencesPanel";
 export function NutritionHub({ onClose }: { onClose: () => void }) {
   const [section, setSection] = useState<
-    "home" | "household" | "import" | "shopping" | "supplements" | "plan" | "recipe"
+    "home" | "cook" | "preferences" | "household" | "import" | "shopping" | "supplements" | "plan" | "recipe"
   >("home");
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<string | null>(null);
@@ -45,12 +49,6 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
   const [dashboard,setDashboard]=useState<NutritionDashboard|null>(null);
   const [adherence,setAdherence]=useState<AdherenceDashboard|null>(null);
   const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
-  const todayRecipeNames = new Set(
-    todayMeals.map((meal) => meal.recipe.trim().toLocaleLowerCase("es")),
-  );
-  const todayRecipes = recipes.filter((recipe) =>
-    todayRecipeNames.has(recipe.name.trim().toLocaleLowerCase("es")),
-  );
   useEffect(() => {
     void nutritionApi.today().then(setTodayMeals).catch(()=>setTodayMeals([]));
     void nutritionApi.dashboard().then(setDashboard).catch(()=>setDashboard(null));
@@ -73,7 +71,11 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
             <small>{households.length?"NUTRICIÓN Y HOGAR":"MI NUTRICIÓN"}</small>
             <h2>
               {section === "home"
-                ? "Nutrición"
+                ? "Hoy"
+                : section === "cook"
+                  ? "Cocinar hoy"
+                  : section === "preferences"
+                    ? "Preferencias"
                 : section === "household"
                   ? "Mi unidad doméstica"
                   : section === "import"
@@ -91,6 +93,8 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
             <X />
           </button>
         </div>
+        <nav className="nutrition-primary-nav"><button className={section==="home"?"active":""} onClick={()=>setSection("home")}><Utensils/>Hoy</button><button className={section==="plan"?"active":""} disabled={!activePlan} onClick={()=>{if(activePlan){setSelectedPlan(activePlan.id);setSection("plan")}}}><CalendarDays/>Plan</button><button className={section==="cook"||section==="recipe"?"active":""} onClick={()=>setSection("cook")}><ChefHat/>Cocina</button><button className={section==="shopping"?"active":""} onClick={()=>setSection("shopping")}><ShoppingBasket/>Compra</button><button className={section==="preferences"?"active":""} onClick={()=>setSection("preferences")}><SlidersHorizontal/>Preferencias</button></nav>
+        <div className="nutrition-hub-content">
         {loadError && <div className="error" role="alert">{loadError}</div>}
         {section === "home" && (
           <>
@@ -113,7 +117,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
             {dashboard&&<NutritionBalance data={dashboard}/>}
             {adherence&&<SplitAdherenceCard data={adherence} mode="nutrition"/>}
             <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3><p>Abre una comida para consultar su receta o usa el check lateral para completarla directamente.</p></div>{todayMeals.length?todayMeals.map(meal=><article className={meal.status==="COMPLETED"?"completed":""} key={meal.planned_meal_id}><button className="today-recipe-link" onClick={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);setSection("recipe")}}}><small>{meal.meal_type}</small><b>{meal.recipe||meal.meal_name}</b><em>{Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</em></button><button aria-label={`Completar ${meal.meal_name}`} disabled={meal.status==="COMPLETED"} onClick={async()=>{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setDashboard(await nutritionApi.dashboard())}}>{meal.status==="COMPLETED"?"✓":"○"}</button></article>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}</section>
-            <div className="nutrition-menu">
+            <details className="nutrition-tools"><summary>Gestión y configuración</summary><div className="nutrition-menu">
               <button onClick={() => setSection("household")}>
                 <Users />
                 <b>Mi unidad doméstica</b>
@@ -136,8 +140,8 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                 <b>Suplementos</b>
                 <span>Lo que tomas actualmente</span>
               </button>
-            </div>
-            <h3>Planes nutricionales</h3>
+            </div></details>
+            <details className="nutrition-tools nutrition-history"><summary>Planes anteriores y versiones</summary>
             {plans.map((p) => (
               <button
                 className="nutrition-row"
@@ -156,24 +160,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
                 </span>
               </button>
             ))}
-            <h3>Recetas de hoy</h3>
-            {todayRecipes.map((r) => (
-              <button
-                className="nutrition-row"
-                key={r.name}
-                onClick={() => {
-                  setSelectedRecipe(r.id);
-                  setSelectedMeal(todayMeals.find(meal=>meal.recipe.trim().toLocaleLowerCase("es")===r.name.trim().toLocaleLowerCase("es"))?.planned_meal_id||null);
-                  setSection("recipe");
-                }}
-              >
-                <Utensils />
-                <b>{r.name}</b>
-              </button>
-            ))}
-            {!todayRecipes.length && (
-              <p>No hay recetas asignadas para hoy.</p>
-            )}
+            </details>
           </>
         )}
         {section === "household" && (
@@ -184,6 +171,8 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
         )}{" "}
         {section === "import" && <NutritionImport />}
         {section === "shopping" && <Shopping plans={plans} />}
+        {section === "preferences" && <NutritionPreferencesPanel />}
+        {section === "cook" && <CookToday meals={todayMeals} recipes={recipes} open={(recipeId,mealId)=>{setSelectedRecipe(recipeId);setSelectedMeal(mealId);setSection("recipe")}} />}
         {section === "supplements" && <SupplementsPanel />}
         {section === "plan" && selectedPlan && <PlanView id={selectedPlan} />}
         {section === "recipe" && selectedRecipe && (
@@ -194,6 +183,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
             ← Volver a nutrición
           </button>
         )}
+        </div>
       </section>
     </div>
   );
@@ -456,6 +446,8 @@ function NutritionImport() {
     </div>
   );
 }
+function CookToday({meals,recipes,open}:{meals:TodayMeal[];recipes:Array<{id:string;name:string}>;open:(recipeId:string,mealId:string)=>void}){return <section className="cook-today"><div className="food-pref-hero"><ChefHat/><span><small>COCINA SIN CÁLCULOS</small><h3>Preparaciones de hoy</h3><p>Abre una receta para ver lo de cada persona y el total conjunto ingrediente por ingrediente.</p></span></div>{meals.length?meals.map(meal=>{const recipe=recipes.find(item=>item.name.trim().toLocaleLowerCase("es")===meal.recipe.trim().toLocaleLowerCase("es"));return <button key={meal.planned_meal_id} disabled={!recipe} onClick={()=>recipe&&open(recipe.id,meal.planned_meal_id)}><span><small>{meal.meal_type}</small><b>{meal.recipe}</b><em>{Number(meal.calories||0).toFixed(0)} kcal para ti</em></span><strong>Ver reparto →</strong></button>}):<div className="empty">No hay preparaciones asignadas para hoy.</div>}</section>}
+
 function RecipeView({ id,mealId }: { id: string;mealId:string|null }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [portions,setPortions]=useState<Array<Record<string,unknown>>>([]);
@@ -497,6 +489,7 @@ function PlanView({ id }: { id: string }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
   const [mode, setMode] = useState<"mine" | "both" | "total">("both");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [selectedDay,setSelectedDay]=useState(new Date().getDay()||7);
   const currentUser = JSON.parse(localStorage.getItem("anura-user") || "{}");
   useEffect(() => {
     void nutritionApi.week(id).then(setRows);
@@ -507,8 +500,10 @@ function PlanView({ id }: { id: string }) {
       : rows;
   const shared=new Set(rows.map(r=>String(r.user_id))).size>1;
   const todayDay=new Date().getDay()||7;
+  const days=[...new Map(rows.map(row=>[Number(row.day_number),String(row.day_name||`Día ${row.day_number}`)])).entries()].sort((a,b)=>a[0]-b[0]);
+  const dayRows=visible.filter(row=>selectedDay===0||Number(row.day_number)===selectedDay);
   const grouped = Object.values(
-    visible.reduce<
+    dayRows.reduce<
       Record<
         string,
         { meal: string; recipe: string; people: Array<Record<string, unknown>> }
@@ -526,6 +521,7 @@ function PlanView({ id }: { id: string }) {
   ).sort((a,b)=>{const ad=Number(a.people[0]?.day_number),bd=Number(b.people[0]?.day_number);return (ad===todayDay?-1:bd===todayDay?1:ad-bd)});
   return (
     <div>
+      <div className="plan-day-tabs">{days.map(([day,name])=><button key={day} className={selectedDay===day?"active":""} onClick={()=>{setSelectedDay(day);setExpanded(null)}}><b>{day===todayDay?"Hoy":name.slice(0,3)}</b><small>Día {day}</small></button>)}<button className={selectedDay===0?"active":""} onClick={()=>{setSelectedDay(0);setExpanded(null)}}><b>Todo</b><small>semana</small></button></div>
       {shared&&<div className="import-types">
         <button
           className={mode === "mine" ? "selected" : ""}
@@ -600,14 +596,15 @@ function Shopping({ plans }: { plans: Array<{ id: string;name:string;status:stri
     <div className="shopping-toolbar"><label>Periodo de compra<select value={week} onChange={async e=>{const selectedWeek=Number(e.target.value);setWeek(selectedWeek);const list=lists.find(x=>x.week_number===selectedWeek);setListId(list?.id||"");setItems(list?await nutritionApi.items(list.id):[]);}}>{weekOptions.map(option=><option key={option.number} value={option.number}>{option.label}</option>)}</select></label><button className="primary" disabled={!activePlan} onClick={generate}>{lists.some(x=>x.week_number===week)?"Actualizar lista":"Generar lista"}</button></div>
     {error&&<p className="error">{error}</p>}
     {!listId?<div className="empty">Genera la lista de la semana desde tu plan activo.</div>:<>
-      <div className="shopping-export prominent"><button className="primary secondary" onClick={()=>navigator.clipboard.writeText(items.filter(i=>!i.purchased&&i.quantity>0).map(i=>`${i.name}: ${i.quantity} ${i.unit}`).join("\n"))}>Copiar lista</button><button className="primary" onClick={()=>{void navigator.clipboard.writeText(`Lista ANURA · ${weekOptions.find(x=>x.number===week)?.label}\n\n${items.filter(i=>!i.purchased&&i.quantity>0).map(i=>`☐ ${i.name}: ${i.quantity} ${i.unit}`).join("\n")}`);window.open("https://keep.google.com/#home","_blank","noopener,noreferrer")}}>Abrir en Google Keep</button></div>
+      <div className="shopping-export prominent"><button className="primary secondary" onClick={()=>navigator.clipboard.writeText(items.filter(i=>!i.purchased&&i.quantity>0).map(i=>`${i.name}: ${displayQuantity(i.quantity,i.unit)}`).join("\n"))}>Copiar lista</button><button className="primary" onClick={()=>{void navigator.clipboard.writeText(`Lista ANURA · ${weekOptions.find(x=>x.number===week)?.label}\n\n${items.filter(i=>!i.purchased&&i.quantity>0).map(i=>`☐ ${i.name}: ${displayQuantity(i.quantity,i.unit)}`).join("\n")}`);window.open("https://keep.google.com/#home","_blank","noopener,noreferrer")}}>Abrir en Google Keep</button></div>
       <div className="pantry-note">La despensa descuenta automáticamente los sobrantes comprados en semanas anteriores.</div>
       {categories.map(category=><section className="shopping-category" key={category}><h4>{categoryLabel(category)}</h4>{items.filter(i=>(i.category||"OTHER")===category).map(i=><article className={`shopping-item ${i.purchased?"purchased":""}`} key={i.id}>
-        <button className="shopping-check" onClick={async()=>{await nutritionApi.toggle(i.id);await refreshItems()}}>{i.purchased?"✓":"○"}</button><div><b>{i.name}</b><small>Necesario: {i.required_quantity} {i.unit}{i.pantry_used>0?` · Despensa: ${i.pantry_used} ${i.unit}`:""}</small></div><label>Comprar<input type="number" min="0" step="0.001" defaultValue={i.quantity} onBlur={async e=>{await nutritionApi.shoppingQuantity(i.id,Number(e.target.value));await refreshItems()}}/><span>{i.unit}</span></label>
+        <button className="shopping-check" onClick={async()=>{await nutritionApi.toggle(i.id);await refreshItems()}}>{i.purchased?"✓":"○"}</button><div><b>{i.name}</b><small>Necesario: {displayQuantity(i.required_quantity,i.unit)}{i.pantry_used>0?` · Ya disponible: ${displayQuantity(i.pantry_used,i.unit)}`:""}</small></div><label>Comprar<input type="number" min="0" step="0.001" defaultValue={i.quantity} onBlur={async e=>{await nutritionApi.shoppingQuantity(i.id,Number(e.target.value));await refreshItems()}}/><span>{i.unit}</span></label>
       </article>)}</section>)}
       <form className="shopping-add" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);await nutritionApi.addShoppingItem(listId,{name:String(f.get("name")),category:String(f.get("category")),quantity:Number(f.get("quantity")),unit:String(f.get("unit"))});e.currentTarget.reset();await refreshItems()}}><b>Añadir a la casa</b><input name="name" required placeholder="Producto"/><select name="category"><option value="OTHER">Otros</option><option value="PANTRY">Despensa</option><option value="FRUIT_VEGETABLES">Fruta y verdura</option><option value="MEAT_FISH">Carnes y pescados</option><option value="DAIRY">Lácteos</option></select><input name="quantity" required type="number" min="0" step="0.001" placeholder="Cantidad"/><input name="unit" required placeholder="ud, g, ml…"/><button className="primary">Añadir</button></form>
     </>}
   </div>;
 }
 function categoryLabel(value:string){return ({FRUIT_VEGETABLES:"Fruta y verdura",MEAT_FISH:"Carnes y pescados",DAIRY:"Lácteos",CEREALS_LEGUMES:"Cereales y legumbres",FROZEN:"Congelados",PANTRY:"Despensa",DRINKS:"Bebidas",OTHER:"Otros"} as Record<string,string>)[value]||value}
+function displayQuantity(value:number,unit:string){const amount=Number(value||0),normalized=(unit||"").toLowerCase();if(normalized==="g"&&amount>=1000)return`${(amount/1000).toFixed(amount%1000?2:0)} kg`;if(normalized==="ml"&&amount>=1000)return`${(amount/1000).toFixed(amount%1000?2:0)} l`;return`${Number(amount.toFixed(2))} ${unit}`}
 function calendarWeeks(){const start=new Date(),day=start.getDay()||7;start.setHours(12,0,0,0);start.setDate(start.getDate()-day+1);return Array.from({length:8},(_,index)=>{const monday=new Date(start);monday.setDate(start.getDate()+index*7);const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);const thursday=new Date(monday);thursday.setDate(monday.getDate()+3);const yearStart=new Date(thursday.getFullYear(),0,1);const number=Math.ceil((((thursday.getTime()-yearStart.getTime())/86400000)+yearStart.getDay()+1)/7);const format=(date:Date)=>date.toLocaleDateString("es",{day:"numeric",month:"short"});return{number,label:`${index===0?"Esta semana · ":""}${format(monday)} – ${format(sunday)}`}})}

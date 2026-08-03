@@ -18,6 +18,12 @@ public class NutritionController {
     this.db = db;
   }
 
+  @GetMapping("/preferences")
+  Map<String,Object> preferences(){return db.queryForList("SELECT liked_foods,disliked_foods,exclusions,usual_drinks,pantry_staples,cooking_notes,planning_notes,minimize_waste,practical_portions FROM user_nutrition_preference WHERE user_id=?",CurrentUser.id()).stream().findFirst().orElse(Map.of("minimize_waste",true,"practical_portions",true));}
+
+  @PutMapping("/preferences")
+  void preferences(@RequestBody NutritionPreference body){db.update("INSERT INTO user_nutrition_preference(user_id,liked_foods,disliked_foods,exclusions,usual_drinks,pantry_staples,cooking_notes,planning_notes,minimize_waste,practical_portions) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET liked_foods=EXCLUDED.liked_foods,disliked_foods=EXCLUDED.disliked_foods,exclusions=EXCLUDED.exclusions,usual_drinks=EXCLUDED.usual_drinks,pantry_staples=EXCLUDED.pantry_staples,cooking_notes=EXCLUDED.cooking_notes,planning_notes=EXCLUDED.planning_notes,minimize_waste=EXCLUDED.minimize_waste,practical_portions=EXCLUDED.practical_portions,updated_at=CURRENT_TIMESTAMP",CurrentUser.id(),clean(body.likedFoods()),clean(body.dislikedFoods()),clean(body.exclusions()),clean(body.usualDrinks()),clean(body.pantryStaples()),clean(body.cookingNotes()),clean(body.planningNotes()),body.minimizeWaste(),body.practicalPortions());}
+
   @GetMapping("/targets")
   List<Map<String, Object>> targets() {
     return db.queryForList("SELECT valid_from,calories,protein,carbohydrates,fat,fiber FROM nutrition_target WHERE user_id=? ORDER BY valid_from DESC", CurrentUser.id());
@@ -184,6 +190,7 @@ public class NutritionController {
   private static void validateMealType(String type){if(!Set.of("BREAKFAST","MID_MORNING","LUNCH","SNACK","DINNER","OTHER").contains(type))throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_MEAL_TYPE","Selecciona un momento del día válido");}
   private static String normalizeMealType(String value){String v=value.toUpperCase(Locale.ROOT);if(v.contains("DESAY")||v.equals("BREAKFAST"))return"BREAKFAST";if(v.contains("MEDIA")||v.equals("MID_MORNING"))return"MID_MORNING";if(v.equals("COMIDA")||v.equals("LUNCH"))return"LUNCH";if(v.contains("MERIEN")||v.equals("SNACK"))return"SNACK";if(v.contains("CENA")||v.equals("DINNER"))return"DINNER";return"OTHER";}
   private static String clean(String value){return value==null||value.isBlank()?null:value.trim();}
+  record NutritionPreference(String likedFoods,String dislikedFoods,String exclusions,String usualDrinks,String pantryStaples,String cookingNotes,String planningNotes,boolean minimizeWaste,boolean practicalPortions){}
   record MealInput(String mealType,String name,LocalDate date,String portion,java.math.BigDecimal calories,java.math.BigDecimal protein,java.math.BigDecimal carbohydrates,java.math.BigDecimal fat,String notes){}
   record PartialMeal(Integer percent,String reason,String portion,String notes){}
 
@@ -354,11 +361,11 @@ public class NutritionController {
     List<Map<String, Object>> totals =
         db.queryForList(
             "SELECT i.id"
-                + " ingredient_id,i.name,i.category,ri.unit,SUM(ri.quantity*ump.portion_multiplier)"
+                + " ingredient_id,i.name,i.category,ri.unit,SUM(COALESCE(uip.quantity,ri.quantity*ump.portion_multiplier))"
                 + " quantity FROM nutrition_plan_day d JOIN planned_meal pm ON"
                 + " pm.nutrition_plan_day_id=d.id JOIN recipe_ingredient ri ON"
                 + " ri.recipe_id=pm.recipe_id JOIN ingredient i ON i.id=ri.ingredient_id JOIN"
-                + " user_meal_portion ump ON ump.planned_meal_id=pm.id WHERE d.nutrition_plan_id=?"
+                + " user_meal_portion ump ON ump.planned_meal_id=pm.id LEFT JOIN user_meal_ingredient_portion uip ON uip.planned_meal_id=pm.id AND uip.user_id=ump.user_id AND uip.ingredient_id=ri.ingredient_id WHERE d.nutrition_plan_id=?"
                 + " AND d.week_number=? GROUP BY i.id,i.name,i.category,ri.unit ORDER BY"
                 + " i.category,i.name",
             planId,
