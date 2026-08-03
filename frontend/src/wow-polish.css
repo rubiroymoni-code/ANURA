@@ -41,6 +41,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .home-hero{border:1px solid rgba(255,255,255,.08);box-shadow:0 30px 75px rgba(14,32,20,.26),inset 0 1px rgba(255,255,255,.08)}
 .home-hero:before{animation:anura-orbit 14s linear infinite}.home-hero:after{animation:anura-orbit 10s linear reverse infinite}
 .home-hero-visual>img{animation:anura-float 5s ease-in-out infinite;transform-origin:50% 80%}
+.home-hero-copy:after{content:"";position:absolute;z-index:-1;top:-80px;bottom:-80px;width:90px;left:-180px;background:linear-gradient(90deg,transparent,rgba(200,241,93,.10),transparent);transform:skewX(-18deg);animation:anura-hero-sheen 7s 1s ease-in-out infinite;pointer-events:none}
 .home-progress-ring{animation:anura-ring-in .9s var(--anura-ease) both}
 .home-progress-ring:after{content:"";position:absolute;inset:-3px;border-radius:50%;border:1px solid rgba(200,241,93,.32);animation:anura-pulse 2.8s ease-out infinite}
 .home-streak{backdrop-filter:blur(10px);box-shadow:inset 0 1px rgba(255,255,255,.08)}
@@ -70,6 +71,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .live-exercise{background:linear-gradient(145deg,#fff,#fbfcf9)!important;animation:anura-card-in .4s var(--anura-ease) both}.live-exercise:nth-of-type(2){animation-delay:.04s}.live-exercise:nth-of-type(3){animation-delay:.08s}.live-exercise:nth-of-type(4){animation-delay:.12s}.live-exercise:nth-of-type(5){animation-delay:.16s}.live-exercise:nth-of-type(6){animation-delay:.2s}
 .active-status{box-shadow:0 18px 40px rgba(14,36,22,.20)}
 .active-status .timer{font-variant-numeric:tabular-nums;text-shadow:0 0 24px rgba(200,241,93,.18)}
+.workout-hub .today-workout>.free-session-action{width:max-content!important;min-width:0!important;max-width:100%;justify-self:center!important;align-self:center!important;margin:3px auto!important;padding:10px 17px!important;border-radius:999px!important;background:rgba(255,255,255,.86)!important;box-shadow:0 7px 20px rgba(22,42,28,.07)!important;font-size:12px!important}
+.workout-hub .today-workout>.free-session-action svg{width:16px;height:16px}
 
 .evolution-panel,.adherence-card,.goal-vision{border:1px solid rgba(255,255,255,.08);box-shadow:0 28px 75px rgba(15,35,22,.22)!important}
 .chart-point{filter:drop-shadow(0 0 3px var(--acid))}.chart-line{filter:drop-shadow(0 3px 4px rgba(200,241,93,.18))}
@@ -90,9 +93,11 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 @keyframes anura-pulse{0%{opacity:.7;transform:scale(.9)}75%,100%{opacity:0;transform:scale(1.22)}}
 @keyframes anura-orbit{to{transform:rotate(360deg)}}
 @keyframes anura-breathe{50%{transform:scale(1.12);opacity:.8}}
+@keyframes anura-hero-sheen{0%,58%{left:-180px}78%,100%{left:calc(100% + 180px)}}
 
 @media(min-width:900px){
   .content{padding-top:44px!important}.nutrition-hub{border-radius:32px!important}
+  .home-hero{animation:anura-desktop-arrive .72s var(--anura-ease) both}.daily-plan-grid>*{animation:anura-card-in .55s var(--anura-ease) both}.daily-plan-grid>*:nth-child(2){animation-delay:.1s}
   .shell nav{background:rgba(255,255,255,.82)!important;backdrop-filter:blur(22px) saturate(1.2);box-shadow:0 20px 60px rgba(17,35,22,.18)!important}
 }
 @media(max-width:720px){
@@ -102,3 +107,4 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .pantry-manager{padding:13px}.pantry-manager>article{padding:12px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition-duration:.01ms!important}}
+@keyframes anura-desktop-arrive{from{opacity:0;transform:translateY(16px) scale(.985)}to{opacity:1;transform:none}}
