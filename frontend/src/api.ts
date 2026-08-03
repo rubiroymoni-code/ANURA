@@ -147,6 +147,8 @@ export type WorkoutPlan = {id:string;name:string;version:number;status:string;va
 export type PlannedWorkoutExercise = {weekNumber:number;dayNumber:number;dayName?:string;sessionName:string;order:number;exercise:string;muscleGroup?:string;equipment?:string;sets:number;repsMin:number;repsMax:number;targetRir?:number;targetRpe?:number;restSeconds?:number;tempo?:string;warmupRequired:boolean;supersetGroup?:string;alternativeExerciseCode?:string;instructions?:string;notes?:string};
 export const workoutApi = {
   today:()=>request<TodayWorkout|null>("/workouts/today"),
+  rescheduleToday:(date:string)=>request<TodayWorkout>("/workouts/today/reschedule",{method:"POST",body:JSON.stringify({date})}),
+  skipToday:(reason?:string)=>request<void>("/workouts/today/skip",{method:"POST",body:JSON.stringify({reason})}),
   active:()=>request<WorkoutSession|null>("/workout-sessions/active"),
   history:(page=0,size=30)=>request<WorkoutSummary[]>(`/workout-sessions?page=${page}&size=${size}`),
   plans:()=>request<WorkoutPlan[]>("/workout-plans"),

@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.*;
 public class WorkoutExecutionController {
  private final WorkoutExecutionService service; WorkoutExecutionController(WorkoutExecutionService service){this.service=service;}
  @GetMapping("/api/v1/workouts/today") TodayWorkout today(){return service.today();}
+ @PostMapping("/api/v1/workouts/today/reschedule") TodayWorkout rescheduleToday(@RequestBody RescheduleRequest body){return service.rescheduleToday(body.date());}
+ @PostMapping("/api/v1/workouts/today/skip") @ResponseStatus(HttpStatus.NO_CONTENT) void skipToday(@RequestBody(required=false) SkipRequest body){service.skipToday(body==null?null:body.reason());}
  @GetMapping("/api/v1/workout-sessions/active") SessionView active(){return service.active();}
  @PostMapping("/api/v1/workout-sessions") @ResponseStatus(HttpStatus.CREATED) SessionView start(@Valid @RequestBody StartRequest r){return service.start(r);}
  @GetMapping("/api/v1/workout-sessions") List<SessionSummary> history(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size){return service.history(page,size);}
@@ -33,4 +35,5 @@ public class WorkoutExecutionController {
  @GetMapping("/api/v1/workout-sessions/{id}/metrics") Metrics metrics(@PathVariable UUID id){return service.metrics(id);}
  @GetMapping("/api/v1/training/summary") List<SessionSummary> summary(){return service.history(0,20);}
  @PostMapping("/api/v1/workout-sessions/{id}/sync") List<SyncResult> sync(@PathVariable UUID id,@RequestBody List<SyncOperation> operations){return service.sync(id,operations);}
+ record RescheduleRequest(java.time.LocalDate date){} record SkipRequest(String reason){}
 }
