@@ -15,6 +15,7 @@ import {
   LogOut,
   Plus,
   Scale,
+  Sparkles,
   Target,
   Trash2,
   X,
@@ -123,6 +124,9 @@ export function App() {
     tab === "HOME" ? entries : entries.filter((e) => e.type === tab);
   const today = new Date().toISOString().slice(0, 10);
   const todayItems = entries.filter((e) => e.entryDate === today);
+  const plannedToday=todayMeals.length+(todayWorkout?1:0);
+  const completedToday=todayMeals.filter(meal=>meal.status!=="PENDING").length+(todayWorkoutDone||todayItems.some(item=>item.type==="WORKOUT")?1:0);
+  const dailyPercent=plannedToday?Math.round(completedToday/plannedToday*100):0;
   return (
     <main className="shell">
       <header>
@@ -141,21 +145,10 @@ export function App() {
       <section className="content">
         {tab === "HOME" ? (
           <>
-            <div className="hello">
-              <p>HOLA, {user.displayName.toUpperCase()}</p>
-              <h1>
-                Hoy cuenta.
-                <br />
-                <em>Muévete.</em>
-              </h1>
-              <span>
-                {new Intl.DateTimeFormat("es", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                }).format(new Date())}
-              </span>
-            </div>
+            <section className="home-hero">
+              <div className="home-hero-copy"><p><Sparkles/> HOLA, {user.displayName.toUpperCase()}</p><h1>Haz que hoy<br/><em>cuente.</em></h1><span>{new Intl.DateTimeFormat("es",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</span><div className="home-streak"><b>{completedToday}/{plannedToday||"—"}</b><small>acciones completadas hoy</small></div></div>
+              <div className="home-hero-visual"><img src="/anura-mascot.png" alt="Mascota de ANURA"/><div className="home-progress-ring" style={{"--home-progress":`${dailyPercent*3.6}deg`} as CSSProperties}><span><b>{dailyPercent}%</b><small>HOY</small></span></div></div>
+            </section>
             <div className="daily-plan-head"><span>PLAN DE HOY</span></div>
             <div className="daily-plan-grid">
               <button className="daily-focus workout" onClick={() => setWorkoutOpen(true)}>
@@ -177,17 +170,17 @@ export function App() {
             <div className="score">
               <div>
                 <small>RITMO DE HOY</small>
-                <strong>{Math.min(100, todayItems.length * 25)}%</strong>
+                <strong>{dailyPercent}%</strong>
               </div>
               <div
                 className="ring"
                 style={
                   {
-                    "--score": `${Math.min(100, todayItems.length * 25) * 3.6}deg`,
+                    "--score": `${dailyPercent * 3.6}deg`,
                   } as CSSProperties
                 }
               >
-                <span>{todayItems.length}</span>
+                <span>{completedToday}</span>
               </div>
             </div>
             <h2>Otros seguimientos</h2>

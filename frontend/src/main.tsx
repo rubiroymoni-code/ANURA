@@ -30,6 +30,7 @@ import './evolution-motion.css';
 import './supplements.css';
 import './nutrition-redesign.css';
 import './nutrition-polish.css';
+import './home-premium.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));

@@ -1,5 +1,7 @@
 package app.anura.nutrition;
 
+import app.anura.config.CurrentUser;
+import app.anura.notification.OnboardingEmailService;
 import java.util.*;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.*;
@@ -10,9 +12,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/v1")
 public class NutritionImportController {
   private final NutritionImportService service;
+  private final OnboardingEmailService onboarding;
 
-  NutritionImportController(NutritionImportService service) {
+  NutritionImportController(NutritionImportService service,OnboardingEmailService onboarding) {
     this.service = service;
+    this.onboarding = onboarding;
   }
 
   @GetMapping("/nutrition-import-schemas")
@@ -58,7 +62,9 @@ public class NutritionImportController {
 
   @PostMapping("/imports/nutrition/{id}/confirm")
   Map<String, Object> confirm(@PathVariable UUID id) {
-    return service.confirm(id);
+    Map<String,Object> result=service.confirm(id);
+    onboarding.sendIfReady(CurrentUser.id());
+    return result;
   }
 
   private Map<String, String> schema(String name, String file) {
