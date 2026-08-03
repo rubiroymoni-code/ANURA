@@ -47,8 +47,8 @@ public class NutritionController {
   @GetMapping("/recipes")
   List<Map<String, Object>> recipes() {
     return db.queryForList(
-        "SELECT DISTINCT r.id,r.code,r.name,r.servings FROM recipe r LEFT JOIN household_member m"
-            + " ON m.household_id=r.household_id WHERE r.owner_id=? OR m.user_id=? ORDER BY r.name",
+        "SELECT DISTINCT r.id,r.code,r.name,r.servings FROM recipe r JOIN planned_meal pm ON pm.recipe_id=r.id JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id JOIN nutrition_plan p ON p.id=d.nutrition_plan_id LEFT JOIN household_member m"
+            + " ON m.household_id=p.household_id WHERE p.status='ACTIVE' AND (p.owner_id=? OR m.user_id=?) ORDER BY r.name",
         CurrentUser.id(),
         CurrentUser.id());
   }
@@ -305,6 +305,7 @@ public class NutritionController {
     db.update("UPDATE tracker_entry SET planned_meal_id=NULL WHERE planned_meal_id IN (SELECT pm.id FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id WHERE d.nutrition_plan_id=?)",id);
     db.update("DELETE FROM shopping_list WHERE nutrition_plan_id=?",id);
     db.update("DELETE FROM nutrition_plan WHERE id=?",id);
+    db.update("DELETE FROM recipe r WHERE r.code LIKE '%__PLAN_%' AND NOT EXISTS(SELECT 1 FROM planned_meal pm WHERE pm.recipe_id=r.id)");
     db.update("DELETE FROM import_job WHERE user_id=? AND import_type IN ('INDIVIDUAL_DIET','SHARED_DIET') AND external_id=? AND plan_version=?",CurrentUser.id(),plan.get("external_id"),plan.get("version"));
   }
 
@@ -316,6 +317,51 @@ public class NutritionController {
             + " s.created_at DESC",
         CurrentUser.id());
   }
+
+  @DeleteMapping("/shopping-lists/{id}")
+  @Transactional
+  void resetShoppingList(@PathVariable UUID id) {
+    UUID household=db.query("SELECT s.household_id FROM shopping_list s JOIN household_member m ON m.household_id=s.household_id WHERE s.id=? AND m.user_id=?",(r,n)->r.getObject(1,UUID.class),id,CurrentUser.id()).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"SHOPPING_LIST_NOT_FOUND","Lista de compra no encontrada"));
+    db.update("""
+        INSERT INTO household_pantry_stock(household_id,ingredient_id,unit,quantity)
+        SELECT ?,ingredient_id,unit,SUM(pantry_used) FROM shopping_list_item
+        WHERE shopping_list_id=? AND ingredient_id IS NOT NULL AND pantry_used>0
+        GROUP BY ingredient_id,unit
+        ON CONFLICT(household_id,ingredient_id,unit) DO UPDATE SET
+          quantity=household_pantry_stock.quantity+EXCLUDED.quantity,updated_at=CURRENT_TIMESTAMP
+        """,household,id);
+    int deleted=db.update("DELETE FROM shopping_list s WHERE s.id=? AND EXISTS(SELECT 1 FROM household_member m WHERE m.household_id=s.household_id AND m.user_id=?)",id,CurrentUser.id());
+    if(deleted==0)throw new ApiException(HttpStatus.NOT_FOUND,"SHOPPING_LIST_NOT_FOUND","Lista de compra no encontrada");
+  }
+
+  @GetMapping("/pantry")
+  List<Map<String,Object>> pantry(){
+    return db.queryForList("SELECT s.ingredient_id,i.name,i.category,s.unit,s.quantity,s.updated_at FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id JOIN household_member m ON m.household_id=s.household_id WHERE m.user_id=? AND s.quantity>0 ORDER BY i.category,i.name",CurrentUser.id());
+  }
+
+  @PostMapping("/pantry")
+  @Transactional
+  Map<String,Object> addPantry(@RequestBody PantryItem body){
+    if(body.name()==null||body.name().isBlank()||body.unit()==null||body.unit().isBlank()||body.quantity()==null||body.quantity().signum()<0)throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PANTRY_ITEM","Revisa el alimento, la cantidad y la unidad");
+    UUID household=db.query("SELECT household_id FROM household_member WHERE user_id=? ORDER BY joined_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),CurrentUser.id()).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.CONFLICT,"HOUSEHOLD_REQUIRED","Crea o acepta una unidad doméstica"));
+    String unit=body.unit().trim().toLowerCase(),name=body.name().trim(),category=body.category()==null||body.category().isBlank()?"OTHER":body.category().trim().toUpperCase();
+    UUID ingredient=db.query("SELECT id FROM ingredient WHERE household_id=? AND lower(trim(name))=lower(?) AND lower(base_unit)=? ORDER BY created_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),household,name,unit).stream().findFirst().orElseGet(()->{UUID id=UUID.randomUUID();db.update("INSERT INTO ingredient(id,household_id,code,name,category,base_unit) VALUES(?,?,?,?,?,?)",id,household,"PANTRY_"+id,name,category,unit);return id;});
+    db.update("INSERT INTO household_pantry_stock(household_id,ingredient_id,unit,quantity) VALUES(?,?,?,?) ON CONFLICT(household_id,ingredient_id,unit) DO UPDATE SET quantity=household_pantry_stock.quantity+EXCLUDED.quantity,updated_at=CURRENT_TIMESTAMP",household,ingredient,unit,body.quantity());
+    return Map.of("ingredientId",ingredient,"name",name);
+  }
+
+  @PatchMapping("/pantry/{ingredientId}")
+  void updatePantry(@PathVariable UUID ingredientId,@RequestBody PantryItem body){
+    if(body.quantity()==null||body.quantity().signum()<0||body.unit()==null||body.unit().isBlank())throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PANTRY_QUANTITY","La cantidad no es válida");
+    int updated=db.update("UPDATE household_pantry_stock s SET quantity=?,updated_at=CURRENT_TIMESTAMP WHERE s.ingredient_id=? AND s.unit=? AND EXISTS(SELECT 1 FROM household_member m WHERE m.household_id=s.household_id AND m.user_id=?)",body.quantity(),ingredientId,body.unit().trim().toLowerCase(),CurrentUser.id());
+    if(updated==0)throw new ApiException(HttpStatus.NOT_FOUND,"PANTRY_ITEM_NOT_FOUND","Alimento no encontrado en despensa");
+  }
+
+  @DeleteMapping("/pantry/{ingredientId}")
+  void deletePantryItem(@PathVariable UUID ingredientId,@RequestParam String unit){db.update("DELETE FROM household_pantry_stock s WHERE s.ingredient_id=? AND s.unit=? AND EXISTS(SELECT 1 FROM household_member m WHERE m.household_id=s.household_id AND m.user_id=?)",ingredientId,unit,CurrentUser.id());}
+
+  @DeleteMapping("/pantry")
+  void clearPantry(){db.update("DELETE FROM household_pantry_stock s WHERE EXISTS(SELECT 1 FROM household_member m WHERE m.household_id=s.household_id AND m.user_id=?)",CurrentUser.id());}
 
   @PostMapping("/plans/{planId}/shopping-list")
   @Transactional
@@ -400,21 +446,43 @@ public class NutritionController {
                   WHERE exact.planned_meal_id=pm.id AND exact.user_id=ump.user_id
                 )
             ), raw AS (
-              SELECT id,name,category,
+              SELECT id,name,
                 CASE
+                  WHEN upper(category) IN ('CARNE','CARNES','PESCADO','PESCADOS','MEAT_FISH')
+                    OR lower(name) ~ '(pollo|pavo|ternera|cerdo|pechuga|pescado|salmón|salmon|merluza|atún|atun)' THEN 'MEAT_FISH'
+                  WHEN upper(category) IN ('FRUTA','VERDURA','FRUIT','VEGETABLES','FRUIT_VEGETABLES') THEN 'FRUIT_VEGETABLES'
+                  WHEN upper(category) IN ('FRUTA_GRASA','TUBERCULO','TUBÉRCULO') THEN 'FRUIT_VEGETABLES'
+                  WHEN upper(category) IN ('HUEVO','HUEVOS','EGG','EGGS') THEN 'EGGS'
+                  WHEN upper(category) IN ('LACTEO','LACTEOS','LÁCTEO','LÁCTEOS','DAIRY') THEN 'DAIRY'
+                  WHEN upper(category) IN ('CEREAL','CEREALES','LEGUMBRE','LEGUMBRES','CEREALS_LEGUMES') THEN 'CEREALS_LEGUMES'
+                  WHEN upper(category) IN ('BEBIDA','BEBIDAS','DRINKS') THEN 'DRINKS'
+                  WHEN upper(category) IN ('DESPENSA','PANTRY') THEN 'PANTRY'
+                  ELSE upper(category)
+                END category,
+                CASE
+                  WHEN lower(name) ~ '(^| )huevos?( entero)?($| )' AND lower(unit) IN ('mg','g','kg') THEN 'ud'
                   WHEN lower(unit) IN ('l','ml') OR
-                    (lower(unit) IN ('g','kg') AND
+                    (lower(unit) IN ('mg','g','kg') AND
                       (upper(category) IN ('DRINKS','BEBIDA','BEBIDAS') OR
                        lower(name) ~ '(^| )(leche|agua|zumo|bebida)')) THEN 'ml'
-                  WHEN lower(unit) IN ('kg','g') THEN 'g'
+                  WHEN lower(unit) IN ('mg','kg','g') THEN 'g'
                   WHEN lower(unit) IN ('ud','uds','unidad','unidades') THEN 'ud'
                   ELSE lower(unit)
                 END unit,
-                quantity*CASE WHEN lower(unit) IN ('kg','l') THEN 1000 ELSE 1 END quantity
+                quantity*CASE
+                  WHEN lower(name) ~ '(^| )huevos?( entero)?($| )' AND lower(unit)='mg' THEN 1.0/60000
+                  WHEN lower(name) ~ '(^| )huevos?( entero)?($| )' AND lower(unit)='g' THEN 1.0/60
+                  WHEN lower(name) ~ '(^| )huevos?( entero)?($| )' AND lower(unit)='kg' THEN 1000.0/60
+                  WHEN lower(unit) IN ('kg','l') THEN 1000
+                  WHEN lower(unit)='mg' THEN 0.001
+                  ELSE 1
+                END quantity,
+                lower(name) ~ '(^| )huevos?( entero)?($| )' AND lower(unit) IN ('mg','g','kg') round_units
               FROM portions
             )
             SELECT (array_agg(id ORDER BY id::text))[1] ingredient_id,
-              MIN(name) name,MIN(category) category,unit,SUM(quantity) quantity
+              MIN(name) name,MIN(category) category,unit,
+              CASE WHEN bool_or(round_units) THEN CEIL(SUM(quantity)) ELSE SUM(quantity) END quantity
             FROM raw
             GROUP BY lower(trim(name)),unit
             ORDER BY MIN(category),MIN(name)
@@ -426,13 +494,13 @@ public class NutritionController {
     int order = 0;
     for (Map<String, Object> row : totals) {
       java.math.BigDecimal required = (java.math.BigDecimal) row.get("quantity");
-      List<Map<String,Object>> stockRows=db.queryForList("SELECT s.ingredient_id,s.unit stock_unit,s.quantity original_quantity,s.quantity*CASE WHEN lower(s.unit) IN ('kg','l') THEN 1000 ELSE 1 END quantity FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id WHERE s.household_id=? AND lower(trim(i.name))=lower(trim(?)) AND CASE WHEN lower(s.unit) IN ('l','ml') OR (lower(s.unit) IN ('g','kg') AND (upper(i.category) IN ('DRINKS','BEBIDA','BEBIDAS') OR lower(i.name) ~ '(^| )(leche|agua|zumo|bebida)')) THEN 'ml' WHEN lower(s.unit) IN ('kg','g') THEN 'g' WHEN lower(s.unit) IN ('ud','uds','unidad','unidades') THEN 'ud' ELSE lower(s.unit) END=? AND s.quantity>0 ORDER BY s.updated_at",household,row.get("name"),row.get("unit"));
+      List<Map<String,Object>> stockRows=db.queryForList("SELECT s.ingredient_id,s.unit stock_unit,s.quantity original_quantity,CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='mg' THEN 1.0/60000 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='g' THEN 1.0/60 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='kg' THEN 1000.0/60 WHEN lower(s.unit) IN ('kg','l') THEN 1000 WHEN lower(s.unit)='mg' THEN 0.001 ELSE 1 END conversion_factor,s.quantity*CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='mg' THEN 1.0/60000 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='g' THEN 1.0/60 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='kg' THEN 1000.0/60 WHEN lower(s.unit) IN ('kg','l') THEN 1000 WHEN lower(s.unit)='mg' THEN 0.001 ELSE 1 END quantity FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id WHERE s.household_id=? AND lower(trim(i.name))=lower(trim(?)) AND CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit) IN ('mg','g','kg') THEN 'ud' WHEN lower(s.unit) IN ('l','ml') OR (lower(s.unit) IN ('mg','g','kg') AND (upper(i.category) IN ('DRINKS','BEBIDA','BEBIDAS') OR lower(i.name) ~ '(^| )(leche|agua|zumo|bebida)')) THEN 'ml' WHEN lower(s.unit) IN ('mg','kg','g') THEN 'g' WHEN lower(s.unit) IN ('ud','uds','unidad','unidades') THEN 'ud' ELSE lower(s.unit) END=? AND s.quantity>0 ORDER BY s.updated_at",household,row.get("name"),row.get("unit"));
       java.math.BigDecimal stock=stockRows.stream().map(value->(java.math.BigDecimal)value.get("quantity")).reduce(java.math.BigDecimal.ZERO,java.math.BigDecimal::add);
       if (stock == null) stock = java.math.BigDecimal.ZERO;
       java.math.BigDecimal pantryUsed = stock.min(required);
       java.math.BigDecimal toBuy = required.subtract(pantryUsed);
       java.math.BigDecimal remainingUse=pantryUsed;
-      for(Map<String,Object> stockRow:stockRows){if(remainingUse.signum()<=0)break;java.math.BigDecimal available=(java.math.BigDecimal)stockRow.get("quantity"),used=available.min(remainingUse),factor=Set.of("kg","l").contains(String.valueOf(stockRow.get("stock_unit")).toLowerCase())?java.math.BigDecimal.valueOf(1000):java.math.BigDecimal.ONE;db.update("UPDATE household_pantry_stock SET quantity=quantity-?,updated_at=CURRENT_TIMESTAMP WHERE household_id=? AND ingredient_id=? AND unit=?",used.divide(factor),household,stockRow.get("ingredient_id"),stockRow.get("stock_unit"));remainingUse=remainingUse.subtract(used);}
+      for(Map<String,Object> stockRow:stockRows){if(remainingUse.signum()<=0)break;java.math.BigDecimal available=(java.math.BigDecimal)stockRow.get("quantity"),used=available.min(remainingUse),factor=(java.math.BigDecimal)stockRow.get("conversion_factor");db.update("UPDATE household_pantry_stock SET quantity=GREATEST(0,quantity-?),updated_at=CURRENT_TIMESTAMP WHERE household_id=? AND ingredient_id=? AND unit=?",used.divide(factor,6,java.math.RoundingMode.HALF_UP),household,stockRow.get("ingredient_id"),stockRow.get("stock_unit"));remainingUse=remainingUse.subtract(used);}
       db.update(
           "INSERT INTO"
               + " shopping_list_item(id,shopping_list_id,ingredient_id,name,category,quantity,required_quantity,pantry_used,unit,item_order)"
@@ -456,7 +524,7 @@ public class NutritionController {
     return db.queryForList(
         "SELECT i.id,i.name,i.category,i.quantity,i.required_quantity,i.pantry_used,i.unit,i.purchased,i.manual FROM"
             + " shopping_list_item i JOIN shopping_list s ON s.id=i.shopping_list_id JOIN"
-            + " household_member m ON m.household_id=s.household_id WHERE i.shopping_list_id=? AND i.quantity>0 AND"
+            + " household_member m ON m.household_id=s.household_id WHERE i.shopping_list_id=? AND COALESCE(i.required_quantity,i.quantity)>0 AND"
             + " m.user_id=? ORDER BY i.item_order",
         id,
         CurrentUser.id());
@@ -529,5 +597,6 @@ public class NutritionController {
 }
 
 record Item(String name, String category, java.math.BigDecimal quantity, String unit) {}
+record PantryItem(String name,String category,java.math.BigDecimal quantity,String unit) {}
 record Quantity(java.math.BigDecimal quantity) {}
 record NutritionTarget(LocalDate validFrom, java.math.BigDecimal calories, java.math.BigDecimal protein, java.math.BigDecimal carbohydrates, java.math.BigDecimal fat, java.math.BigDecimal fiber) {}
