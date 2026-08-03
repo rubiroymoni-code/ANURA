@@ -8,11 +8,12 @@ type Range="1M"|"3M"|"6M"|"1Y"|"ALL";type Metric="weight"|"waistCm"|"chestCm"|"h
 const metrics:Array<{id:Metric;label:string;unit:string}>=[{id:"weight",label:"Peso",unit:"kg"},{id:"waistCm",label:"Cintura",unit:"cm"},{id:"chestCm",label:"Pecho",unit:"cm"},{id:"hipCm",label:"Cadera",unit:"cm"},{id:"arms",label:"Brazos",unit:"cm"},{id:"thighs",label:"Muslos",unit:"cm"}];
 
 export function BodyProgress(){
- const [rows,setRows]=useState<BodyCheckin[]>([]),[evolution,setEvolution]=useState<BodyEvolution|null>(null),[adherence,setAdherence]=useState<Awaited<ReturnType<typeof nutritionApi.adherence>>|null>(null),[avatar,setAvatar]=useState(""),[range,setRange]=useState<Range>("3M"),[metric,setMetric]=useState<Metric>("weight"),[editing,setEditing]=useState<BodyCheckin|null|undefined>(undefined),[deleting,setDeleting]=useState<BodyCheckin|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[saved,setSaved]=useState(""),[report,setReport]=useState(""),[reportBusy,setReportBusy]=useState(false);
+ const [rows,setRows]=useState<BodyCheckin[]>([]),[evolution,setEvolution]=useState<BodyEvolution|null>(null),[adherence,setAdherence]=useState<Awaited<ReturnType<typeof nutritionApi.adherence>>|null>(null),[avatar,setAvatar]=useState(""),[range,setRange]=useState<Range>("3M"),[metric,setMetric]=useState<Metric>("weight"),[editing,setEditing]=useState<BodyCheckin|null|undefined>(undefined),[deleting,setDeleting]=useState<BodyCheckin|null>(null),[loading,setLoading]=useState(true),[intro,setIntro]=useState(true),[error,setError]=useState(""),[saved,setSaved]=useState(""),[report,setReport]=useState(""),[reportBusy,setReportBusy]=useState(false);
  const dates=useMemo(()=>period(range),[range]);
  const load=async()=>{setLoading(true);setError("");try{const [list,trend,ad,profile]=await Promise.all([bodyProgressApi.list(),bodyProgressApi.evolution(dates.from,dates.to),nutritionApi.adherence().catch(()=>null),api.profilePreferences().catch(()=>null)]);setRows(list);setEvolution(trend);setAdherence(ad);setAvatar(profile?.avatar_url||"")}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo cargar la evolución")}finally{setLoading(false)}};
  useEffect(()=>{void load()},[dates.from,dates.to]);
- if(loading)return <div className="progress-loading"><Activity/><span>Cargando evolución…</span></div>;
+ useEffect(()=>{const timer=window.setTimeout(()=>setIntro(false),750);return()=>window.clearTimeout(timer)},[]);
+ if(loading||intro)return <div className="progress-loading evolution-intro" aria-live="polite"><div className="evolution-orbit"><Activity/><i/><i/><i/></div><span><small>ANURA · EVOLUCIÓN</small><b>Tu progreso cobra vida</b><em>Preparando tendencias y constancia…</em></span></div>;
  const latest=rows[0];
  const currentWeek=adherence?.currentWeek,weekComplete=currentWeek?.complete===true;
  return <section className="body-progress">

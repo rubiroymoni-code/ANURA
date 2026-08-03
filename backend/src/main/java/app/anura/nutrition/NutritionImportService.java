@@ -258,6 +258,7 @@ public class NutritionImportService {
     Map<String,UUID> recipes=new LinkedHashMap<>();
     for (Row r : p.rows) {
       UUID recipe=recipes.computeIfAbsent(r.recipeCode,code->{String storedCode=code;if(planSnapshot!=null){String prefix=code.length()>48?code.substring(0,48):code;storedCode=prefix+"__PLAN_"+planSnapshot;}return recipe(storedCode,r.recipeName,user,household);});
+      db.update("UPDATE recipe SET name=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND name<>?",r.recipeName,recipe,r.recipeName);
       UUID ing =
           db
               .query(
