@@ -38,6 +38,7 @@ import './quick-activity.css';
 import './workout-change-modal.css';
 import './meal-substitution.css';
 import './batch-cooking.css';
+import './plan-meal-details.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
