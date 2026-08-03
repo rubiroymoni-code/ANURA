@@ -524,7 +524,7 @@ public class NutritionController {
     return db.queryForList(
         "SELECT i.id,i.name,i.category,i.quantity,i.required_quantity,i.pantry_used,i.unit,i.purchased,i.manual FROM"
             + " shopping_list_item i JOIN shopping_list s ON s.id=i.shopping_list_id JOIN"
-            + " household_member m ON m.household_id=s.household_id WHERE i.shopping_list_id=? AND i.quantity>0 AND"
+            + " household_member m ON m.household_id=s.household_id WHERE i.shopping_list_id=? AND COALESCE(i.required_quantity,i.quantity)>0 AND"
             + " m.user_id=? ORDER BY i.item_order",
         id,
         CurrentUser.id());
