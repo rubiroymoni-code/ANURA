@@ -379,7 +379,48 @@ public class NutritionController {
     }
     List<Map<String, Object>> totals =
         db.queryForList(
-            "WITH raw AS (SELECT i.id,i.name,i.category,CASE WHEN lower(COALESCE(uip.unit,ri.unit)) IN ('l','ml') OR (lower(COALESCE(uip.unit,ri.unit)) IN ('g','kg') AND (upper(i.category) IN ('DRINKS','BEBIDA','BEBIDAS') OR lower(i.name) ~ '(^| )(leche|agua|zumo|bebida)')) THEN 'ml' WHEN lower(COALESCE(uip.unit,ri.unit)) IN ('kg','g') THEN 'g' WHEN lower(COALESCE(uip.unit,ri.unit)) IN ('ud','uds','unidad','unidades') THEN 'ud' ELSE lower(COALESCE(uip.unit,ri.unit)) END unit,COALESCE(uip.quantity,ri.quantity*ump.portion_multiplier)*CASE WHEN lower(COALESCE(uip.unit,ri.unit)) IN ('kg','l') THEN 1000 ELSE 1 END quantity FROM nutrition_plan_day d JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN recipe_ingredient ri ON ri.recipe_id=pm.recipe_id JOIN ingredient i ON i.id=ri.ingredient_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id LEFT JOIN user_meal_ingredient_portion uip ON uip.planned_meal_id=pm.id AND uip.user_id=ump.user_id AND uip.ingredient_id=ri.ingredient_id WHERE d.nutrition_plan_id=? AND d.week_number=?) SELECT (array_agg(id ORDER BY id::text))[1] ingredient_id,MIN(name) name,MIN(category) category,unit,SUM(quantity) quantity FROM raw GROUP BY lower(trim(name)),unit ORDER BY MIN(category),MIN(name)",
+            """
+            WITH portions AS (
+              SELECT i.id,i.name,i.category,uip.unit,uip.quantity
+              FROM nutrition_plan_day d
+              JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id
+              JOIN user_meal_ingredient_portion uip ON uip.planned_meal_id=pm.id
+              JOIN ingredient i ON i.id=uip.ingredient_id
+              WHERE d.nutrition_plan_id=? AND d.week_number=?
+              UNION ALL
+              SELECT i.id,i.name,i.category,ri.unit,ri.quantity*ump.portion_multiplier
+              FROM nutrition_plan_day d
+              JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id
+              JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id
+              JOIN recipe_ingredient ri ON ri.recipe_id=pm.recipe_id
+              JOIN ingredient i ON i.id=ri.ingredient_id
+              WHERE d.nutrition_plan_id=? AND d.week_number=?
+                AND NOT EXISTS (
+                  SELECT 1 FROM user_meal_ingredient_portion exact
+                  WHERE exact.planned_meal_id=pm.id AND exact.user_id=ump.user_id
+                )
+            ), raw AS (
+              SELECT id,name,category,
+                CASE
+                  WHEN lower(unit) IN ('l','ml') OR
+                    (lower(unit) IN ('g','kg') AND
+                      (upper(category) IN ('DRINKS','BEBIDA','BEBIDAS') OR
+                       lower(name) ~ '(^| )(leche|agua|zumo|bebida)')) THEN 'ml'
+                  WHEN lower(unit) IN ('kg','g') THEN 'g'
+                  WHEN lower(unit) IN ('ud','uds','unidad','unidades') THEN 'ud'
+                  ELSE lower(unit)
+                END unit,
+                quantity*CASE WHEN lower(unit) IN ('kg','l') THEN 1000 ELSE 1 END quantity
+              FROM portions
+            )
+            SELECT (array_agg(id ORDER BY id::text))[1] ingredient_id,
+              MIN(name) name,MIN(category) category,unit,SUM(quantity) quantity
+            FROM raw
+            GROUP BY lower(trim(name)),unit
+            ORDER BY MIN(category),MIN(name)
+            """,
+            planId,
+            sourceWeek,
             planId,
             sourceWeek);
     int order = 0;
