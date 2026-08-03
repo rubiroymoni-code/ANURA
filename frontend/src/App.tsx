@@ -23,6 +23,7 @@ import {
 import {
   api,
   API_BASE,
+  bodyProgressApi,
   Entry,
   EntryType,
   ImportPreview,
@@ -567,6 +568,7 @@ function EntryList({
   );
 }
 
+const quickActivities=[{name:"Sesión libre",met:6},{name:"Pádel",met:7},{name:"Tenis",met:7.3},{name:"Fútbol",met:8},{name:"Correr suave",met:7},{name:"Correr intenso",met:10},{name:"Bicicleta",met:7.5},{name:"Natación",met:8},{name:"Elíptica",met:5.5},{name:"Caminar rápido",met:4.5},{name:"Sexo",met:3},{name:"Otro deporte",met:6}];
 function EntryModal({
   initialType,
   onClose,
@@ -581,7 +583,10 @@ function EntryModal({
   busy: boolean;
 }) {
   const [type, setType] = useState<EntryType>(initialType);
+  const [activity,setActivity]=useState(quickActivities[0]),[minutes,setMinutes]=useState(60),[weight,setWeight]=useState(70),[manualCalories,setManualCalories]=useState<number|null>(null);
+  useEffect(()=>{if(type==="WORKOUT")void bodyProgressApi.latest().then(value=>{if(value?.weight)setWeight(Number(value.weight))}).catch(()=>undefined)},[type]);
   const m = meta[type];
+  const estimatedCalories=Math.max(0,Math.round(activity.met*3.5*weight/200*minutes)),workoutCalories=manualCalories??estimatedCalories;
   return (
     <div className="overlay">
       <form
@@ -589,13 +594,14 @@ function EntryModal({
         onSubmit={(e) => {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
+          const workout=type==="WORKOUT",customTitle=String(f.get("title")||"").trim();
           onSave({
             type,
-            title: String(f.get("title")),
+            title: workout?(activity.name==="Sesión libre"||activity.name==="Otro deporte"?customTitle||activity.name:activity.name):String(f.get("title")),
             entryDate: String(f.get("date")),
-            value: f.get("value") ? Number(f.get("value")) : undefined,
-            unit: String(f.get("unit") || m.unit),
-            details: String(f.get("details") || ""),
+            value: workout?workoutCalories:(f.get("value") ? Number(f.get("value")) : undefined),
+            unit: workout?"kcal":String(f.get("unit") || m.unit),
+            details: workout?`${minutes} min · ${manualCalories===null?`estimación MET ${activity.met}`:"calorías indicadas por dispositivo"}${String(f.get("details")||"").trim()?` · ${String(f.get("details"))}`:""}`:String(f.get("details") || ""),
             notes: "",
             completed: true,
           });
@@ -611,7 +617,7 @@ function EntryModal({
           </button>
         </div>
         <div className="types">
-          {(Object.keys(meta) as EntryType[]).filter(t => t !== "WEIGHT" && t !== "MEASUREMENT").map((t) => {
+          {(Object.keys(meta) as EntryType[]).filter(t => t !== "WEIGHT" && t !== "MEASUREMENT" && t !== "GOAL").map((t) => {
             const I = meta[t].icon;
             return (
               <button
@@ -626,11 +632,14 @@ function EntryModal({
             );
           })}
         </div>
-        <label>
+        {type==="WORKOUT"&&<section className="quick-sport"><label>Tipo de actividad<select value={activity.name} onChange={event=>{setActivity(quickActivities.find(item=>item.name===event.target.value)||quickActivities[0]);setManualCalories(null)}}>{quickActivities.map(item=><option key={item.name}>{item.name}</option>)}</select></label><div className="quick-sport-grid"><label>Duración (min)<input required type="number" min="1" max="600" value={minutes} onChange={event=>{setMinutes(Number(event.target.value));setManualCalories(null)}}/></label><label>Peso usado (kg)<input required type="number" min="20" max="500" step="0.1" value={weight} onChange={event=>{setWeight(Number(event.target.value));setManualCalories(null)}}/></label><label>Calorías<input required type="number" min="0" value={workoutCalories} onChange={event=>setManualCalories(Number(event.target.value))}/></label></div><p><b>≈ {estimatedCalories} kcal estimadas</b><span>Calculadas por actividad, tiempo y último peso. Si llevas reloj o pulsera, escribe sus kcal para sustituir la estimación.</span></p></section>}
+        {(type!=="WORKOUT"||activity.name==="Sesión libre"||activity.name==="Otro deporte")&&<label>
           Título
           <input
-            required
+            required={type!=="WORKOUT"||activity.name==="Sesión libre"||activity.name==="Otro deporte"}
             name="title"
+            key={`${type}-${activity.name}`}
+            defaultValue={type==="WORKOUT"&&activity.name!=="Sesión libre"&&activity.name!=="Otro deporte"?activity.name:undefined}
             placeholder={
               type === "WORKOUT"
                 ? "Pierna y core"
@@ -641,8 +650,8 @@ function EntryModal({
                     : "Registro"
             }
           />
-        </label>
-        <div className="row">
+        </label>}
+        <div className={`row ${type==="WORKOUT"?"workout-date-row":""}`}>
           <label>
             Fecha
             <input
@@ -652,20 +661,20 @@ function EntryModal({
               defaultValue={new Date().toISOString().slice(0, 10)}
             />
           </label>
-          <label>
+          {type!=="WORKOUT"&&<label>
             Valor
             <input type="number" step="0.01" name="value" placeholder="0" />
-          </label>
-          <label>
+          </label>}
+          {type!=="WORKOUT"&&<label>
             Unidad
             <input name="unit" defaultValue={m.unit} key={type} />
-          </label>
+          </label>}
         </div>
         <label>
           Detalles
           <textarea
             name="details"
-            placeholder={type === "GOAL" ? "Describe tu meta, plazo y cómo quieres medirla" : "Series, macros, sensaciones..."}
+            placeholder={type === "GOAL" ? "Describe tu meta, plazo y cómo quieres medirla" : type==="WORKOUT"?"Sensaciones, intensidad o información útil…":"Series, macros, sensaciones..."}
           />
         </label>
         <button className="primary" disabled={busy}>
