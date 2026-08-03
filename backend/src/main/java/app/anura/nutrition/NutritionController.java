@@ -379,28 +379,19 @@ public class NutritionController {
     }
     List<Map<String, Object>> totals =
         db.queryForList(
-            "SELECT i.id"
-                + " ingredient_id,i.name,i.category,ri.unit,SUM(COALESCE(uip.quantity,ri.quantity*ump.portion_multiplier))"
-                + " quantity FROM nutrition_plan_day d JOIN planned_meal pm ON"
-                + " pm.nutrition_plan_day_id=d.id JOIN recipe_ingredient ri ON"
-                + " ri.recipe_id=pm.recipe_id JOIN ingredient i ON i.id=ri.ingredient_id JOIN"
-                + " user_meal_portion ump ON ump.planned_meal_id=pm.id LEFT JOIN user_meal_ingredient_portion uip ON uip.planned_meal_id=pm.id AND uip.user_id=ump.user_id AND uip.ingredient_id=ri.ingredient_id WHERE d.nutrition_plan_id=?"
-                + " AND d.week_number=? GROUP BY i.id,i.name,i.category,ri.unit ORDER BY"
-                + " i.category,i.name",
+            "WITH raw AS (SELECT i.id,i.name,i.category,CASE WHEN lower(COALESCE(uip.unit,ri.unit)) IN ('kg','g') THEN 'g' WHEN lower(COALESCE(uip.unit,ri.unit)) IN ('l','ml') THEN 'ml' WHEN lower(COALESCE(uip.unit,ri.unit)) IN ('ud','uds','unidad','unidades') THEN 'ud' ELSE lower(COALESCE(uip.unit,ri.unit)) END unit,COALESCE(uip.quantity,ri.quantity*ump.portion_multiplier)*CASE WHEN lower(COALESCE(uip.unit,ri.unit)) IN ('kg','l') THEN 1000 ELSE 1 END quantity FROM nutrition_plan_day d JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN recipe_ingredient ri ON ri.recipe_id=pm.recipe_id JOIN ingredient i ON i.id=ri.ingredient_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id LEFT JOIN user_meal_ingredient_portion uip ON uip.planned_meal_id=pm.id AND uip.user_id=ump.user_id AND uip.ingredient_id=ri.ingredient_id WHERE d.nutrition_plan_id=? AND d.week_number=?) SELECT (array_agg(id ORDER BY id::text))[1] ingredient_id,MIN(name) name,MIN(category) category,unit,SUM(quantity) quantity FROM raw GROUP BY lower(trim(name)),unit ORDER BY MIN(category),MIN(name)",
             planId,
             sourceWeek);
     int order = 0;
     for (Map<String, Object> row : totals) {
       java.math.BigDecimal required = (java.math.BigDecimal) row.get("quantity");
-      java.math.BigDecimal stock = db.queryForObject(
-          "SELECT COALESCE(MAX(quantity),0) FROM household_pantry_stock WHERE household_id=? AND ingredient_id=? AND unit=?",
-          java.math.BigDecimal.class, household, row.get("ingredient_id"), row.get("unit"));
+      List<Map<String,Object>> stockRows=db.queryForList("SELECT s.ingredient_id,s.unit stock_unit,s.quantity original_quantity,s.quantity*CASE WHEN lower(s.unit) IN ('kg','l') THEN 1000 ELSE 1 END quantity FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id WHERE s.household_id=? AND lower(trim(i.name))=lower(trim(?)) AND CASE WHEN lower(s.unit) IN ('kg','g') THEN 'g' WHEN lower(s.unit) IN ('l','ml') THEN 'ml' WHEN lower(s.unit) IN ('ud','uds','unidad','unidades') THEN 'ud' ELSE lower(s.unit) END=? AND s.quantity>0 ORDER BY s.updated_at",household,row.get("name"),row.get("unit"));
+      java.math.BigDecimal stock=stockRows.stream().map(value->(java.math.BigDecimal)value.get("quantity")).reduce(java.math.BigDecimal.ZERO,java.math.BigDecimal::add);
       if (stock == null) stock = java.math.BigDecimal.ZERO;
       java.math.BigDecimal pantryUsed = stock.min(required);
       java.math.BigDecimal toBuy = required.subtract(pantryUsed);
-      if (pantryUsed.signum() > 0) db.update(
-          "UPDATE household_pantry_stock SET quantity=quantity-?,updated_at=CURRENT_TIMESTAMP WHERE household_id=? AND ingredient_id=? AND unit=?",
-          pantryUsed, household, row.get("ingredient_id"), row.get("unit"));
+      java.math.BigDecimal remainingUse=pantryUsed;
+      for(Map<String,Object> stockRow:stockRows){if(remainingUse.signum()<=0)break;java.math.BigDecimal available=(java.math.BigDecimal)stockRow.get("quantity"),used=available.min(remainingUse),factor=Set.of("kg","l").contains(String.valueOf(stockRow.get("stock_unit")).toLowerCase())?java.math.BigDecimal.valueOf(1000):java.math.BigDecimal.ONE;db.update("UPDATE household_pantry_stock SET quantity=quantity-?,updated_at=CURRENT_TIMESTAMP WHERE household_id=? AND ingredient_id=? AND unit=?",used.divide(factor),household,stockRow.get("ingredient_id"),stockRow.get("stock_unit"));remainingUse=remainingUse.subtract(used);}
       db.update(
           "INSERT INTO"
               + " shopping_list_item(id,shopping_list_id,ingredient_id,name,category,quantity,required_quantity,pantry_used,unit,item_order)"

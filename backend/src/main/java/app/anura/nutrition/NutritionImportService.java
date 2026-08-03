@@ -248,7 +248,7 @@ public class NutritionImportService {
             r.protein.multiply(factor),
             r.carbs.multiply(factor),
             r.fat.multiply(factor));
-        UUID ingredientId=db.queryForObject("SELECT id FROM ingredient WHERE code=? AND (owner_id=? OR household_id=?) ORDER BY household_id NULLS LAST LIMIT 1",UUID.class,r.ingredientCode,user,householdScope);
+        UUID ingredientId=db.queryForObject("SELECT id FROM ingredient WHERE (code=? OR (lower(trim(name))=lower(trim(?)) AND upper(base_unit)=upper(?))) AND (owner_id=? OR household_id=?) ORDER BY CASE WHEN code=? THEN 0 ELSE 1 END,household_id NULLS LAST LIMIT 1",UUID.class,r.ingredientCode,r.ingredientName,r.unit,user,householdScope,r.ingredientCode);
         db.update("INSERT INTO user_meal_ingredient_portion(planned_meal_id,user_id,ingredient_id,quantity,unit) VALUES(?,?,?,?,?) ON CONFLICT(planned_meal_id,user_id,ingredient_id) DO UPDATE SET quantity=EXCLUDED.quantity,unit=EXCLUDED.unit",meal,uid,ingredientId,individualQuantity,r.unit);
       }
     }
@@ -260,11 +260,14 @@ public class NutritionImportService {
       UUID ing =
           db
               .query(
-                  "SELECT id FROM ingredient WHERE code=? AND (owner_id=? OR household_id=?)",
+                  "SELECT id FROM ingredient WHERE (code=? OR (lower(trim(name))=lower(trim(?)) AND upper(base_unit)=upper(?))) AND (owner_id=? OR household_id=?) ORDER BY CASE WHEN code=? THEN 0 ELSE 1 END LIMIT 1",
                   (x, n) -> x.getObject(1, UUID.class),
                   r.ingredientCode,
+                  r.ingredientName,
+                  r.unit,
                   user,
-                  household)
+                  household,
+                  r.ingredientCode)
               .stream()
               .findFirst()
               .orElseGet(
