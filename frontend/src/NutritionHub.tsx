@@ -511,7 +511,7 @@ function Shopping({ plans }: { plans: Array<{ id: string;name:string;status:stri
     </>}
   </div>;
 }
-function categoryLabel(value:string){return ({FRUIT_VEGETABLES:"Fruta y verdura",MEAT_FISH:"Carnes y pescados",DAIRY:"Lácteos",CEREALS_LEGUMES:"Cereales y legumbres",FROZEN:"Congelados",PANTRY:"Despensa",DRINKS:"Bebidas",OTHER:"Otros"} as Record<string,string>)[value]||value}
+function categoryLabel(value:string){return ({FRUIT_VEGETABLES:"Fruta y verdura",FRUTA:"Fruta",VERDURA:"Verdura",MEAT_FISH:"Carnes y pescados",PROTEINA:"Carnes, pescados y proteínas",DAIRY:"Lácteos",LACTEO:"Lácteos",CEREALS_LEGUMES:"Cereales y legumbres",CEREAL:"Cereales",LEGUMBRE:"Legumbres",FROZEN:"Congelados",PANTRY:"Despensa",DESPENSA:"Despensa",DRINKS:"Bebidas",BEBIDA:"Bebidas",FRUTO_SECO:"Frutos secos",OTHER:"Otros"} as Record<string,string>)[value]||value}
 function displayQuantity(value:number,unit:string){const amount=Number(value||0),normalized=(unit||"").toLowerCase();if(normalized==="g"&&amount>=1000)return`${(amount/1000).toFixed(amount%1000?2:0)} kg`;if(normalized==="ml"&&amount>=1000)return`${(amount/1000).toFixed(amount%1000?2:0)} l`;return`${Number(amount.toFixed(2))} ${unit}`}
 function mealTypeLabel(value:string){return({BREAKFAST:"Desayuno",MID_MORNING:"Media mañana",LUNCH:"Comida",SNACK:"Merienda",DINNER:"Cena",OTHER:"Otra comida"} as Record<string,string>)[value?.toUpperCase()]||value}
 function localizeMeal(meal:TodayMeal):TodayMeal{return{...meal,meal_type:({BREAKFAST:"Desayuno",MID_MORNING:"Media mañana",LUNCH:"Comida",SNACK:"Merienda",DINNER:"Cena",OTHER:"Otra comida"} as Record<string,string>)[meal.meal_type?.toUpperCase()]||meal.meal_type}}
