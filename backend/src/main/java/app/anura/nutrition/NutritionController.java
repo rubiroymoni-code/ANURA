@@ -445,21 +445,43 @@ public class NutritionController {
                   WHERE exact.planned_meal_id=pm.id AND exact.user_id=ump.user_id
                 )
             ), raw AS (
-              SELECT id,name,category,
+              SELECT id,name,
                 CASE
+                  WHEN upper(category) IN ('CARNE','CARNES','PESCADO','PESCADOS','MEAT_FISH')
+                    OR lower(name) ~ '(pollo|pavo|ternera|cerdo|pechuga|pescado|salmón|salmon|merluza|atún|atun)' THEN 'MEAT_FISH'
+                  WHEN upper(category) IN ('FRUTA','VERDURA','FRUIT','VEGETABLES','FRUIT_VEGETABLES') THEN 'FRUIT_VEGETABLES'
+                  WHEN upper(category) IN ('FRUTA_GRASA','TUBERCULO','TUBÉRCULO') THEN 'FRUIT_VEGETABLES'
+                  WHEN upper(category) IN ('HUEVO','HUEVOS','EGG','EGGS') THEN 'EGGS'
+                  WHEN upper(category) IN ('LACTEO','LACTEOS','LÁCTEO','LÁCTEOS','DAIRY') THEN 'DAIRY'
+                  WHEN upper(category) IN ('CEREAL','CEREALES','LEGUMBRE','LEGUMBRES','CEREALS_LEGUMES') THEN 'CEREALS_LEGUMES'
+                  WHEN upper(category) IN ('BEBIDA','BEBIDAS','DRINKS') THEN 'DRINKS'
+                  WHEN upper(category) IN ('DESPENSA','PANTRY') THEN 'PANTRY'
+                  ELSE upper(category)
+                END category,
+                CASE
+                  WHEN lower(name) ~ '(^| )huevos?( entero)?($| )' AND lower(unit) IN ('mg','g','kg') THEN 'ud'
                   WHEN lower(unit) IN ('l','ml') OR
-                    (lower(unit) IN ('g','kg') AND
+                    (lower(unit) IN ('mg','g','kg') AND
                       (upper(category) IN ('DRINKS','BEBIDA','BEBIDAS') OR
                        lower(name) ~ '(^| )(leche|agua|zumo|bebida)')) THEN 'ml'
-                  WHEN lower(unit) IN ('kg','g') THEN 'g'
+                  WHEN lower(unit) IN ('mg','kg','g') THEN 'g'
                   WHEN lower(unit) IN ('ud','uds','unidad','unidades') THEN 'ud'
                   ELSE lower(unit)
                 END unit,
-                quantity*CASE WHEN lower(unit) IN ('kg','l') THEN 1000 ELSE 1 END quantity
+                quantity*CASE
+                  WHEN lower(name) ~ '(^| )huevos?( entero)?($| )' AND lower(unit)='mg' THEN 1.0/60000
+                  WHEN lower(name) ~ '(^| )huevos?( entero)?($| )' AND lower(unit)='g' THEN 1.0/60
+                  WHEN lower(name) ~ '(^| )huevos?( entero)?($| )' AND lower(unit)='kg' THEN 1000.0/60
+                  WHEN lower(unit) IN ('kg','l') THEN 1000
+                  WHEN lower(unit)='mg' THEN 0.001
+                  ELSE 1
+                END quantity,
+                lower(name) ~ '(^| )huevos?( entero)?($| )' AND lower(unit) IN ('mg','g','kg') round_units
               FROM portions
             )
             SELECT (array_agg(id ORDER BY id::text))[1] ingredient_id,
-              MIN(name) name,MIN(category) category,unit,SUM(quantity) quantity
+              MIN(name) name,MIN(category) category,unit,
+              CASE WHEN bool_or(round_units) THEN CEIL(SUM(quantity)) ELSE SUM(quantity) END quantity
             FROM raw
             GROUP BY lower(trim(name)),unit
             ORDER BY MIN(category),MIN(name)
@@ -471,13 +493,13 @@ public class NutritionController {
     int order = 0;
     for (Map<String, Object> row : totals) {
       java.math.BigDecimal required = (java.math.BigDecimal) row.get("quantity");
-      List<Map<String,Object>> stockRows=db.queryForList("SELECT s.ingredient_id,s.unit stock_unit,s.quantity original_quantity,s.quantity*CASE WHEN lower(s.unit) IN ('kg','l') THEN 1000 ELSE 1 END quantity FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id WHERE s.household_id=? AND lower(trim(i.name))=lower(trim(?)) AND CASE WHEN lower(s.unit) IN ('l','ml') OR (lower(s.unit) IN ('g','kg') AND (upper(i.category) IN ('DRINKS','BEBIDA','BEBIDAS') OR lower(i.name) ~ '(^| )(leche|agua|zumo|bebida)')) THEN 'ml' WHEN lower(s.unit) IN ('kg','g') THEN 'g' WHEN lower(s.unit) IN ('ud','uds','unidad','unidades') THEN 'ud' ELSE lower(s.unit) END=? AND s.quantity>0 ORDER BY s.updated_at",household,row.get("name"),row.get("unit"));
+      List<Map<String,Object>> stockRows=db.queryForList("SELECT s.ingredient_id,s.unit stock_unit,s.quantity original_quantity,CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='mg' THEN 1.0/60000 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='g' THEN 1.0/60 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='kg' THEN 1000.0/60 WHEN lower(s.unit) IN ('kg','l') THEN 1000 WHEN lower(s.unit)='mg' THEN 0.001 ELSE 1 END conversion_factor,s.quantity*CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='mg' THEN 1.0/60000 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='g' THEN 1.0/60 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='kg' THEN 1000.0/60 WHEN lower(s.unit) IN ('kg','l') THEN 1000 WHEN lower(s.unit)='mg' THEN 0.001 ELSE 1 END quantity FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id WHERE s.household_id=? AND lower(trim(i.name))=lower(trim(?)) AND CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit) IN ('mg','g','kg') THEN 'ud' WHEN lower(s.unit) IN ('l','ml') OR (lower(s.unit) IN ('mg','g','kg') AND (upper(i.category) IN ('DRINKS','BEBIDA','BEBIDAS') OR lower(i.name) ~ '(^| )(leche|agua|zumo|bebida)')) THEN 'ml' WHEN lower(s.unit) IN ('mg','kg','g') THEN 'g' WHEN lower(s.unit) IN ('ud','uds','unidad','unidades') THEN 'ud' ELSE lower(s.unit) END=? AND s.quantity>0 ORDER BY s.updated_at",household,row.get("name"),row.get("unit"));
       java.math.BigDecimal stock=stockRows.stream().map(value->(java.math.BigDecimal)value.get("quantity")).reduce(java.math.BigDecimal.ZERO,java.math.BigDecimal::add);
       if (stock == null) stock = java.math.BigDecimal.ZERO;
       java.math.BigDecimal pantryUsed = stock.min(required);
       java.math.BigDecimal toBuy = required.subtract(pantryUsed);
       java.math.BigDecimal remainingUse=pantryUsed;
-      for(Map<String,Object> stockRow:stockRows){if(remainingUse.signum()<=0)break;java.math.BigDecimal available=(java.math.BigDecimal)stockRow.get("quantity"),used=available.min(remainingUse),factor=Set.of("kg","l").contains(String.valueOf(stockRow.get("stock_unit")).toLowerCase())?java.math.BigDecimal.valueOf(1000):java.math.BigDecimal.ONE;db.update("UPDATE household_pantry_stock SET quantity=quantity-?,updated_at=CURRENT_TIMESTAMP WHERE household_id=? AND ingredient_id=? AND unit=?",used.divide(factor),household,stockRow.get("ingredient_id"),stockRow.get("stock_unit"));remainingUse=remainingUse.subtract(used);}
+      for(Map<String,Object> stockRow:stockRows){if(remainingUse.signum()<=0)break;java.math.BigDecimal available=(java.math.BigDecimal)stockRow.get("quantity"),used=available.min(remainingUse),factor=(java.math.BigDecimal)stockRow.get("conversion_factor");db.update("UPDATE household_pantry_stock SET quantity=GREATEST(0,quantity-?),updated_at=CURRENT_TIMESTAMP WHERE household_id=? AND ingredient_id=? AND unit=?",used.divide(factor,6,java.math.RoundingMode.HALF_UP),household,stockRow.get("ingredient_id"),stockRow.get("stock_unit"));remainingUse=remainingUse.subtract(used);}
       db.update(
           "INSERT INTO"
               + " shopping_list_item(id,shopping_list_id,ingredient_id,name,category,quantity,required_quantity,pantry_used,unit,item_order)"
