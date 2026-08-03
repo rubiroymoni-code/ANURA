@@ -153,6 +153,7 @@ export const workoutApi = {
   planDetails:(id:string)=>request<PlannedWorkoutExercise[]>(`/workout-plans/${id}/details`),
   deletePlan:(id:string)=>request<void>(`/workout-plans/${id}`,{method:"DELETE"}),
   one:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}`),
+  deleteSession:(id:string)=>request<void>(`/workout-sessions/${id}`,{method:"DELETE"}),
   start:(body:{workoutPlanDayId?:string;name?:string;clientExternalId:string})=>request<WorkoutSession>("/workout-sessions",{method:"POST",body:JSON.stringify(body)}),
   pause:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/pause`,{method:"POST"}),
   resume:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/resume`,{method:"POST"}),

@@ -15,6 +15,7 @@ public class WorkoutExecutionController {
  @PostMapping("/api/v1/workout-sessions") @ResponseStatus(HttpStatus.CREATED) SessionView start(@Valid @RequestBody StartRequest r){return service.start(r);}
  @GetMapping("/api/v1/workout-sessions") List<SessionSummary> history(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="20") int size){return service.history(page,size);}
  @GetMapping("/api/v1/workout-sessions/{id}") SessionView one(@PathVariable UUID id){return service.view(id);}
+ @DeleteMapping("/api/v1/workout-sessions/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) void delete(@PathVariable UUID id){service.deleteSession(id);}
  @PostMapping("/api/v1/workout-sessions/{id}/pause") SessionView pause(@PathVariable UUID id){return service.transition(id,"PAUSED","SESSION_PAUSED");}
  @PostMapping("/api/v1/workout-sessions/{id}/resume") SessionView resume(@PathVariable UUID id){return service.transition(id,"IN_PROGRESS","SESSION_RESUMED");}
  @PostMapping("/api/v1/workout-sessions/{id}/abandon") SessionView abandon(@PathVariable UUID id,@RequestBody(required=false) AbandonRequest body){return service.abandon(id,body==null?null:body.reason());}

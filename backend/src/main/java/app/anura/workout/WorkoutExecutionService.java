@@ -89,6 +89,14 @@ public class WorkoutExecutionService {
         return new SessionView(h, exercises(id), metrics(id));
     }
 
+    @Transactional public void deleteSession(UUID id) {
+        SessionView session=view(id);
+        if(List.of("IN_PROGRESS","PAUSED").contains(session.header().status())) throw conflict("ACTIVE_SESSION_DELETE","Cancela primero el entrenamiento en curso");
+        db.update("DELETE FROM workout_personal_record WHERE source_set_performance_id IN (SELECT sp.id FROM set_performance sp JOIN exercise_performance ep ON ep.id=sp.exercise_performance_id WHERE ep.workout_session_id=?)",id);
+        db.update("UPDATE workout_session SET deleted_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND deleted_at IS NULL",id,CurrentUser.id());
+        audit("SESSION_DELETED","WORKOUT_SESSION",id,"SUCCESS");
+    }
+
     @Transactional public SessionView transition(UUID id,String target,String event) {
         SessionView current=view(id); String status=current.header().status();
         boolean valid=(target.equals("PAUSED")&&status.equals("IN_PROGRESS"))||(target.equals("IN_PROGRESS")&&status.equals("PAUSED"))||(target.equals("ABANDONED")&&(status.equals("PAUSED")||status.equals("IN_PROGRESS")));
@@ -143,7 +151,7 @@ public class WorkoutExecutionService {
             SELECT s.id,s.planned_date,s.session_name,sp.weight,sp.repetitions,sp.rir,sp.rpe,sp.set_number
             FROM workout_session s JOIN exercise_performance ep ON ep.workout_session_id=s.id
             JOIN set_performance sp ON sp.exercise_performance_id=ep.id
-            WHERE s.user_id=? AND ep.exercise_id=? AND s.status='COMPLETED' AND sp.completed
+            WHERE s.user_id=? AND ep.exercise_id=? AND s.status='COMPLETED' AND s.deleted_at IS NULL AND sp.completed
               AND sp.deleted_at IS NULL
             ORDER BY s.completed_at DESC,sp.set_number LIMIT ?
             """,(r,n)->new ExerciseHistory(r.getObject(1,UUID.class),r.getObject(2,LocalDate.class),r.getString(3),decimal(r,4),integer(r,5),decimal(r,6),decimal(r,7),r.getInt(8)),CurrentUser.id(),exerciseId,Math.min(Math.max(limit,1),100));
