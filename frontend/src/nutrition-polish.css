@@ -6,3 +6,4 @@
 .workout-hub .workout-tabs{position:relative!important;inset:auto!important;flex:0 0 62px!important;height:62px!important;margin-top:8px;padding:5px!important;gap:4px;background:#e8ece6!important;border:0!important;border-radius:17px!important;box-shadow:none!important;z-index:30!important}
 .workout-hub .workout-tabs button{height:100%;min-width:0!important;border-radius:12px!important;align-content:center}.workout-hub .workout-tabs button.active{background:#fff!important;box-shadow:0 5px 16px #14201812}
 @media(max-width:600px){.nutrition-overview-summary{grid-template-columns:1fr auto}.nutrition-overview-summary>svg{display:none}.workout-hub .workout-tabs{border-radius:14px 14px 0 0!important;margin-top:4px}}
+.workout-hub .today-workout>.secondary-action{width:auto;min-width:170px;justify-self:start;padding:11px 18px}
