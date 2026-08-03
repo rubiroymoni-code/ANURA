@@ -51,17 +51,30 @@ public class WorkoutExecutionService {
 
     @Transactional public TodayWorkout rescheduleToday(LocalDate target) {
         TodayWorkout workout=today(); if(workout==null) throw notFound();
-        LocalDate current=LocalDate.now(); if(target==null||!target.isAfter(current)||target.isAfter(current.plusDays(7))) throw bad("INVALID_WORKOUT_DATE","Elige uno de los próximos 7 días");
-        db.update("INSERT INTO workout_day_adjustment(id,user_id,workout_plan_id,workout_plan_day_id,original_date,scheduled_date,status) VALUES(?,?,?,?,?,?,'MOVED') ON CONFLICT(user_id,workout_plan_day_id,original_date) DO UPDATE SET scheduled_date=EXCLUDED.scheduled_date,status='MOVED',reason=NULL,updated_at=CURRENT_TIMESTAMP",UUID.randomUUID(),CurrentUser.id(),workout.planId(),workout.dayId(),current,target);
-        audit("WORKOUT_DAY_MOVED","WORKOUT_PLAN_DAY",workout.dayId(),"SUCCESS"); return workout;
+        rescheduleDay(workout.dayId(),LocalDate.now(),target); return workout;
     }
 
     @Transactional public void skipToday(String reason) {
-        TodayWorkout workout=today(); if(workout==null) throw notFound(); UUID user=CurrentUser.id(); LocalDate current=LocalDate.now();
-        db.update("INSERT INTO workout_day_adjustment(id,user_id,workout_plan_id,workout_plan_day_id,original_date,status,reason) VALUES(?,?,?,?,?,'SKIPPED',?) ON CONFLICT(user_id,workout_plan_day_id,original_date) DO UPDATE SET scheduled_date=NULL,status='SKIPPED',reason=EXCLUDED.reason,updated_at=CURRENT_TIMESTAMP",UUID.randomUUID(),user,workout.planId(),workout.dayId(),current,reason);
-        db.update("INSERT INTO workout_session(id,user_id,workout_plan_id,workout_plan_version,workout_plan_day_id,session_name,planned_date,started_at,last_activity_at,status,client_external_id,adherence_reason,adherence_percent) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'ABANDONED',?,?,0)",UUID.randomUUID(),user,workout.planId(),workout.planVersion(),workout.dayId(),workout.sessionName(),current,UUID.randomUUID(),reason==null?"No disponible":reason);
-        audit("WORKOUT_DAY_SKIPPED","WORKOUT_PLAN_DAY",workout.dayId(),"SUCCESS");
+        TodayWorkout workout=today(); if(workout==null) throw notFound(); skipDay(workout.dayId(),LocalDate.now(),reason);
     }
+
+    @Transactional public void rescheduleDay(UUID dayId,LocalDate original,LocalDate target) {
+        Map<String,Object> day=ownedPlanDay(dayId); LocalDate current=LocalDate.now();
+        if(original==null||original.isBefore(current)||original.isAfter(current.plusDays(7))||target==null||target.equals(original)||target.isBefore(current)||target.isAfter(original.plusDays(14))) throw bad("INVALID_WORKOUT_DATE","Elige una fecha válida dentro de las dos semanas siguientes");
+        db.update("INSERT INTO workout_day_adjustment(id,user_id,workout_plan_id,workout_plan_day_id,original_date,scheduled_date,status) VALUES(?,?,?,?,?,?,'MOVED') ON CONFLICT(user_id,workout_plan_day_id,original_date) DO UPDATE SET scheduled_date=EXCLUDED.scheduled_date,status='MOVED',reason=NULL,updated_at=CURRENT_TIMESTAMP",UUID.randomUUID(),CurrentUser.id(),day.get("plan_id"),dayId,original,target);
+        audit("WORKOUT_DAY_MOVED","WORKOUT_PLAN_DAY",dayId,"SUCCESS");
+    }
+
+    @Transactional public void skipDay(UUID dayId,LocalDate original,String reason) {
+        Map<String,Object> day=ownedPlanDay(dayId); UUID user=CurrentUser.id(); LocalDate current=LocalDate.now();
+        if(original==null||original.isBefore(current)||original.isAfter(current.plusDays(7))) throw bad("INVALID_WORKOUT_DATE","La sesión debe pertenecer a los próximos 7 días");
+        if(db.queryForObject("SELECT count(*) FROM workout_session WHERE user_id=? AND workout_plan_day_id=? AND planned_date=? AND deleted_at IS NULL",Integer.class,user,dayId,original)>0) throw conflict("WORKOUT_ALREADY_RECORDED","Esta sesión ya tiene un registro");
+        db.update("INSERT INTO workout_day_adjustment(id,user_id,workout_plan_id,workout_plan_day_id,original_date,status,reason) VALUES(?,?,?,?,?,'SKIPPED',?) ON CONFLICT(user_id,workout_plan_day_id,original_date) DO UPDATE SET scheduled_date=NULL,status='SKIPPED',reason=EXCLUDED.reason,updated_at=CURRENT_TIMESTAMP",UUID.randomUUID(),user,day.get("plan_id"),dayId,original,reason);
+        db.update("INSERT INTO workout_session(id,user_id,workout_plan_id,workout_plan_version,workout_plan_day_id,session_name,planned_date,started_at,last_activity_at,status,client_external_id,adherence_reason,adherence_percent) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'ABANDONED',?,?,0)",UUID.randomUUID(),user,day.get("plan_id"),day.get("version"),dayId,day.get("session_name"),original,UUID.randomUUID(),reason==null?"No disponible":reason);
+        audit("WORKOUT_DAY_SKIPPED","WORKOUT_PLAN_DAY",dayId,"SUCCESS");
+    }
+
+    private Map<String,Object> ownedPlanDay(UUID dayId){return db.queryForList("SELECT d.id,d.workout_plan_id plan_id,d.session_name,p.version FROM workout_plan_day d JOIN workout_plan p ON p.id=d.workout_plan_id WHERE d.id=? AND p.user_id=? AND p.status='ACTIVE'",dayId,CurrentUser.id()).stream().findFirst().orElseThrow(()->notFound());}
 
     public SessionView active() {
         return db.query("SELECT id FROM workout_session WHERE user_id=? AND status IN ('IN_PROGRESS','PAUSED') AND deleted_at IS NULL ORDER BY started_at DESC LIMIT 1", (r,n)->view(r.getObject(1,UUID.class)), CurrentUser.id()).stream().findFirst().orElse(null);
