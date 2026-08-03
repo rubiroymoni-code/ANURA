@@ -302,7 +302,7 @@ export function App() {
       )}
       {importOpen && <TrainingImport onClose={() => setImportOpen(false)} />}
       {nutritionOpen && (
-        <NutritionHub onClose={() => setNutritionOpen(false)} onRegisterMeal={(mealId)=>{setSelectedPlannedMeal(mealId);setNutritionOpen(false);setEditingMeal(null);setMealFlowOpen(true)}} />
+        <NutritionHub onClose={() => setNutritionOpen(false)} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setNutritionOpen(false);setEditingMeal(null);setMealFlowOpen(true)}} />
       )}
       {workoutOpen && (
         <WorkoutHub
