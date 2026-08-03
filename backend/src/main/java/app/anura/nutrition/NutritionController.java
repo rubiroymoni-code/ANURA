@@ -47,8 +47,8 @@ public class NutritionController {
   @GetMapping("/recipes")
   List<Map<String, Object>> recipes() {
     return db.queryForList(
-        "SELECT DISTINCT r.id,r.code,r.name,r.servings FROM recipe r LEFT JOIN household_member m"
-            + " ON m.household_id=r.household_id WHERE r.owner_id=? OR m.user_id=? ORDER BY r.name",
+        "SELECT DISTINCT r.id,r.code,r.name,r.servings FROM recipe r JOIN planned_meal pm ON pm.recipe_id=r.id JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id JOIN nutrition_plan p ON p.id=d.nutrition_plan_id LEFT JOIN household_member m"
+            + " ON m.household_id=p.household_id WHERE p.status='ACTIVE' AND (p.owner_id=? OR m.user_id=?) ORDER BY r.name",
         CurrentUser.id(),
         CurrentUser.id());
   }
@@ -317,6 +317,51 @@ public class NutritionController {
         CurrentUser.id());
   }
 
+  @DeleteMapping("/shopping-lists/{id}")
+  @Transactional
+  void resetShoppingList(@PathVariable UUID id) {
+    UUID household=db.query("SELECT s.household_id FROM shopping_list s JOIN household_member m ON m.household_id=s.household_id WHERE s.id=? AND m.user_id=?",(r,n)->r.getObject(1,UUID.class),id,CurrentUser.id()).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.NOT_FOUND,"SHOPPING_LIST_NOT_FOUND","Lista de compra no encontrada"));
+    db.update("""
+        INSERT INTO household_pantry_stock(household_id,ingredient_id,unit,quantity)
+        SELECT ?,ingredient_id,unit,SUM(pantry_used) FROM shopping_list_item
+        WHERE shopping_list_id=? AND ingredient_id IS NOT NULL AND pantry_used>0
+        GROUP BY ingredient_id,unit
+        ON CONFLICT(household_id,ingredient_id,unit) DO UPDATE SET
+          quantity=household_pantry_stock.quantity+EXCLUDED.quantity,updated_at=CURRENT_TIMESTAMP
+        """,household,id);
+    int deleted=db.update("DELETE FROM shopping_list s WHERE s.id=? AND EXISTS(SELECT 1 FROM household_member m WHERE m.household_id=s.household_id AND m.user_id=?)",id,CurrentUser.id());
+    if(deleted==0)throw new ApiException(HttpStatus.NOT_FOUND,"SHOPPING_LIST_NOT_FOUND","Lista de compra no encontrada");
+  }
+
+  @GetMapping("/pantry")
+  List<Map<String,Object>> pantry(){
+    return db.queryForList("SELECT s.ingredient_id,i.name,i.category,s.unit,s.quantity,s.updated_at FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id JOIN household_member m ON m.household_id=s.household_id WHERE m.user_id=? AND s.quantity>0 ORDER BY i.category,i.name",CurrentUser.id());
+  }
+
+  @PostMapping("/pantry")
+  @Transactional
+  Map<String,Object> addPantry(@RequestBody PantryItem body){
+    if(body.name()==null||body.name().isBlank()||body.unit()==null||body.unit().isBlank()||body.quantity()==null||body.quantity().signum()<0)throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PANTRY_ITEM","Revisa el alimento, la cantidad y la unidad");
+    UUID household=db.query("SELECT household_id FROM household_member WHERE user_id=? ORDER BY joined_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),CurrentUser.id()).stream().findFirst().orElseThrow(()->new ApiException(HttpStatus.CONFLICT,"HOUSEHOLD_REQUIRED","Crea o acepta una unidad doméstica"));
+    String unit=body.unit().trim().toLowerCase(),name=body.name().trim(),category=body.category()==null||body.category().isBlank()?"OTHER":body.category().trim().toUpperCase();
+    UUID ingredient=db.query("SELECT id FROM ingredient WHERE household_id=? AND lower(trim(name))=lower(?) AND lower(base_unit)=? ORDER BY created_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),household,name,unit).stream().findFirst().orElseGet(()->{UUID id=UUID.randomUUID();db.update("INSERT INTO ingredient(id,household_id,code,name,category,base_unit) VALUES(?,?,?,?,?,?)",id,household,"PANTRY_"+id,name,category,unit);return id;});
+    db.update("INSERT INTO household_pantry_stock(household_id,ingredient_id,unit,quantity) VALUES(?,?,?,?) ON CONFLICT(household_id,ingredient_id,unit) DO UPDATE SET quantity=household_pantry_stock.quantity+EXCLUDED.quantity,updated_at=CURRENT_TIMESTAMP",household,ingredient,unit,body.quantity());
+    return Map.of("ingredientId",ingredient,"name",name);
+  }
+
+  @PatchMapping("/pantry/{ingredientId}")
+  void updatePantry(@PathVariable UUID ingredientId,@RequestBody PantryItem body){
+    if(body.quantity()==null||body.quantity().signum()<0||body.unit()==null||body.unit().isBlank())throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_PANTRY_QUANTITY","La cantidad no es válida");
+    int updated=db.update("UPDATE household_pantry_stock s SET quantity=?,updated_at=CURRENT_TIMESTAMP WHERE s.ingredient_id=? AND s.unit=? AND EXISTS(SELECT 1 FROM household_member m WHERE m.household_id=s.household_id AND m.user_id=?)",body.quantity(),ingredientId,body.unit().trim().toLowerCase(),CurrentUser.id());
+    if(updated==0)throw new ApiException(HttpStatus.NOT_FOUND,"PANTRY_ITEM_NOT_FOUND","Alimento no encontrado en despensa");
+  }
+
+  @DeleteMapping("/pantry/{ingredientId}")
+  void deletePantryItem(@PathVariable UUID ingredientId,@RequestParam String unit){db.update("DELETE FROM household_pantry_stock s WHERE s.ingredient_id=? AND s.unit=? AND EXISTS(SELECT 1 FROM household_member m WHERE m.household_id=s.household_id AND m.user_id=?)",ingredientId,unit,CurrentUser.id());}
+
+  @DeleteMapping("/pantry")
+  void clearPantry(){db.update("DELETE FROM household_pantry_stock s WHERE EXISTS(SELECT 1 FROM household_member m WHERE m.household_id=s.household_id AND m.user_id=?)",CurrentUser.id());}
+
   @PostMapping("/plans/{planId}/shopping-list")
   @Transactional
   Map<String, Object> generateShoppingList(
@@ -529,5 +574,6 @@ public class NutritionController {
 }
 
 record Item(String name, String category, java.math.BigDecimal quantity, String unit) {}
+record PantryItem(String name,String category,java.math.BigDecimal quantity,String unit) {}
 record Quantity(java.math.BigDecimal quantity) {}
 record NutritionTarget(LocalDate validFrom, java.math.BigDecimal calories, java.math.BigDecimal protein, java.math.BigDecimal carbohydrates, java.math.BigDecimal fat, java.math.BigDecimal fiber) {}

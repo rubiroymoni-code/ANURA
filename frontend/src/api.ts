@@ -292,6 +292,12 @@ export const nutritionApi = {
     request<{id:string;name:string}>(`/nutrition/shopping-lists/${id}/items`, {method:"POST",body:JSON.stringify(body)}),
   shoppingQuantity: (id: string, quantity: number) =>
     request<void>(`/nutrition/shopping-items/${id}/quantity`, {method:"PATCH",body:JSON.stringify({quantity})}),
+  resetShopping:(id:string)=>request<void>(`/nutrition/shopping-lists/${id}`,{method:"DELETE"}),
+  pantry:()=>request<Array<{ingredient_id:string;name:string;category:string;quantity:number;unit:string}>>("/nutrition/pantry"),
+  addPantry:(body:{name:string;category:string;quantity:number;unit:string})=>request<{ingredientId:string;name:string}>("/nutrition/pantry",{method:"POST",body:JSON.stringify(body)}),
+  updatePantry:(ingredientId:string,quantity:number,unit:string)=>request<void>(`/nutrition/pantry/${ingredientId}`,{method:"PATCH",body:JSON.stringify({quantity,unit})}),
+  deletePantry:(ingredientId:string,unit:string)=>request<void>(`/nutrition/pantry/${ingredientId}?unit=${encodeURIComponent(unit)}`,{method:"DELETE"}),
+  clearPantry:()=>request<void>("/nutrition/pantry",{method:"DELETE"}),
   toggle: (id: string) =>
     request<void>(`/nutrition/shopping-items/${id}/toggle`, {
       method: "PATCH",
