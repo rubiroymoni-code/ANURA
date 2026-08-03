@@ -233,6 +233,7 @@ export const nutritionApi = {
   targets:()=>request<Array<Record<string,number|string>>>("/nutrition/targets"),
   saveTarget:(data:{validFrom:string;calories:number;protein?:number;carbohydrates?:number;fat?:number;fiber?:number})=>request<void>("/nutrition/targets",{method:"PUT",body:JSON.stringify(data)}),
   completeToday:(id:string)=>request<Record<string,unknown>>(`/nutrition/today/${id}/complete`,{method:"POST"}),
+  undoToday:(id:string)=>request<void>(`/nutrition/today/${id}/completion`,{method:"DELETE"}),
   skipToday:(id:string,notes?:string)=>request<Record<string,unknown>>(`/nutrition/today/${id}/skip`,{method:"POST",body:JSON.stringify({notes})}),
   substituteToday:(id:string,data:Omit<MealInput,"mealType"|"date">)=>request<Record<string,unknown>>(`/nutrition/today/${id}/substitute`,{method:"POST",body:JSON.stringify(data)}),
   partialToday:(id:string,data:{percent:number;reason?:string;portion?:string;notes?:string})=>request<Record<string,unknown>>(`/nutrition/today/${id}/partial`,{method:"POST",body:JSON.stringify(data)}),
