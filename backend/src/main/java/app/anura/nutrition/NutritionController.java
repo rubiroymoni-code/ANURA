@@ -60,7 +60,7 @@ public class NutritionController {
             + " i.calories_100,i.protein_100,i.carbohydrates_100,i.fat_100,i.fiber_100 FROM recipe"
             + " r JOIN recipe_ingredient ri ON ri.recipe_id=r.id JOIN ingredient i ON"
             + " i.id=ri.ingredient_id LEFT JOIN household_member m ON m.household_id=r.household_id"
-            + " WHERE r.id=? AND (r.owner_id=? OR m.user_id=?) ORDER BY ri.ingredient_order",
+            + " WHERE r.id=? AND (r.owner_id=? OR m.user_id=?) AND EXISTS(SELECT 1 FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id JOIN nutrition_plan p ON p.id=d.nutrition_plan_id JOIN user_meal_ingredient_portion exact ON exact.planned_meal_id=pm.id AND exact.ingredient_id=ri.ingredient_id WHERE pm.recipe_id=r.id AND p.status='ACTIVE') ORDER BY ri.ingredient_order",
         id,
         CurrentUser.id(),
         CurrentUser.id());
