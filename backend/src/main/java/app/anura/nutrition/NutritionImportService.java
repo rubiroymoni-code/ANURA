@@ -116,7 +116,7 @@ public class NutritionImportService {
     if (!p.errors.isEmpty())
       throw new ApiException(
           HttpStatus.CONFLICT, "IMPORT_CHANGED", "La importación dejó de ser válida");
-    if ("RECIPES".equals(job.get("import_type"))) persistRecipes(p, user, null);
+    if ("RECIPES".equals(job.get("import_type"))) persistRecipes(p, user, null, null);
     else persistPlan(p, user);
     db.update(
         "UPDATE import_job SET status='CONFIRMED',confirmed_at=CURRENT_TIMESTAMP WHERE id=?", id);
@@ -185,7 +185,7 @@ public class NutritionImportService {
           p.from,
           p.until);
     final UUID householdScope = household;
-    persistRecipes(p, user, householdScope);
+    Map<String,UUID> planRecipes=persistRecipes(p,user,householdScope,plan);
     Map<String, UUID> days = new LinkedHashMap<>(), meals = new LinkedHashMap<>();
     for (Row r : p.rows) {
       String dk = r.week + ":" + r.day;
@@ -211,7 +211,7 @@ public class NutritionImportService {
           meals.computeIfAbsent(
               mk,
               k -> {
-                UUID recipe = recipe(r.recipeCode, r.recipeName, user, householdScope);
+                UUID recipe = planRecipes.get(r.recipeCode);
                 UUID x = UUID.randomUUID();
                 db.update(
                     "INSERT INTO"
@@ -254,9 +254,10 @@ public class NutritionImportService {
     }
   }
 
-  private void persistRecipes(Parsed p, UUID user, UUID household) {
+  private Map<String,UUID> persistRecipes(Parsed p, UUID user, UUID household,UUID planSnapshot) {
+    Map<String,UUID> recipes=new LinkedHashMap<>();
     for (Row r : p.rows) {
-      UUID recipe = recipe(r.recipeCode, r.recipeName, user, household);
+      UUID recipe=recipes.computeIfAbsent(r.recipeCode,code->{String storedCode=code;if(planSnapshot!=null){String prefix=code.length()>48?code.substring(0,48):code;storedCode=prefix+"__PLAN_"+planSnapshot;}return recipe(storedCode,r.recipeName,user,household);});
       UUID ing =
           db
               .query(
@@ -309,6 +310,7 @@ public class NutritionImportService {
             r.unit,
             r.ingredientOrder);
     }
+    return recipes;
   }
 
   private UUID recipe(String code, String name, UUID user, UUID household) {

@@ -305,6 +305,7 @@ public class NutritionController {
     db.update("UPDATE tracker_entry SET planned_meal_id=NULL WHERE planned_meal_id IN (SELECT pm.id FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id WHERE d.nutrition_plan_id=?)",id);
     db.update("DELETE FROM shopping_list WHERE nutrition_plan_id=?",id);
     db.update("DELETE FROM nutrition_plan WHERE id=?",id);
+    db.update("DELETE FROM recipe r WHERE r.code LIKE '%__PLAN_%' AND NOT EXISTS(SELECT 1 FROM planned_meal pm WHERE pm.recipe_id=r.id)");
     db.update("DELETE FROM import_job WHERE user_id=? AND import_type IN ('INDIVIDUAL_DIET','SHARED_DIET') AND external_id=? AND plan_version=?",CurrentUser.id(),plan.get("external_id"),plan.get("version"));
   }
 
