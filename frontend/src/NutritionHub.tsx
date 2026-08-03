@@ -7,7 +7,6 @@ import {
   nutritionApi,
   NutritionImportPreview,
   NutritionDashboard,
-  AdherenceDashboard,
   TodayMeal,
 } from "./api";
 import {
@@ -27,7 +26,6 @@ import {
   X,
 } from "lucide-react";
 import { HouseholdView } from "./HouseholdView";
-import { AdherenceCard as SplitAdherenceCard } from "./AdherenceCard";
 import { SupplementsPanel } from "./SupplementsPanel";
 import { NutritionPreferencesPanel } from "./NutritionPreferencesPanel";
 export function NutritionHub({ onClose }: { onClose: () => void }) {
@@ -47,12 +45,11 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
   const [loadError, setLoadError] = useState("");
   const [todayMeals,setTodayMeals]=useState<TodayMeal[]>([]);
   const [dashboard,setDashboard]=useState<NutritionDashboard|null>(null);
-  const [adherence,setAdherence]=useState<AdherenceDashboard|null>(null);
+  const [balanceExpanded,setBalanceExpanded]=useState(false);
   const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
   useEffect(() => {
-    void nutritionApi.today().then(setTodayMeals).catch(()=>setTodayMeals([]));
+    void nutritionApi.today().then(rows=>setTodayMeals(rows.map(localizeMeal))).catch(()=>setTodayMeals([]));
     void nutritionApi.dashboard().then(setDashboard).catch(()=>setDashboard(null));
-    void nutritionApi.adherence().then(setAdherence).catch(()=>setAdherence(null));
     void Promise.allSettled([
       householdApi.list(), nutritionApi.recipes(), nutritionApi.plans(),
     ]).then(([householdResult, recipeResult, planResult]) => {
@@ -63,6 +60,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
       if (rejected?.status === "rejected") setLoadError(rejected.reason instanceof Error ? rejected.reason.message : "No se pudo cargar nutrición");
     });
   }, []);
+  useEffect(()=>{if(todayMeals.some(meal=>/^[A-Z_]+$/.test(meal.meal_type)))setTodayMeals(rows=>rows.map(localizeMeal))},[todayMeals]);
   return (
     <div className="overlay">
       <section className="modal nutrition-hub">
@@ -98,24 +96,7 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
         {loadError && <div className="error" role="alert">{loadError}</div>}
         {section === "home" && (
           <>
-            {activePlan && (
-              <button
-                className="active-nutrition-plan"
-                onClick={() => {
-                  setSelectedPlan(activePlan.id);
-                  setSection("plan");
-                }}
-              >
-                <span>
-                  <small>PLAN ACTUAL</small>
-                  <b>{activePlan.name}</b>
-                  <em>Versión {activePlan.version}</em>
-                </span>
-                <strong>Ver mis comidas →</strong>
-              </button>
-            )}
-            {dashboard&&<NutritionBalance data={dashboard}/>}
-            {adherence&&<SplitAdherenceCard data={adherence} mode="nutrition"/>}
+            {dashboard&&<section className={`nutrition-overview ${balanceExpanded?"expanded":""}`}><button className="nutrition-overview-summary" onClick={()=>setBalanceExpanded(value=>!value)}><span><small>BALANCE DE HOY</small><b>{Number(dashboard.consumed.calories||0).toFixed(0)} / {Number(dashboard.target.calories||dashboard.planned.calories||0).toFixed(0)} kcal</b><em>{activePlan?`${activePlan.name} · versión ${activePlan.version}`:"Sin plan activo"}</em></span><strong>{Math.round(Number(dashboard.target.calories||dashboard.planned.calories||0)?Number(dashboard.consumed.calories||0)/Number(dashboard.target.calories||dashboard.planned.calories||1)*100:0)}%</strong><ChevronDown/></button>{balanceExpanded&&<div className="nutrition-overview-detail"><NutritionBalance data={dashboard}/>{activePlan&&<button className="primary" onClick={()=>{setSelectedPlan(activePlan.id);setSection("plan")}}>Ver plan actual</button>}</div>}</section>}
             <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3><p>Abre una comida para consultar su receta o usa el check lateral para completarla directamente.</p></div>{todayMeals.length?todayMeals.map(meal=><article className={meal.status==="COMPLETED"?"completed":""} key={meal.planned_meal_id}><button className="today-recipe-link" onClick={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);setSection("recipe")}}}><small>{meal.meal_type}</small><b>{meal.recipe||meal.meal_name}</b><em>{Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</em></button><button aria-label={`Completar ${meal.meal_name}`} disabled={meal.status==="COMPLETED"} onClick={async()=>{await nutritionApi.completeToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setDashboard(await nutritionApi.dashboard())}}>{meal.status==="COMPLETED"?"✓":"○"}</button></article>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}</section>
             <details className="nutrition-tools"><summary>Gestión y configuración</summary><div className="nutrition-menu">
               <button onClick={() => setSection("household")}>
@@ -188,8 +169,6 @@ export function NutritionHub({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
-function AdherenceCard({data}:{data:AdherenceDashboard}){const days=["","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];return <section className="adherence-card"><div><small>ÚLTIMOS {data.days} DÍAS</small><h3>Adherencia real</h3><p>Incluye también lo planificado que quedó sin registrar.</p></div><div className="adherence-scores"><span><b>{Number(data.meals.score).toFixed(0)}%</b><small>Nutrición · {data.meals.expected} previstas</small></span><span><b>{Number(data.workouts.score).toFixed(0)}%</b><small>Entreno · {data.workouts.expected} previstos</small></span></div>{data.weekly.length>0&&<div className="adherence-trend">{data.weekly.map(row=><span key={row.week} title={`Semana ${row.week}`}><i style={{height:`${Number(row.meal_score||0)}%`}}/><b style={{height:`${Number(row.workout_score||0)}%`}}/><small>{new Date(row.week+"T12:00").toLocaleDateString("es",{day:"numeric",month:"short"})}</small></span>)}</div>}<div className="adherence-breakdown"><span>{data.meals.completed} comidas completas</span><span>{data.meals.substituted} sustituidas</span><span>{data.meals.partial} parciales</span><span>{data.meals.skipped} saltadas</span><span>{data.workouts.partial} entrenos parciales</span>{data.meals.missing>0&&<span>{data.meals.missing} comidas sin registrar</span>}</div>{data.patterns[0]&&<p className="adherence-pattern">Más cambios registrados: <b>{days[data.patterns[0].day_number]}</b>. Es una señal para revisar contexto, no un juicio.</p>}</section>}
-
 function NutritionBalance({data}:{data:NutritionDashboard}){
   const [editing,setEditing]=useState(false);
   const [current,setCurrent]=useState(data);
@@ -597,9 +576,9 @@ function Shopping({ plans }: { plans: Array<{ id: string;name:string;status:stri
     {error&&<p className="error">{error}</p>}
     {!listId?<div className="empty">Genera la lista de la semana desde tu plan activo.</div>:<>
       <div className="shopping-export prominent"><button className="primary secondary" onClick={()=>navigator.clipboard.writeText(items.filter(i=>!i.purchased&&i.quantity>0).map(i=>`${i.name}: ${displayQuantity(i.quantity,i.unit)}`).join("\n"))}>Copiar lista</button><button className="primary" onClick={()=>{void navigator.clipboard.writeText(`Lista ANURA · ${weekOptions.find(x=>x.number===week)?.label}\n\n${items.filter(i=>!i.purchased&&i.quantity>0).map(i=>`☐ ${i.name}: ${displayQuantity(i.quantity,i.unit)}`).join("\n")}`);window.open("https://keep.google.com/#home","_blank","noopener,noreferrer")}}>Abrir en Google Keep</button></div>
-      <div className="pantry-note">La despensa descuenta automáticamente los sobrantes comprados en semanas anteriores.</div>
+      <div className="pantry-note">Indica lo que compras realmente y después marca el check. ANURA guarda el sobrante doméstico y lo descuenta de próximas semanas.</div>
       {categories.map(category=><section className="shopping-category" key={category}><h4>{categoryLabel(category)}</h4>{items.filter(i=>(i.category||"OTHER")===category).map(i=><article className={`shopping-item ${i.purchased?"purchased":""}`} key={i.id}>
-        <button className="shopping-check" onClick={async()=>{await nutritionApi.toggle(i.id);await refreshItems()}}>{i.purchased?"✓":"○"}</button><div><b>{i.name}</b><small>Necesario: {displayQuantity(i.required_quantity,i.unit)}{i.pantry_used>0?` · Ya disponible: ${displayQuantity(i.pantry_used,i.unit)}`:""}</small></div><label>Comprar<input type="number" min="0" step="0.001" defaultValue={i.quantity} onBlur={async e=>{await nutritionApi.shoppingQuantity(i.id,Number(e.target.value));await refreshItems()}}/><span>{i.unit}</span></label>
+        <button className="shopping-check" onClick={async event=>{const input=event.currentTarget.parentElement?.querySelector<HTMLInputElement>("input");if(input)await nutritionApi.shoppingQuantity(i.id,Number(input.value));await nutritionApi.toggle(i.id);await refreshItems()}}>{i.purchased?"✓":"○"}</button><div><b>{i.name}</b><small>Necesario: {displayQuantity(i.required_quantity,i.unit)}{i.pantry_used>0?` · Ya disponible: ${displayQuantity(i.pantry_used,i.unit)}`:""}</small></div><label>Comprado<input type="number" min="0" step="0.001" defaultValue={i.quantity}/><span>{i.unit}</span></label>
       </article>)}</section>)}
       <form className="shopping-add" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);await nutritionApi.addShoppingItem(listId,{name:String(f.get("name")),category:String(f.get("category")),quantity:Number(f.get("quantity")),unit:String(f.get("unit"))});e.currentTarget.reset();await refreshItems()}}><b>Añadir a la casa</b><input name="name" required placeholder="Producto"/><select name="category"><option value="OTHER">Otros</option><option value="PANTRY">Despensa</option><option value="FRUIT_VEGETABLES">Fruta y verdura</option><option value="MEAT_FISH">Carnes y pescados</option><option value="DAIRY">Lácteos</option></select><input name="quantity" required type="number" min="0" step="0.001" placeholder="Cantidad"/><input name="unit" required placeholder="ud, g, ml…"/><button className="primary">Añadir</button></form>
     </>}
@@ -607,4 +586,5 @@ function Shopping({ plans }: { plans: Array<{ id: string;name:string;status:stri
 }
 function categoryLabel(value:string){return ({FRUIT_VEGETABLES:"Fruta y verdura",MEAT_FISH:"Carnes y pescados",DAIRY:"Lácteos",CEREALS_LEGUMES:"Cereales y legumbres",FROZEN:"Congelados",PANTRY:"Despensa",DRINKS:"Bebidas",OTHER:"Otros"} as Record<string,string>)[value]||value}
 function displayQuantity(value:number,unit:string){const amount=Number(value||0),normalized=(unit||"").toLowerCase();if(normalized==="g"&&amount>=1000)return`${(amount/1000).toFixed(amount%1000?2:0)} kg`;if(normalized==="ml"&&amount>=1000)return`${(amount/1000).toFixed(amount%1000?2:0)} l`;return`${Number(amount.toFixed(2))} ${unit}`}
+function localizeMeal(meal:TodayMeal):TodayMeal{return{...meal,meal_type:({BREAKFAST:"Desayuno",MID_MORNING:"Media mañana",LUNCH:"Comida",SNACK:"Merienda",DINNER:"Cena",OTHER:"Otra comida"} as Record<string,string>)[meal.meal_type?.toUpperCase()]||meal.meal_type}}
 function calendarWeeks(){const start=new Date(),day=start.getDay()||7;start.setHours(12,0,0,0);start.setDate(start.getDate()-day+1);return Array.from({length:8},(_,index)=>{const monday=new Date(start);monday.setDate(start.getDate()+index*7);const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);const thursday=new Date(monday);thursday.setDate(monday.getDate()+3);const yearStart=new Date(thursday.getFullYear(),0,1);const number=Math.ceil((((thursday.getTime()-yearStart.getTime())/86400000)+yearStart.getDay()+1)/7);const format=(date:Date)=>date.toLocaleDateString("es",{day:"numeric",month:"short"});return{number,label:`${index===0?"Esta semana · ":""}${format(monday)} – ${format(sunday)}`}})}

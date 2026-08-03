@@ -156,7 +156,7 @@ export function App() {
                 }).format(new Date())}
               </span>
             </div>
-            <div className="daily-plan-head"><span>PLAN DE HOY</span><button onClick={() => setNutritionOpen(true)}>Nutrición compartida</button></div>
+            <div className="daily-plan-head"><span>PLAN DE HOY</span></div>
             <div className="daily-plan-grid">
               <button className="daily-focus workout" onClick={() => setWorkoutOpen(true)}>
                 <span className="daily-focus-icon"><Dumbbell /></span>
@@ -250,8 +250,8 @@ export function App() {
           >
             <Apple />
             <span>
-              <strong>Nutrición compartida</strong>
-              <small>Household, planes, recetas y compra</small>
+              <strong>Nutrición</strong>
+              <small>Hoy, planes, cocina y compra</small>
             </span>
             <b>→</b>
           </button>
