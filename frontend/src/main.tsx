@@ -36,6 +36,7 @@ import './home-premium.css';
 import './wow-polish.css';
 import './quick-activity.css';
 import './workout-change-modal.css';
+import './meal-substitution.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
