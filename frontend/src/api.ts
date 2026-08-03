@@ -147,12 +147,15 @@ export type WorkoutPlan = {id:string;name:string;version:number;status:string;va
 export type PlannedWorkoutExercise = {weekNumber:number;dayNumber:number;dayName?:string;sessionName:string;order:number;exercise:string;muscleGroup?:string;equipment?:string;sets:number;repsMin:number;repsMax:number;targetRir?:number;targetRpe?:number;restSeconds?:number;tempo?:string;warmupRequired:boolean;supersetGroup?:string;alternativeExerciseCode?:string;instructions?:string;notes?:string};
 export const workoutApi = {
   today:()=>request<TodayWorkout|null>("/workouts/today"),
+  rescheduleToday:(date:string)=>request<TodayWorkout>("/workouts/today/reschedule",{method:"POST",body:JSON.stringify({date})}),
+  skipToday:(reason?:string)=>request<void>("/workouts/today/skip",{method:"POST",body:JSON.stringify({reason})}),
   active:()=>request<WorkoutSession|null>("/workout-sessions/active"),
   history:(page=0,size=30)=>request<WorkoutSummary[]>(`/workout-sessions?page=${page}&size=${size}`),
   plans:()=>request<WorkoutPlan[]>("/workout-plans"),
   planDetails:(id:string)=>request<PlannedWorkoutExercise[]>(`/workout-plans/${id}/details`),
   deletePlan:(id:string)=>request<void>(`/workout-plans/${id}`,{method:"DELETE"}),
   one:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}`),
+  deleteSession:(id:string)=>request<void>(`/workout-sessions/${id}`,{method:"DELETE"}),
   start:(body:{workoutPlanDayId?:string;name?:string;clientExternalId:string})=>request<WorkoutSession>("/workout-sessions",{method:"POST",body:JSON.stringify(body)}),
   pause:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/pause`,{method:"POST"}),
   resume:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/resume`,{method:"POST"}),

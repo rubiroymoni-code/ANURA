@@ -38,10 +38,29 @@ public class WorkoutExecutionService {
             FROM workout_plan p JOIN workout_plan_day d ON d.workout_plan_id=p.id
             LEFT JOIN planned_exercise pe ON pe.workout_plan_day_id=d.id
             WHERE p.user_id=? AND p.status='ACTIVE'
+            AND NOT EXISTS(SELECT 1 FROM workout_session s WHERE s.user_id=p.user_id AND s.workout_plan_day_id=d.id AND s.planned_date=CURRENT_DATE AND s.status IN ('COMPLETED','ABANDONED') AND s.deleted_at IS NULL)
+            AND (
+              EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=CURRENT_DATE)
+              OR (d.day_number=? AND NOT EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.original_date=CURRENT_DATE))
+            )
             GROUP BY p.id,p.name,p.version,d.id,d.session_name,d.day_name,d.week_number,d.day_number,d.day_order
-            ORDER BY CASE WHEN d.day_number=? THEN 0 ELSE 1 END,d.week_number,d.day_order LIMIT 1
+            ORDER BY CASE WHEN EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=CURRENT_DATE) THEN 0 ELSE 1 END,d.week_number,d.day_order LIMIT 1
             """, (r,n)->new TodayWorkout(r.getObject(1,UUID.class),r.getString(2),r.getInt(3),r.getObject(4,UUID.class),r.getString(5),r.getString(6),r.getInt(7),r.getInt(8),r.getInt(9),r.getInt(10), planned(r.getObject(4,UUID.class))), user, LocalDate.now().getDayOfWeek().getValue());
         return rows.stream().findFirst().orElse(null);
+    }
+
+    @Transactional public TodayWorkout rescheduleToday(LocalDate target) {
+        TodayWorkout workout=today(); if(workout==null) throw notFound();
+        LocalDate current=LocalDate.now(); if(target==null||!target.isAfter(current)||target.isAfter(current.plusDays(7))) throw bad("INVALID_WORKOUT_DATE","Elige uno de los próximos 7 días");
+        db.update("INSERT INTO workout_day_adjustment(id,user_id,workout_plan_id,workout_plan_day_id,original_date,scheduled_date,status) VALUES(?,?,?,?,?,?,'MOVED') ON CONFLICT(user_id,workout_plan_day_id,original_date) DO UPDATE SET scheduled_date=EXCLUDED.scheduled_date,status='MOVED',reason=NULL,updated_at=CURRENT_TIMESTAMP",UUID.randomUUID(),CurrentUser.id(),workout.planId(),workout.dayId(),current,target);
+        audit("WORKOUT_DAY_MOVED","WORKOUT_PLAN_DAY",workout.dayId(),"SUCCESS"); return workout;
+    }
+
+    @Transactional public void skipToday(String reason) {
+        TodayWorkout workout=today(); if(workout==null) throw notFound(); UUID user=CurrentUser.id(); LocalDate current=LocalDate.now();
+        db.update("INSERT INTO workout_day_adjustment(id,user_id,workout_plan_id,workout_plan_day_id,original_date,status,reason) VALUES(?,?,?,?,?,'SKIPPED',?) ON CONFLICT(user_id,workout_plan_day_id,original_date) DO UPDATE SET scheduled_date=NULL,status='SKIPPED',reason=EXCLUDED.reason,updated_at=CURRENT_TIMESTAMP",UUID.randomUUID(),user,workout.planId(),workout.dayId(),current,reason);
+        db.update("INSERT INTO workout_session(id,user_id,workout_plan_id,workout_plan_version,workout_plan_day_id,session_name,planned_date,started_at,last_activity_at,status,client_external_id,adherence_reason,adherence_percent) VALUES(?,?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'ABANDONED',?,?,0)",UUID.randomUUID(),user,workout.planId(),workout.planVersion(),workout.dayId(),workout.sessionName(),current,UUID.randomUUID(),reason==null?"No disponible":reason);
+        audit("WORKOUT_DAY_SKIPPED","WORKOUT_PLAN_DAY",workout.dayId(),"SUCCESS");
     }
 
     public SessionView active() {
@@ -87,6 +106,14 @@ public class WorkoutExecutionService {
     public SessionView view(UUID id) {
         SessionHeader h=db.query("SELECT id,session_name,planned_date,status,started_at,completed_at,duration_seconds,global_rpe,energy_level,pump_level,pain_level,difficulty_level,notes,client_external_id,version,workout_plan_id,workout_plan_version,workout_plan_day_id,paused_at,paused_seconds FROM workout_session WHERE id=? AND user_id=? AND deleted_at IS NULL",this::header,id,CurrentUser.id()).stream().findFirst().orElseThrow(()->notFound());
         return new SessionView(h, exercises(id), metrics(id));
+    }
+
+    @Transactional public void deleteSession(UUID id) {
+        SessionView session=view(id);
+        if(List.of("IN_PROGRESS","PAUSED").contains(session.header().status())) throw conflict("ACTIVE_SESSION_DELETE","Cancela primero el entrenamiento en curso");
+        db.update("DELETE FROM workout_personal_record WHERE source_set_performance_id IN (SELECT sp.id FROM set_performance sp JOIN exercise_performance ep ON ep.id=sp.exercise_performance_id WHERE ep.workout_session_id=?)",id);
+        db.update("UPDATE workout_session SET deleted_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND deleted_at IS NULL",id,CurrentUser.id());
+        audit("SESSION_DELETED","WORKOUT_SESSION",id,"SUCCESS");
     }
 
     @Transactional public SessionView transition(UUID id,String target,String event) {
@@ -143,7 +170,7 @@ public class WorkoutExecutionService {
             SELECT s.id,s.planned_date,s.session_name,sp.weight,sp.repetitions,sp.rir,sp.rpe,sp.set_number
             FROM workout_session s JOIN exercise_performance ep ON ep.workout_session_id=s.id
             JOIN set_performance sp ON sp.exercise_performance_id=ep.id
-            WHERE s.user_id=? AND ep.exercise_id=? AND s.status='COMPLETED' AND sp.completed
+            WHERE s.user_id=? AND ep.exercise_id=? AND s.status='COMPLETED' AND s.deleted_at IS NULL AND sp.completed
               AND sp.deleted_at IS NULL
             ORDER BY s.completed_at DESC,sp.set_number LIMIT ?
             """,(r,n)->new ExerciseHistory(r.getObject(1,UUID.class),r.getObject(2,LocalDate.class),r.getString(3),decimal(r,4),integer(r,5),decimal(r,6),decimal(r,7),r.getInt(8)),CurrentUser.id(),exerciseId,Math.min(Math.max(limit,1),100));
