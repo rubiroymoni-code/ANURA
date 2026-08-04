@@ -41,7 +41,14 @@ public class WorkoutExecutionService {
             AND NOT EXISTS(SELECT 1 FROM workout_session s WHERE s.user_id=p.user_id AND s.workout_plan_day_id=d.id AND s.planned_date=CURRENT_DATE AND s.status IN ('COMPLETED','ABANDONED') AND s.deleted_at IS NULL)
             AND (
               EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=CURRENT_DATE)
-              OR (d.day_number=? AND NOT EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.original_date=CURRENT_DATE))
+              OR (
+                CASE
+                  WHEN p.valid_from IS NOT NULL THEN
+                    p.valid_from + (((d.week_number-1)*7)+(d.day_number-1)) = CURRENT_DATE
+                  ELSE d.day_number=?
+                END
+                AND NOT EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.original_date=CURRENT_DATE)
+              )
             )
             GROUP BY p.id,p.name,p.version,d.id,d.session_name,d.day_name,d.week_number,d.day_number,d.day_order
             ORDER BY CASE WHEN EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=CURRENT_DATE) THEN 0 ELSE 1 END,d.week_number,d.day_order LIMIT 1
