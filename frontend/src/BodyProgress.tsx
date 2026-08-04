@@ -1,4 +1,4 @@
-import { useEffect,useMemo,useState } from "react";
+import { useEffect,useMemo,useRef,useState } from "react";
 import { createPortal } from "react-dom";
 import { Activity,Bot,Camera,ChevronDown,Copy,Edit3,Flame,Plus,Save,Scale,Trash2,TrendingDown,TrendingUp,X } from "lucide-react";
 import { api,bodyProgressApi,householdApi,nutritionApi,workoutApi,workRoutineApi,type BodyCheckin,type BodyCheckinInput,type BodyEvolution,type EvolutionPoint } from "./api";
@@ -8,12 +8,13 @@ type Range="1M"|"3M"|"6M"|"1Y"|"ALL";type Metric="weight"|"waistCm"|"chestCm"|"h
 const metrics:Array<{id:Metric;label:string;unit:string}>=[{id:"weight",label:"Peso",unit:"kg"},{id:"waistCm",label:"Cintura",unit:"cm"},{id:"chestCm",label:"Pecho",unit:"cm"},{id:"hipCm",label:"Cadera",unit:"cm"},{id:"arms",label:"Brazos",unit:"cm"},{id:"thighs",label:"Muslos",unit:"cm"}];
 
 export function BodyProgress({addSignal=0}:{addSignal?:number}){
+ const previousAddSignal=useRef(addSignal);
  const [rows,setRows]=useState<BodyCheckin[]>([]),[evolution,setEvolution]=useState<BodyEvolution|null>(null),[adherence,setAdherence]=useState<Awaited<ReturnType<typeof nutritionApi.adherence>>|null>(null),[hasNutritionPlan,setHasNutritionPlan]=useState(false),[avatar,setAvatar]=useState(""),[range,setRange]=useState<Range>("3M"),[metric,setMetric]=useState<Metric>("weight"),[editing,setEditing]=useState<BodyCheckin|null|undefined>(undefined),[deleting,setDeleting]=useState<BodyCheckin|null>(null),[loading,setLoading]=useState(true),[intro,setIntro]=useState(true),[error,setError]=useState(""),[saved,setSaved]=useState(""),[report,setReport]=useState(""),[reportBusy,setReportBusy]=useState(false);
  const dates=useMemo(()=>period(range),[range]);
  const load=async()=>{setLoading(true);setError("");try{const [list,trend,ad,profile,plans]=await Promise.all([bodyProgressApi.list(),bodyProgressApi.evolution(dates.from,dates.to),nutritionApi.adherence().catch(()=>null),api.profilePreferences().catch(()=>null),nutritionApi.plans().catch(()=>[])]);setRows(list);setEvolution(trend);setAdherence(ad);setHasNutritionPlan(plans.length>0);setAvatar(profile?.avatar_url||"")}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo cargar la evolución")}finally{setLoading(false)}};
  useEffect(()=>{void load()},[dates.from,dates.to]);
  useEffect(()=>{const timer=window.setTimeout(()=>setIntro(false),2100);return()=>window.clearTimeout(timer)},[]);
- useEffect(()=>{if(addSignal>0)setEditing(null)},[addSignal]);
+ useEffect(()=>{if(addSignal!==previousAddSignal.current)setEditing(null);previousAddSignal.current=addSignal},[addSignal]);
  if(loading||intro)return <div className="progress-loading evolution-intro" aria-live="polite"><div className="evolution-orbit"><Activity/><i/><i/><i/></div><span><small>ANURA · EVOLUCIÓN</small><b>Tu progreso cobra vida</b><em>Preparando tendencias y constancia…</em></span></div>;
  const latest=rows[0];
  const currentWeek=adherence?.currentWeek,weekComplete=currentWeek?.complete===true;
