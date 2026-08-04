@@ -28,6 +28,12 @@ public class OnboardingEmailService {
     }catch(Exception exception){log.warn("No se pudo enviar la guía inicial de ANURA al usuario {}",user,exception);}
   }
 
+  public void sendGuide(UUID user){
+    Map<String,Object> account=db.queryForMap("SELECT email,display_name FROM app_user WHERE id=?",user);
+    String name=String.valueOf(account.getOrDefault("display_name",""));
+    emails.send(String.valueOf(account.get("email")),"Cómo utilizar ANURA: guía completa",message(name));
+  }
+
   private String message(String name){return """
       Hola %s:
 
