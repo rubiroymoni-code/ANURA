@@ -42,6 +42,7 @@ import { WorkoutHub } from "./WorkoutHub";
 import { clearWorkoutOffline } from "./workoutOffline";
 import { MealFlow } from "./MealFlow";
 import { CycleTracker } from "./CycleTracker";
+import { HomeNotifications, ReminderSettingsPanel } from "./ReminderCenter";
 
 const meta: Record<
   EntryType,
@@ -76,6 +77,7 @@ export function App() {
   const [nutritionOpen, setNutritionOpen] = useState(false);
   const [workoutOpen, setWorkoutOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [accountInitialTab,setAccountInitialTab]=useState<"profile"|"reminders">("profile");
   const [profilePreferences,setProfilePreferences]=useState<ProfilePreferences>({});
   const [todayMeals, setTodayMeals] = useState<TodayMeal[]>([]);
   const [nutritionDashboard,setNutritionDashboard]=useState<NutritionDashboard|null>(null);
@@ -141,7 +143,7 @@ export function App() {
           <img src="/anura-mascot.png" alt="" /> ANURA
         </div>
         <div className="header-actions">
-          <button className="icon-btn" onClick={() => setAccountOpen(true)} aria-label="Mi perfil" title="Mi perfil">
+          <button className="icon-btn" onClick={() => {setAccountInitialTab("profile");setAccountOpen(true)}} aria-label="Mi perfil" title="Mi perfil">
             {profilePreferences.avatar_url?<img className="header-avatar" src={profilePreferences.avatar_url} alt={user.displayName}/>:<CircleUserRound size={19} />}
           </button>
           <button className="icon-btn" onClick={logout} aria-label="Cerrar sesión">
@@ -191,19 +193,7 @@ export function App() {
                 <span>{completedToday}</span>
               </div>
             </div>
-            <h2>Otros seguimientos</h2>
-            <div className="quick-grid">
-              {(["WEIGHT", "GOAL"] as EntryType[]).map(
-                (type) => (
-                  <Quick
-                    key={type}
-                    type={type}
-                    entries={todayItems}
-                    onClick={() => setTab(type)}
-                  />
-                ),
-              )}
-            </div>
+            <HomeNotifications openSettings={()=>{setAccountInitialTab("reminders");setAccountOpen(true)}} onAction={action=>{if(action==="WEIGHT")setTab("WEIGHT");else if(action==="WORKOUT")setWorkoutOpen(true);else if(action==="DIET"||action==="SHOPPING")setNutritionOpen(true);else{setAccountInitialTab("reminders");setAccountOpen(true)}}}/>
             <div className="plan-tools"><span><b>Gestionar planes</b><small>Plantillas, CSV y nuevas versiones</small></span><button onClick={() => setImportOpen(true)}><FileUp />Importar entreno</button><button onClick={() => setNutritionOpen(true)}><Apple />Dietas y hogar</button></div>
             <h2>Actividad reciente</h2>
           </>
@@ -332,7 +322,7 @@ export function App() {
           }}
         />
       )}
-      {accountOpen && <AccountModal user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} />}
+      {accountOpen && <AccountModal initialTab={accountInitialTab} user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} />}
       {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} initialMealId={selectedPlannedMeal} onClose={() => {setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onBackToMeals={()=>{setMealFlowOpen(false);setSelectedPlannedMeal(null);setNutritionOpen(true)}} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);setSelectedPlannedMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
     </main>
   );
@@ -812,10 +802,10 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
   );
 }
 
-function AccountModal({ user, onClose,onAvatar,onPreferences }: { user: User; onClose: () => void;onAvatar:(avatar:string)=>void;onPreferences:(preferences:ProfilePreferences)=>void }) {
+function AccountModal({ user, onClose,onAvatar,onPreferences,initialTab="profile" }: { user: User; onClose: () => void;onAvatar:(avatar:string)=>void;onPreferences:(preferences:ProfilePreferences)=>void;initialTab?:"profile"|"reminders" }) {
   const [result, setResult] = useState<{ code: string; expiresAt: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tab,setProfileTab]=useState<"profile"|"initial"|"work"|"password"|"reminders">("profile"),[message,setMessage]=useState("");
+  const [tab,setProfileTab]=useState<"profile"|"initial"|"work"|"password"|"reminders">(initialTab),[message,setMessage]=useState("");
   const [preferences,setPreferences]=useState<ProfilePreferences>({});
   useEffect(()=>{void api.profilePreferences().then(setPreferences)},[]);
   return (
@@ -846,6 +836,11 @@ function AccountModal({ user, onClose,onAvatar,onPreferences }: { user: User; on
         {tab==="initial"&&<form key={`${preferences.primary_goal}-${preferences.experience_level}-${preferences.activity_level}-${preferences.biological_sex}`} className="profile-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget),optionalNumber=(name:string)=>f.get(name)?Number(f.get(name)):undefined;await api.saveProfilePreferences({primaryGoal:String(f.get("goal")),experienceLevel:String(f.get("experience")),activityLevel:String(f.get("activity")),heightCm:optionalNumber("height"),trainingDays:optionalNumber("days"),limitations:String(f.get("limitations")||""),biologicalSex:String(f.get("sex")||"UNSPECIFIED"),reminderEmailEnabled:preferences.reminder_email_enabled!==false});setPreferences(await api.profilePreferences());setMessage("Datos iniciales actualizados")}}><p>Actualiza el formulario base que ANURA usa para contextualizar tus planes e informes.</p><label>Sexo<select name="sex" defaultValue={preferences.biological_sex||"UNSPECIFIED"}><option value="UNSPECIFIED">Prefiero no indicarlo</option><option value="FEMALE">Mujer</option><option value="MALE">Hombre</option></select></label><label>Objetivo principal<select name="goal" defaultValue={preferences.primary_goal||"BODY_RECOMPOSITION"}><option value="LOSE_FAT">Bajar grasa</option><option value="GAIN_MUSCLE">Ganar músculo</option><option value="BODY_RECOMPOSITION">Bajar grasa y ganar músculo</option><option value="HEALTH">Mejorar salud y hábitos</option></select></label><label>Experiencia<select name="experience" defaultValue={preferences.experience_level||"BEGINNER"}><option value="BEGINNER">Principiante</option><option value="INTERMEDIATE">Intermedia</option><option value="ADVANCED">Avanzada</option></select></label><label>Actividad diaria<select name="activity" defaultValue={preferences.activity_level||"MODERATE"}><option value="LOW">Baja</option><option value="MODERATE">Moderada</option><option value="HIGH">Alta</option></select></label><div className="profile-form-row"><label>Altura (cm)<input name="height" type="number" min="100" max="250" step="0.1" defaultValue={preferences.height_cm}/></label><label>Días de entreno/semana<input name="days" type="number" min="0" max="7" defaultValue={preferences.training_days}/></label></div><label>Lesiones, limitaciones o contexto<textarea name="limitations" defaultValue={preferences.limitations}/></label><button className="primary">Guardar datos iniciales</button></form>}
         {tab==="password"&&<form className="profile-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);await api.changePassword({currentPassword:String(f.get("current")),newPassword:String(f.get("next"))});e.currentTarget.reset();setMessage("Contraseña cambiada correctamente")}}><label>Contraseña actual<input required name="current" type="password" autoComplete="current-password"/></label><label>Nueva contraseña<input required minLength={8} name="next" type="password" autoComplete="new-password"/></label><button className="primary">Cambiar contraseña</button></form>}
         {tab==="reminders"&&<div className="reminder-settings"><div className="reminder-card"><span><b>Resumen mensual por email</b><small>El primer resumen se enviará un mes después de activarlo.</small></span><input type="checkbox" checked={preferences.reminder_email_enabled!==false} onChange={async e=>{const enabled=e.target.checked;await api.saveProfilePreferences({primaryGoal:preferences.primary_goal||"BODY_RECOMPOSITION",experienceLevel:preferences.experience_level||"BEGINNER",activityLevel:preferences.activity_level||"MODERATE",heightCm:preferences.height_cm,trainingDays:preferences.training_days,limitations:preferences.limitations,biologicalSex:preferences.biological_sex,reminderEmailEnabled:enabled});setPreferences({...preferences,reminder_email_enabled:enabled});setMessage("Preferencia guardada")}}/></div>{preferences.last_summary_sent_at&&<p>Último envío: {new Date(preferences.last_summary_sent_at).toLocaleString("es")}</p>}<button className="primary secondary" disabled={busy} onClick={async()=>{setBusy(true);try{await api.testReminder();setMessage("Email de prueba enviado");setPreferences(await api.profilePreferences())}finally{setBusy(false)}}}>{busy?"Enviando…":"Enviar resumen de prueba ahora"}</button></div>}
+        {tab==="reminders"&&<ReminderSettingsPanel
+          monthlyEnabled={preferences.reminder_email_enabled!==false}
+          toggleMonthly={async enabled=>{await api.saveProfilePreferences({primaryGoal:preferences.primary_goal||"BODY_RECOMPOSITION",experienceLevel:preferences.experience_level||"BEGINNER",activityLevel:preferences.activity_level||"MODERATE",heightCm:preferences.height_cm,trainingDays:preferences.training_days,limitations:preferences.limitations,biologicalSex:preferences.biological_sex,reminderEmailEnabled:enabled});setPreferences(current=>({...current,reminder_email_enabled:enabled}));setMessage("Preferencia guardada")}}
+          testMonthly={async()=>{setBusy(true);try{await api.testReminder();setMessage("Email de prueba enviado");setPreferences(await api.profilePreferences())}finally{setBusy(false)}}}
+        />}
       </section>
     </div>
   );

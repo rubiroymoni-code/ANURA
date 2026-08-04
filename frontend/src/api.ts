@@ -20,6 +20,10 @@ export type BodyEvolution={from:string;to:string;points:EvolutionPoint[];totalWe
 export type Supplement={id:string;name:string;dose?:string;schedule?:string;purpose?:string;notes?:string;active:boolean};
 export type SupplementInput=Omit<Supplement,"id">;
 export type NutritionPreferences={liked_foods?:string;disliked_foods?:string;exclusions?:string;usual_drinks?:string;pantry_staples?:string;cooking_notes?:string;planning_notes?:string;minimize_waste:boolean;practical_portions:boolean};
+export type ReminderSettings={checkin_email:boolean;nutrition_plan_email:boolean;workout_plan_email:boolean;pantry_email:boolean};
+export type PendingReminder={type:string;title:string;message:string;action:string;priority:number;reference_id?:string};
+export type CustomReminder={id:string;title:string;details?:string;frequency:"DAILY"|"WEEKLY";reminder_time:string;day_of_week?:number;email_enabled:boolean;in_app_enabled:boolean;enabled:boolean;next_due_at:string};
+export type ReminderCenter={settings:ReminderSettings;pending:PendingReminder[];custom:CustomReminder[]};
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("anura-token");
@@ -80,6 +84,11 @@ export const api = {
   deleteSupplement:(id:string)=>request<void>(`/profile/supplements/${id}`,{method:"DELETE"}),
   changePassword:(data:{currentPassword:string;newPassword:string})=>request<void>("/profile/password",{method:"PATCH",body:JSON.stringify(data)}),
   testReminder:()=>request<void>("/profile/reminders/test",{method:"POST"}),
+  reminders:()=>request<ReminderCenter>("/reminders"),
+  saveReminderSettings:(data:{checkinEmail:boolean;nutritionPlanEmail:boolean;workoutPlanEmail:boolean;pantryEmail:boolean})=>request<void>("/reminders/settings",{method:"PUT",body:JSON.stringify(data)}),
+  createReminder:(data:{title:string;details?:string;frequency:string;time:string;dayOfWeek?:number;emailEnabled:boolean;inAppEnabled:boolean})=>request<CustomReminder>("/reminders/custom",{method:"POST",body:JSON.stringify(data)}),
+  deleteReminder:(id:string)=>request<void>(`/reminders/custom/${id}`,{method:"DELETE"}),
+  acknowledgeReminder:(id:string)=>request<void>(`/reminders/custom/${id}/ack`,{method:"POST"}),
   saveAvatar:(avatarUrl:string)=>request<void>("/profile/avatar",{method:"PATCH",body:JSON.stringify({avatarUrl})}),
 };
 export const bodyProgressApi={
