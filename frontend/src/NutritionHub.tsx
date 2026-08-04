@@ -21,6 +21,7 @@ import {
   MessageCircle,
   Pill,
   SlidersHorizontal,
+  Plus,
   Users,
   Utensils,
   X,
@@ -28,7 +29,7 @@ import {
 import { HouseholdView } from "./HouseholdView";
 import { SupplementsPanel } from "./SupplementsPanel";
 import { NutritionPreferencesPanel } from "./NutritionPreferencesPanel";
-export function NutritionHub({ onClose,onRegisterMeal }: { onClose: () => void;onRegisterMeal?:(meal:TodayMeal)=>void }) {
+export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: () => void;onRegisterMeal?:(meal:TodayMeal)=>void;onAddMeal?:()=>void }) {
   const [section, setSection] = useState<
     "home" | "cook" | "preferences" | "household" | "import" | "shopping" | "supplements" | "plan" | "recipe"
   >("home");
@@ -99,7 +100,7 @@ export function NutritionHub({ onClose,onRegisterMeal }: { onClose: () => void;o
         {section === "home" && (
           <>
             {dashboard&&<section className={`nutrition-overview ${balanceExpanded?"expanded":""}`}><button className="nutrition-overview-summary" onClick={()=>setBalanceExpanded(value=>!value)}><span><small>BALANCE DE HOY</small><b>{Number(dashboard.consumed.calories||0).toFixed(0)} / {Number(dashboard.target.calories||dashboard.planned.calories||0).toFixed(0)} kcal</b><em>{activePlan?`${activePlan.name} · versión ${activePlan.version}`:"Sin plan activo"}</em></span><strong>{Math.round(Number(dashboard.target.calories||dashboard.planned.calories||0)?Number(dashboard.consumed.calories||0)/Number(dashboard.target.calories||dashboard.planned.calories||1)*100:0)}%</strong><ChevronDown/></button>{balanceExpanded&&<div className="nutrition-overview-detail"><NutritionBalance data={dashboard}/>{activePlan&&<button className="primary" onClick={()=>{setSelectedPlan(activePlan.id);setSection("plan")}}>Ver plan actual</button>}</div>}</section>}
-            <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3><p>Abre una comida para consultar su receta. Pulsa el check otra vez si necesitas deshacerla.</p></div>{todayMeals.length?todayMeals.map(meal=><TodayNutritionCard key={meal.planned_meal_id} meal={meal} open={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);setSection("recipe")}}} toggle={async()=>{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id);else await nutritionApi.undoToday(meal.planned_meal_id);setTodayMeals((await nutritionApi.today()).map(localizeMeal));setDashboard(await nutritionApi.dashboard())}}/>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}</section>
+            <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3><p>Abre una comida para consultar su receta. Pulsa el check otra vez si necesitas deshacerla.</p></div>{todayMeals.length?todayMeals.map(meal=><TodayNutritionCard key={meal.planned_meal_id} meal={meal} open={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);setSection("recipe")}}} toggle={async()=>{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id);else await nutritionApi.undoToday(meal.planned_meal_id);setTodayMeals((await nutritionApi.today()).map(localizeMeal));setDashboard(await nutritionApi.dashboard())}}/>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}{onAddMeal&&<button className="nutrition-add-meal" onClick={onAddMeal}><Plus/>Registrar otra comida</button>}</section>
             <details className="nutrition-tools"><summary>Gestión y configuración</summary><div className="nutrition-menu">
               <button onClick={() => setSection("household")}>
                 <Users />

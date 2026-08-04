@@ -89,6 +89,7 @@ export const api = {
   createReminder:(data:{title:string;details?:string;frequency:string;time:string;dayOfWeek?:number;emailEnabled:boolean;inAppEnabled:boolean})=>request<CustomReminder>("/reminders/custom",{method:"POST",body:JSON.stringify(data)}),
   deleteReminder:(id:string)=>request<void>(`/reminders/custom/${id}`,{method:"DELETE"}),
   acknowledgeReminder:(id:string)=>request<void>(`/reminders/custom/${id}/ack`,{method:"POST"}),
+  sendAnuraGuide:()=>request<void>("/reminders/guide",{method:"POST"}),
   saveAvatar:(avatarUrl:string)=>request<void>("/profile/avatar",{method:"PATCH",body:JSON.stringify({avatarUrl})}),
 };
 export const bodyProgressApi={
