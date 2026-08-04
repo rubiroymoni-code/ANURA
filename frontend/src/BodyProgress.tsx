@@ -19,7 +19,7 @@ export function BodyProgress({addSignal=0}:{addSignal?:number}){
  const latest=rows[0];
  const currentWeek=adherence?.currentWeek,weekComplete=currentWeek?.complete===true;
  return <section className="body-progress">
-  <div className="progress-fab-hint"><Plus/><span><b>Registra tu check-in desde el botón +</b><small>Peso, grasa, medidas y fotografías quedan reunidos aquí.</small></span></div>
+  {!rows.length&&<div className="progress-fab-hint"><Plus/><span><b>Registra tu check-in desde el botón +</b><small>Peso, grasa, medidas y fotografías quedan reunidos aquí.</small></span></div>}
   <div className="body-summary"><div className="body-summary-head"><span><small>EVOLUCIÓN CORPORAL</small><h2>{latest?`${Number(latest.weight).toFixed(1)} kg`:"Tu punto de partida"}</h2><p>{latest?`Último check-in · ${formatDate(latest.checkinDate)}`:"Registra tu primer check-in semanal"}</p></span></div>{latest&&<div className="body-kpis"><Kpi label="Último cambio" value={signed(evolution?.previousWeightChange,"kg")} tone={(evolution?.previousWeightChange||0)<=0?"good":"warm"}/><Kpi label="En el periodo" value={signed(evolution?.totalWeightChange,"kg")} tone="neutral"/><Kpi label="Racha semanal" value={`${evolution?.weeklyStreak||0} sem.`} tone="lime"/><Kpi label="Check-ins" value={String(evolution?.checkinCount||0)} tone="neutral"/></div>}</div>
   <div className="progress-range">{(["1M","3M","6M","1Y","ALL"] as Range[]).map(r=><button className={range===r?"active":""} onClick={()=>setRange(r)} key={r}>{r==="ALL"?"Todo":r}</button>)}</div>
   {adherence&&<AdherenceCard data={adherence} mode="total"/>}

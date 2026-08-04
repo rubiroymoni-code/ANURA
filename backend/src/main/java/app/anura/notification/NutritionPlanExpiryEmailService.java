@@ -27,7 +27,7 @@ public class NutritionPlanExpiryEmailService {
       LEFT JOIN user_reminder_settings reminder_settings ON reminder_settings.user_id=u.id
       LEFT JOIN nutrition_plan_expiry_notice notice ON notice.plan_id=p.id AND notice.user_id=u.id
       WHERE p.status='ACTIVE' AND p.valid_until IS NOT NULL
-        AND p.valid_until<=CURRENT_DATE+7 AND notice.plan_id IS NULL
+        AND p.valid_until<=CURRENT_DATE+1 AND notice.plan_id IS NULL
         AND COALESCE(pref.reminder_email_enabled,TRUE)=TRUE
         AND COALESCE(reminder_settings.nutrition_plan_email,TRUE)=TRUE
       """;
