@@ -248,7 +248,7 @@ export function App() {
           </button>
         )}
       </section>
-      {tab !== "CYCLE" && <button type="button" className="fab" aria-label={tab==="WEIGHT"?"Registrar check-in":"Añadir registro"} title={tab==="WEIGHT"?"Registrar peso y medidas":"Añadir registro"} onClick={() => tab === "WEIGHT" ? setProgressAddSignal(value=>value+1) : tab === "MEAL" ? (setEditingMeal(null),setMealFlowOpen(true)) : setModal(true)}>
+      {(tab === "HOME" || tab === "WEIGHT") && !modal && !importOpen && !nutritionOpen && !workoutOpen && !accountOpen && !mealFlowOpen && <button type="button" className="fab" aria-label={tab==="WEIGHT"?"Registrar check-in":"Añadir al día"} title={tab==="WEIGHT"?"Registrar check-in":"Añadir al día"} onClick={() => tab === "WEIGHT" ? setProgressAddSignal(value=>value+1) : setModal(true)}>
         <Plus />
       </button>}
       <nav>
@@ -299,7 +299,7 @@ export function App() {
       )}
       {importOpen && <TrainingImport onClose={() => setImportOpen(false)} />}
       {nutritionOpen && (
-        <NutritionHub onClose={() => setNutritionOpen(false)} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setNutritionOpen(false);setEditingMeal(null);setMealFlowOpen(true)}} />
+        <NutritionHub onClose={() => setNutritionOpen(false)} onAddMeal={()=>{setNutritionOpen(false);setSelectedPlannedMeal(null);setEditingMeal(null);setMealFlowOpen(true)}} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setNutritionOpen(false);setEditingMeal(null);setMealFlowOpen(true)}} />
       )}
       {workoutOpen && (
         <WorkoutHub
