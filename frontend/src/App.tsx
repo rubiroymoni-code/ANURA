@@ -200,7 +200,7 @@ export function App() {
         ) : (
           <div className="section-title">
             <button onClick={() => setTab("HOME")}>← Inicio</button>
-            <p>{tab === "CYCLE" ? "Ciclo" : meta[tab].label}</p>
+            {tab !== "WEIGHT"&&<p>{tab === "CYCLE" ? "Ciclo" : meta[tab].label}</p>}
             {tab !== "WEIGHT"&&<h1>{tab === "CYCLE" ? "Ciclo menstrual" : `${meta[tab].label}s`}</h1>}
           </div>
         )}

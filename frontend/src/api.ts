@@ -87,6 +87,7 @@ export const api = {
   reminders:()=>request<ReminderCenter>("/reminders"),
   saveReminderSettings:(data:{checkinEmail:boolean;nutritionPlanEmail:boolean;workoutPlanEmail:boolean;pantryEmail:boolean})=>request<void>("/reminders/settings",{method:"PUT",body:JSON.stringify(data)}),
   createReminder:(data:{title:string;details?:string;frequency:string;time:string;dayOfWeek?:number;emailEnabled:boolean;inAppEnabled:boolean})=>request<CustomReminder>("/reminders/custom",{method:"POST",body:JSON.stringify(data)}),
+  updateReminder:(id:string,data:{title:string;details?:string;frequency:string;time:string;dayOfWeek?:number;emailEnabled:boolean;inAppEnabled:boolean})=>request<CustomReminder>(`/reminders/custom/${id}`,{method:"PUT",body:JSON.stringify(data)}),
   deleteReminder:(id:string)=>request<void>(`/reminders/custom/${id}`,{method:"DELETE"}),
   acknowledgeReminder:(id:string)=>request<void>(`/reminders/custom/${id}/ack`,{method:"POST"}),
   sendAnuraGuide:()=>request<void>("/reminders/guide",{method:"POST"}),
