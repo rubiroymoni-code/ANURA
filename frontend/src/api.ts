@@ -13,7 +13,7 @@ export type Entry = {
 };
 export type User = { id: string; email: string; displayName: string };
 export type ProgressPhoto={id:string;photoType:"FRONT"|"SIDE"|"BACK"|"OTHER";storageUrl:string;thumbnailUrl?:string;takenAt:string};
-export type BodyCheckin={id:string;checkinDate:string;weight:number;bodyFatPercentage?:number;waistCm?:number;chestCm?:number;hipCm?:number;leftArmCm?:number;rightArmCm?:number;leftThighCm?:number;rightThighCm?:number;notes?:string;createdAt:string;updatedAt:string;photos:ProgressPhoto[]};
+export type BodyCheckin={id:string;checkinDate:string;weight:number;bodyFatPercentage?:number;muscleMassKg?:number;visceralFatPercentage?:number;subcutaneousFatPercentage?:number;waistCm?:number;chestCm?:number;hipCm?:number;leftArmCm?:number;rightArmCm?:number;leftThighCm?:number;rightThighCm?:number;notes?:string;createdAt:string;updatedAt:string;photos:ProgressPhoto[]};
 export type BodyCheckinInput=Omit<BodyCheckin,"id"|"createdAt"|"updatedAt"|"photos">;
 export type EvolutionPoint={date:string;weight:number;movingAverage7d?:number;waistCm?:number;chestCm?:number;hipCm?:number;leftArmCm?:number;rightArmCm?:number;leftThighCm?:number;rightThighCm?:number};
 export type BodyEvolution={from:string;to:string;points:EvolutionPoint[];totalWeightChange?:number;previousWeightChange?:number;minimumWeight?:number;maximumWeight?:number;checkinCount:number;trend:"UP"|"DOWN"|"STABLE";weeklyStreak:number};
