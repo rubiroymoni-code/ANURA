@@ -258,7 +258,7 @@ export function App() {
           </button>
         )}
       </section>
-      {tab !== "CYCLE" && <button className="fab" aria-label={tab==="WEIGHT"?"Registrar check-in":"Añadir registro"} onClick={() => tab === "WEIGHT" ? setProgressAddSignal(value=>value+1) : tab === "MEAL" ? (setEditingMeal(null),setMealFlowOpen(true)) : setModal(true)}>
+      {tab !== "CYCLE" && <button type="button" className="fab" aria-label={tab==="WEIGHT"?"Registrar check-in":"Añadir registro"} title={tab==="WEIGHT"?"Registrar peso y medidas":"Añadir registro"} onClick={() => tab === "WEIGHT" ? setProgressAddSignal(value=>value+1) : tab === "MEAL" ? (setEditingMeal(null),setMealFlowOpen(true)) : setModal(true)}>
         <Plus />
       </button>}
       <nav>
