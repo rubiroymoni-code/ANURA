@@ -1,0 +1,25 @@
+.cook-today > .plan-day-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  align-items: stretch;
+  padding: 10px 8px;
+  margin: 0 -8px;
+  background: rgba(247, 249, 244, 0.96);
+  border-radius: 14px;
+  box-shadow: 0 5px 16px rgba(23, 37, 28, 0.08);
+}
+
+.cook-today > .plan-day-tabs::before {
+  content: "Ver cantidades del día";
+  min-width: 74px;
+  align-self: center;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #35443a;
+}
+
+.cook-today > .plan-day-tabs button {
+  min-width: 54px;
+}

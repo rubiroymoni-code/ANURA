@@ -31,6 +31,7 @@ import './plan-expiry.css';
 import './expiring-card.css';
 import './supplements.css';
 import './nutrition-redesign.css';
+import './cook-day-selector.css';
 import './nutrition-polish.css';
 import './home-premium.css';
 import './wow-polish.css';

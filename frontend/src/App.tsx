@@ -315,6 +315,7 @@ export function App() {
       )}
       {workoutOpen && (
         <WorkoutHub
+          onWorkoutChanged={refreshWorkoutStatus}
           onImport={() => {
             setWorkoutOpen(false);
             setImportOpen(true);
