@@ -25,6 +25,7 @@ public class WorkoutExecutionController {
  @PostMapping("/api/v1/workout-sessions/{id}/resume") SessionView resume(@PathVariable UUID id){return service.transition(id,"IN_PROGRESS","SESSION_RESUMED");}
  @PostMapping("/api/v1/workout-sessions/{id}/abandon") SessionView abandon(@PathVariable UUID id,@RequestBody(required=false) AbandonRequest body){return service.abandon(id,body==null?null:body.reason());}
  @PostMapping("/api/v1/workout-sessions/{id}/complete") SessionView complete(@PathVariable UUID id,@RequestBody CompleteRequest r){return service.complete(id,r);}
+ @PatchMapping("/api/v1/workout-sessions/{id}/duration") SessionView duration(@PathVariable UUID id,@RequestBody DurationRequest r){return service.updateDuration(id,r.seconds());}
  @PostMapping("/api/v1/workout-sessions/{id}/exercises") ExerciseView exercise(@PathVariable UUID id,@RequestBody AddExerciseRequest r){return service.addExercise(id,r);}
  @PostMapping("/api/v1/workout-sessions/{id}/exercises/{exerciseId}/substitute") ExerciseView substitute(@PathVariable UUID id,@PathVariable UUID exerciseId,@RequestBody SubstituteRequest r){return service.substitute(id,exerciseId,r);}
  @PatchMapping("/api/v1/workout-sessions/{id}/exercises/{exerciseId}/pain") ExerciseView pain(@PathVariable UUID id,@PathVariable UUID exerciseId,@RequestBody PainRequest r){return service.pain(id,exerciseId,r);}
@@ -39,4 +40,5 @@ public class WorkoutExecutionController {
  @GetMapping("/api/v1/training/summary") List<SessionSummary> summary(){return service.history(0,20);}
  @PostMapping("/api/v1/workout-sessions/{id}/sync") List<SyncResult> sync(@PathVariable UUID id,@RequestBody List<SyncOperation> operations){return service.sync(id,operations);}
  record RescheduleRequest(java.time.LocalDate date){} record SkipRequest(String reason){} record DayAdjustmentRequest(java.time.LocalDate originalDate,java.time.LocalDate targetDate,String reason){}
+ record DurationRequest(Integer seconds){}
 }

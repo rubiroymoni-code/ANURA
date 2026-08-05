@@ -174,6 +174,12 @@ public class WorkoutExecutionService {
         return new SessionView(h, exercises(id), metrics(id));
     }
 
+    @Transactional public SessionView updateDuration(UUID id,Integer seconds) {
+        view(id); if(seconds==null||seconds<1||seconds>86400) throw bad("INVALID_DURATION","Indica una duración válida");
+        db.update("UPDATE workout_session SET duration_seconds=?,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND user_id=? AND status='COMPLETED'",seconds,id,CurrentUser.id());
+        return view(id);
+    }
+
     @Transactional public void deleteSession(UUID id) {
         SessionView session=view(id);
         if(List.of("IN_PROGRESS","PAUSED").contains(session.header().status())) throw conflict("ACTIVE_SESSION_DELETE","Cancela primero el entrenamiento en curso");
