@@ -23,8 +23,6 @@ public class WorkoutExecutionService {
     private final JdbcTemplate db;
     private final int maxSyncOperations;
     private final int maxEstimateReps;
-    @Value("${app.workout.completed-edit-window-minutes:15}")
-    private int completedEditWindowMinutes = 15;
 
     WorkoutExecutionService(JdbcTemplate db,
         @Value("${app.workout.sync-max-operations:100}") int maxSyncOperations,
@@ -291,7 +289,7 @@ public class WorkoutExecutionService {
     private void assertEditable(UUID session){
         SessionHeader header=view(session).header();
         if(List.of("IN_PROGRESS","PAUSED").contains(header.status())) return;
-        if("COMPLETED".equals(header.status()) && db.queryForObject("SELECT count(*) FROM workout_session WHERE id=? AND user_id=? AND completed_at>=CURRENT_TIMESTAMP-(? * INTERVAL '1 minute')",Integer.class,session,CurrentUser.id(),completedEditWindowMinutes)>0) return;
+        if("COMPLETED".equals(header.status())) return;
         throw conflict("SESSION_NOT_EDITABLE","La sesión está cerrada");
     }
     private void assertExercise(UUID session,UUID exercise){assertEditable(session);if(db.queryForObject("SELECT count(*) FROM exercise_performance WHERE id=? AND workout_session_id=?",Integer.class,exercise,session)==0)throw notFound();}
