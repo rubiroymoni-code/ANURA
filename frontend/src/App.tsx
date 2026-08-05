@@ -32,6 +32,7 @@ import {
   TodayMeal,
   NutritionDashboard,
   TodayWorkout,
+  TodayWorkoutAdjustment,
   workoutApi,
   User,
 } from "./api";
@@ -82,6 +83,7 @@ export function App() {
   const [todayMeals, setTodayMeals] = useState<TodayMeal[]>([]);
   const [nutritionDashboard,setNutritionDashboard]=useState<NutritionDashboard|null>(null);
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null>(null);
+  const [todayWorkoutAdjustment, setTodayWorkoutAdjustment] = useState<TodayWorkoutAdjustment | null>(null);
   const [todayWorkoutDone, setTodayWorkoutDone] = useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
   const [mealsExpanded,setMealsExpanded]=useState(false);
@@ -97,15 +99,22 @@ export function App() {
         .then(setEntries)
         .catch(() => logout());
   };
+  const refreshWorkoutStatus = () =>
+    void Promise.all([workoutApi.today().catch(() => ({ workout: null })), workoutApi.history().catch(() => [])]).then(([status, sessions]) => {
+      setTodayWorkout(status.workout ?? null);
+      setTodayWorkoutAdjustment(status.adjustment ?? null);
+      setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0, 10) && session.status === "COMPLETED"));
+    });
   useEffect(() => {
     load();
   }, [user]);
   useEffect(() => {
     if (!user) return;
-    void Promise.all([nutritionApi.today().catch(() => []), workoutApi.today().catch(() => null), workoutApi.history().catch(() => [])]).then(([meals, workout, sessions]) => {
+    void Promise.all([nutritionApi.today().catch(() => []), workoutApi.today().catch(() => ({ workout: null })), workoutApi.history().catch(() => [])]).then(([meals, status, sessions]) => {
       setTodayMeals(meals);
-      setTodayWorkout(workout);
-      setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0,10) && session.status === "COMPLETED"));
+      setTodayWorkout(status.workout ?? null);
+      setTodayWorkoutAdjustment(status.adjustment ?? null);
+      setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0, 10) && session.status === "COMPLETED"));
     });
     void nutritionApi.dashboard().then(setNutritionDashboard).catch(()=>setNutritionDashboard(null));
     void nutritionApi.plans().then(setNutritionPlans).catch(()=>setNutritionPlans([]));
@@ -132,7 +141,10 @@ export function App() {
   const today = new Date().toISOString().slice(0, 10);
   const todayItems = entries.filter((e) => e.entryDate === today);
   const plannedToday=todayMeals.length+(todayWorkout?1:0);
-  const completedToday=todayMeals.filter(meal=>meal.status!=="PENDING").length+(todayWorkoutDone||todayItems.some(item=>item.type==="WORKOUT")?1:0);
+  const completedToday=todayMeals.filter(meal=>meal.status!=="PENDING").length+(todayWorkout&&(todayWorkoutDone||todayItems.some(item=>item.type==="WORKOUT"))?1:0);
+  const workoutStatusLabel=todayWorkout?(todayWorkoutDone||todayItems.some(e=>e.type==="WORKOUT")?"Hecho":"Pendiente"):todayWorkoutAdjustment?.status==="MOVED"?`Movido al ${new Date(`${todayWorkoutAdjustment.scheduledDate}T12:00:00`).toLocaleDateString("es",{weekday:"long"})}`:todayWorkoutAdjustment?.status==="SKIPPED"?"No realizado":"Sin plan hoy";
+  const workoutTitle=todayWorkout?.sessionName||todayWorkoutAdjustment?.sessionName||"Sesión libre";
+  const workoutDetail=todayWorkout?`${todayWorkout.exerciseCount} ejercicios · ~${todayWorkout.estimatedMinutes||45} min`:todayWorkoutAdjustment?.status==="MOVED"?"Ya no cuenta en las acciones de hoy":todayWorkoutAdjustment?.status==="SKIPPED"?"Marcado como no realizado hoy":"No hay plan asignado hoy";
   const dailyPercent=plannedToday?Math.round(completedToday/plannedToday*100):0;
   const activeNutritionPlan=nutritionPlans.find(plan=>plan.status==="ACTIVE");
   const nutritionExpiry=planExpiry(activeNutritionPlan?.valid_until);
@@ -163,8 +175,8 @@ export function App() {
             <div className="daily-plan-grid">
               <button className="daily-focus workout" onClick={() => setWorkoutOpen(true)}>
                 <span className="daily-focus-icon"><Dumbbell /></span>
-                <span><small>ENTRENAMIENTO</small><strong>{todayWorkout?.sessionName || "Sesión libre"}</strong><b>{todayWorkout ? `${todayWorkout.exerciseCount} ejercicios · ~${todayWorkout.estimatedMinutes || 45} min` : "No hay plan asignado hoy"}</b></span>
-                <em>{todayWorkoutDone || todayItems.some((e) => e.type === "WORKOUT") ? "Hecho" : "Pendiente"}</em>
+                <span><small>ENTRENAMIENTO</small><strong>{workoutTitle}</strong><b>{workoutDetail}</b></span>
+                <em>{workoutStatusLabel}</em>
               </button>
               <div className={`daily-focus nutrition ${nutritionExpiry.urgent?"plan-expiring":""}`}>
                 <button className="daily-focus-main" onClick={() => setMealsExpanded(value=>!value)} aria-expanded={mealsExpanded}>
@@ -310,15 +322,7 @@ export function App() {
           onClose={() => {
             setWorkoutOpen(false);
             load();
-            void workoutApi.history().then((sessions) =>
-              setTodayWorkoutDone(
-                sessions.some(
-                  (session) =>
-                    session.date === new Date().toISOString().slice(0, 10) &&
-                    session.status === "COMPLETED",
-                ),
-              ),
-            );
+            refreshWorkoutStatus();
           }}
         />
       )}
