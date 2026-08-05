@@ -215,7 +215,7 @@ public class WorkoutExecutionService {
         assertExercise(sessionId,performanceId); validateLevel(r.intensity(),0,"dolor"); db.update("UPDATE exercise_performance SET pain_reported=?,pain_area=?,pain_intensity=?,notes=COALESCE(?,notes),updated_at=CURRENT_TIMESTAMP WHERE id=?",r.intensity()!=null&&r.intensity()>0,r.area(),r.intensity(),r.comment(),performanceId); audit("PAIN_REPORTED","EXERCISE_PERFORMANCE",performanceId,"SUCCESS"); return exercise(performanceId);
     }
 
-    @Transactional public ExerciseView completeExercise(UUID sessionId,UUID performanceId) { assertExercise(sessionId,performanceId); db.update("UPDATE exercise_performance SET completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?",performanceId); touch(sessionId); return exercise(performanceId); }
+    @Transactional public ExerciseView completeExercise(UUID sessionId,UUID performanceId) { assertExercise(sessionId,performanceId); db.update("UPDATE exercise_performance SET completed_at=CASE WHEN completed_at IS NULL THEN CURRENT_TIMESTAMP ELSE NULL END,updated_at=CURRENT_TIMESTAMP WHERE id=?",performanceId); touch(sessionId); return exercise(performanceId); }
 
     @Transactional public SetView addSet(UUID sessionId,UUID performanceId,SetRequest r) {
         assertExercise(sessionId,performanceId); validateSet(r); UUID client=r.clientExternalId()==null?UUID.randomUUID():r.clientExternalId();
@@ -229,7 +229,7 @@ public class WorkoutExecutionService {
         assertExercise(sessionId,performanceId); validateSet(r); int changed=db.update("UPDATE set_performance SET set_type=?,weight=?,repetitions=?,rir=?,rpe=?,duration_seconds=?,distance_meters=?,rest_seconds=?,tempo=?,pain_level=?,completed=?,performed_at=CASE WHEN ? THEN COALESCE(performed_at,CURRENT_TIMESTAMP) ELSE NULL END,updated_at=CURRENT_TIMESTAMP WHERE id=? AND exercise_performance_id=? AND deleted_at IS NULL",r.setType()==null?"WORKING":r.setType(),r.weight(),r.repetitions(),r.rir(),r.rpe(),r.durationSeconds(),r.distanceMeters(),r.restSeconds(),r.tempo(),r.painLevel(),r.completed(),r.completed(),setId,performanceId); if(changed==0) throw notFound(); touch(sessionId); return set(setId);
     }
 
-    @Transactional public void deleteSet(UUID sessionId,UUID performanceId,UUID setId) { assertExercise(sessionId,performanceId); if(db.update("UPDATE set_performance SET deleted_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND exercise_performance_id=? AND deleted_at IS NULL",setId,performanceId)==0) throw notFound(); touch(sessionId); }
+    @Transactional public void deleteSet(UUID sessionId,UUID performanceId,UUID setId) { assertExercise(sessionId,performanceId); db.update("DELETE FROM workout_personal_record WHERE source_set_performance_id=?",setId); if(db.update("DELETE FROM set_performance WHERE id=? AND exercise_performance_id=? AND deleted_at IS NULL",setId,performanceId)==0) throw notFound(); touch(sessionId); }
 
     public List<ExerciseHistory> exerciseHistory(UUID exerciseId,int limit) {
         return db.query("""
