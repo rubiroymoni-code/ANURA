@@ -87,3 +87,12 @@
   background: #f3f5f0 !important;
   color: #8d968d !important;
 }
+
+.cook-today > .plan-day-tabs button b { font-size: 0; }
+.cook-today > .plan-day-tabs button:nth-child(1) b::after { content: "Lun"; font-size: 9px; }
+.cook-today > .plan-day-tabs button:nth-child(2) b::after { content: "Mar"; font-size: 9px; }
+.cook-today > .plan-day-tabs button:nth-child(3) b::after { content: "Mié"; font-size: 9px; }
+.cook-today > .plan-day-tabs button:nth-child(4) b::after { content: "Jue"; font-size: 9px; }
+.cook-today > .plan-day-tabs button:nth-child(5) b::after { content: "Vie"; font-size: 9px; }
+.cook-today > .plan-day-tabs button:nth-child(6) b::after { content: "Sáb"; font-size: 9px; }
+.cook-today > .plan-day-tabs button:nth-child(7) b::after { content: "Dom"; font-size: 9px; }
