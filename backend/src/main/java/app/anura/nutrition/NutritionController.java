@@ -610,6 +610,11 @@ public class NutritionController {
     db.update("UPDATE shopping_list_item SET purchased=? WHERE id=?",!purchased,id);
   }
 
+  @DeleteMapping("/shopping-items/{id}") @Transactional @ResponseStatus(HttpStatus.NO_CONTENT)
+  void deleteShoppingItem(@PathVariable UUID id) {
+    if(db.update("DELETE FROM shopping_list_item WHERE id=? AND manual AND shopping_list_id IN (SELECT s.id FROM shopping_list s JOIN household_member m ON m.household_id=s.household_id WHERE m.user_id=?)",id,CurrentUser.id())==0) throw new ApiException(HttpStatus.NOT_FOUND,"MANUAL_ITEM_NOT_FOUND","Solo se pueden borrar artículos añadidos manualmente");
+  }
+
   @PatchMapping("/shopping-items/{id}/quantity")
   @Transactional
   void quantity(@PathVariable UUID id,@RequestBody Quantity body){

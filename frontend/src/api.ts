@@ -313,6 +313,7 @@ export const nutritionApi = {
     >(`/nutrition/shopping-lists/${id}/items`),
   addShoppingItem: (id: string, body: {name:string;category:string;quantity:number;unit:string}) =>
     request<{id:string;name:string}>(`/nutrition/shopping-lists/${id}/items`, {method:"POST",body:JSON.stringify(body)}),
+  deleteShoppingItem:(id:string)=>request<void>(`/nutrition/shopping-items/${id}`,{method:"DELETE"}),
   shoppingQuantity: (id: string, quantity: number) =>
     request<void>(`/nutrition/shopping-items/${id}/quantity`, {method:"PATCH",body:JSON.stringify({quantity})}),
   resetShopping:(id:string)=>request<void>(`/nutrition/shopping-lists/${id}`,{method:"DELETE"}),
