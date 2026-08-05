@@ -6,7 +6,7 @@ import { pendingOperations,queueOperation,removeOperations,type OfflineOperation
 
 export function WorkoutHub({onClose,onImport,onWorkoutChanged}:{onClose:()=>void;onImport:()=>void;onWorkoutChanged?:()=>void}){
  const [today,setToday]=useState<TodayWorkout|null>(null),[session,setSession]=useState<WorkoutSession|null>(null),[history,setHistory]=useState<WorkoutSummary[]>([]),[plans,setPlans]=useState<WorkoutPlan[]>([]),[planExercises,setPlanExercises]=useState<PlannedWorkoutExercise[]>([]),[view,setView]=useState<"today"|"plan"|"active"|"history"|"summary">("today"),[busy,setBusy]=useState(false),[sync,setSync]=useState("Cambios guardados");
- const load=async()=>{const [t,a,h]=await Promise.all([workoutApi.today().catch(()=>({workout:null})),workoutApi.active().catch(()=>null),workoutApi.history().catch(()=>[])]);setToday(t.workout??null);setSession(a);setHistory(h);if(a)setView("active")};
+ const load=async()=>{const [t,a,h]=await Promise.all([workoutApi.today().catch(()=>({workout:null,adjustment:null})),workoutApi.active().catch(()=>null),workoutApi.history().catch(()=>[])]);setToday(t.workout??null);setSession(a);setHistory(h);if(a)setView("active")};
  useEffect(()=>{void load()},[]);
  const loadPlans=async()=>{try{const rows=await workoutApi.plans();setPlans(rows);const active=rows.find(plan=>plan.status==="ACTIVE")||rows[0];setPlanExercises(active?await workoutApi.planDetails(active.id):[])}catch{setPlans([]);setPlanExercises([])}};
  useEffect(()=>{void loadPlans()},[]);
