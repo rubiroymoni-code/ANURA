@@ -23,3 +23,54 @@
 .cook-today > .plan-day-tabs button {
   min-width: 54px;
 }
+
+@media (max-width: 600px) {
+  .cook-workspace {
+    gap: 8px;
+  }
+
+  .cook-today .food-pref-hero {
+    grid-template-columns: auto 1fr;
+    gap: 9px;
+    padding: 12px 14px;
+    border-radius: 15px;
+  }
+
+  .cook-today .food-pref-hero > svg {
+    width: 34px;
+    height: 34px;
+    padding: 8px;
+    border-radius: 10px;
+  }
+
+  .cook-today .food-pref-hero small {
+    font-size: 7px;
+    letter-spacing: 1px;
+  }
+
+  .cook-today .food-pref-hero h3 {
+    font-size: 17px;
+    line-height: 1.05;
+  }
+
+  .cook-today .food-pref-hero p {
+    font-size: 9px;
+    line-height: 1.2;
+  }
+
+  .batch-cooking-head {
+    min-height: 0;
+    padding: 11px 13px;
+    border-radius: 15px;
+  }
+
+  .batch-cooking-head .batch-cooking-icon {
+    width: 34px;
+    height: 34px;
+  }
+
+  .batch-cooking-head strong {
+    padding: 8px 10px;
+    font-size: 9px;
+  }
+}

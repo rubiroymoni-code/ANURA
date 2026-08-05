@@ -110,7 +110,7 @@ public class WorkoutExecutionService {
 
     @Transactional public void rescheduleDay(UUID dayId,LocalDate original,LocalDate target) {
         Map<String,Object> day=ownedPlanDay(dayId); LocalDate current=LocalDate.now();
-        if(original==null||original.isBefore(current)||original.isAfter(current.plusDays(7))||target==null||target.equals(original)||target.isBefore(current)||target.isAfter(original.plusDays(14))) throw bad("INVALID_WORKOUT_DATE","Elige una fecha válida dentro de las dos semanas siguientes");
+        if(original==null||original.isBefore(current.minusDays(6))||original.isAfter(current.plusDays(7))||target==null||target.equals(original)||target.isBefore(current)||target.isAfter(current.plusDays(14))) throw bad("INVALID_WORKOUT_DATE","Elige un día de esta semana y una fecha de destino válida");
         UUID user=CurrentUser.id();
         int chained=db.update("UPDATE workout_day_adjustment SET scheduled_date=?,status='MOVED',reason=NULL,updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND workout_plan_day_id=? AND scheduled_date=? AND status='MOVED'",target,user,dayId,original);
         if(chained==0) db.update("INSERT INTO workout_day_adjustment(id,user_id,workout_plan_id,workout_plan_day_id,original_date,scheduled_date,status) VALUES(?,?,?,?,?,?,'MOVED') ON CONFLICT(user_id,workout_plan_day_id,original_date) DO UPDATE SET scheduled_date=EXCLUDED.scheduled_date,status='MOVED',reason=NULL,updated_at=CURRENT_TIMESTAMP",UUID.randomUUID(),user,day.get("plan_id"),dayId,original,target);
