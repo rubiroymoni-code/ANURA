@@ -96,3 +96,17 @@
 .cook-today > .plan-day-tabs button:nth-child(5) b::after { content: "Vie"; font-size: 9px; }
 .cook-today > .plan-day-tabs button:nth-child(6) b::after { content: "Sáb"; font-size: 9px; }
 .cook-today > .plan-day-tabs button:nth-child(7) b::after { content: "Dom"; font-size: 9px; }
+
+.nutrition-hub,
+.nutrition-hub-content,
+.cook-workspace,
+.cook-today {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@media (max-width: 600px) {
+  .nutrition-hub-content { width: 100%; box-sizing: border-box; }
+  .cook-today > .plan-day-tabs { width: 100%; box-sizing: border-box; overflow-x: auto; }
+}
