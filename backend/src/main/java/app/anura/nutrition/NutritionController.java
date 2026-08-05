@@ -38,7 +38,7 @@ public class NutritionController {
   Map<String,Object> dashboard() {
     UUID user=CurrentUser.id();
     Map<String,Object> target=db.queryForList("SELECT calories,protein,carbohydrates,fat,fiber FROM nutrition_target WHERE user_id=? AND valid_from<=CURRENT_DATE ORDER BY valid_from DESC LIMIT 1",user).stream().findFirst().orElse(Map.of());
-    Map<String,Object> planned=db.queryForList("SELECT COALESCE(SUM(ump.calories),0) calories,COALESCE(SUM(ump.protein),0) protein,COALESCE(SUM(ump.carbohydrates),0) carbohydrates,COALESCE(SUM(ump.fat),0) fat FROM nutrition_plan p LEFT JOIN household_member access ON access.household_id=p.household_id JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?) AND d.day_number=CASE WHEN p.valid_from IS NULL THEN EXTRACT(ISODOW FROM CURRENT_DATE)::int ELSE MOD(CURRENT_DATE-p.valid_from,7)+1 END",user,user,user).getFirst();
+    Map<String,Object> planned=db.queryForList("SELECT COALESCE(SUM(ump.calories),0) calories,COALESCE(SUM(ump.protein),0) protein,COALESCE(SUM(ump.carbohydrates),0) carbohydrates,COALESCE(SUM(ump.fat),0) fat FROM nutrition_plan p LEFT JOIN household_member access ON access.household_id=p.household_id JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?) AND d.day_number=EXTRACT(ISODOW FROM CURRENT_DATE)::int",user,user,user).getFirst();
     Map<String,Object> consumed=db.queryForMap("SELECT COALESCE(SUM(calories),0) calories,COALESCE(SUM(protein),0) protein,COALESCE(SUM(carbohydrates),0) carbohydrates,COALESCE(SUM(fat),0) fat FROM consumed_meal WHERE user_id=? AND meal_date=CURRENT_DATE AND status IN ('COMPLETED','SUBSTITUTED')",user);
     List<Map<String,Object>> week=db.queryForList("SELECT meal_date date,COALESCE(SUM(calories),0) calories FROM consumed_meal WHERE user_id=? AND meal_date BETWEEN date_trunc('week',CURRENT_DATE)::date AND CURRENT_DATE AND status IN ('COMPLETED','SUBSTITUTED') GROUP BY meal_date ORDER BY meal_date",user);
     Map<String,Object> result=new LinkedHashMap<>();result.put("target",target);result.put("planned",planned);result.put("consumed",consumed);result.put("week",week);return result;
@@ -90,7 +90,7 @@ public class NutritionController {
             + " JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id"
             + " JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=?"
             + " LEFT JOIN consumed_meal cm ON cm.planned_meal_id=pm.id AND cm.user_id=? AND cm.meal_date=CURRENT_DATE"
-            + " WHERE p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?) AND d.day_number=CASE WHEN p.valid_from IS NULL THEN EXTRACT(ISODOW FROM CURRENT_DATE)::int ELSE MOD(CURRENT_DATE-p.valid_from,7)+1 END"
+            + " WHERE p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?) AND d.day_number=EXTRACT(ISODOW FROM CURRENT_DATE)::int"
             + " ORDER BY pm.meal_order",
         CurrentUser.id(),CurrentUser.id(),CurrentUser.id(),CurrentUser.id());
   }

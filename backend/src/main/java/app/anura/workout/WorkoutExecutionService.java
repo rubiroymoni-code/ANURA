@@ -220,7 +220,7 @@ public class WorkoutExecutionService {
     @Transactional public SetView addSet(UUID sessionId,UUID performanceId,SetRequest r) {
         assertExercise(sessionId,performanceId); validateSet(r); UUID client=r.clientExternalId()==null?UUID.randomUUID():r.clientExternalId();
         List<SetView> existing=db.query("SELECT id FROM set_performance WHERE exercise_performance_id=? AND client_external_id=?",(rs,n)->set(rs.getObject(1,UUID.class)),performanceId,client); if(!existing.isEmpty()) return existing.getFirst();
-        UUID id=UUID.randomUUID(); int number=r.setNumber()==null?db.queryForObject("SELECT COALESCE(MAX(set_number),0)+1 FROM set_performance WHERE exercise_performance_id=? AND deleted_at IS NULL",Integer.class,performanceId):r.setNumber();
+        UUID id=UUID.randomUUID(); int number=r.setNumber()==null?db.queryForObject("SELECT COALESCE(MAX(set_number),0)+1 FROM set_performance WHERE exercise_performance_id=?",Integer.class,performanceId):r.setNumber();
         db.update("INSERT INTO set_performance(id,exercise_performance_id,set_number,set_type,weight,repetitions,rir,rpe,duration_seconds,distance_meters,rest_seconds,tempo,pain_level,completed,performed_at,client_external_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE NULL END,?)",id,performanceId,number,r.setType()==null?"WORKING":r.setType(),r.weight(),r.repetitions(),r.rir(),r.rpe(),r.durationSeconds(),r.distanceMeters(),r.restSeconds(),r.tempo(),r.painLevel(),r.completed(),r.completed(),client);
         touch(sessionId); return set(id);
     }

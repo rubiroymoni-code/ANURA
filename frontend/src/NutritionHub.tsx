@@ -151,7 +151,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: ()
         {section === "import" && <NutritionImport />}
         {section === "shopping" && <Shopping plans={plans} />}
         {section === "preferences" && <NutritionPreferencesPanel />}
-        {section === "cook" && <CookByDate planId={activePlan?.id} validFrom={activePlan?.valid_from} recipes={recipes} open={(recipeId,mealId)=>{setSelectedRecipe(recipeId);setSelectedMeal(mealId);setSection("recipe")}} />}
+        {section === "cook" && <CookByDate planId={activePlan?.id} recipes={recipes} open={(recipeId,mealId)=>{setSelectedRecipe(recipeId);setSelectedMeal(mealId);setSection("recipe")}} />}
         {section === "supplements" && <SupplementsPanel />}
         {section === "plan" && selectedPlan && <PlanView id={selectedPlan} status={plans.find(plan=>plan.id===selectedPlan)?.status||""} onDeleted={async()=>{setPlans(await nutritionApi.plans());setSelectedPlan(null);setSection("home")}} />}
         {section === "recipe" && selectedRecipe && (
@@ -429,7 +429,7 @@ function NutritionImport() {
 }
 function CookToday({planId,recipes,open}:{planId?:string;recipes:Array<{id:string;name:string}>;open:(recipeId:string,mealId:string)=>void}){const [rows,setRows]=useState<Array<Record<string,unknown>>>([]),[selectedDay,setSelectedDay]=useState(new Date().getDay()||7),[loading,setLoading]=useState(false);const currentUser=JSON.parse(localStorage.getItem("anura-user")||"{}");useEffect(()=>{if(!planId){setRows([]);return}setLoading(true);void nutritionApi.week(planId).then(setRows).finally(()=>setLoading(false))},[planId]);const todayDay=new Date().getDay()||7,mine=rows.filter(row=>String(row.user_id)===String(currentUser.id)),days=[...new Map(mine.map(row=>[Number(row.day_number),String(row.day_name||`Día ${row.day_number}`)])).entries()].sort((a,b)=>a[0]-b[0]),dayMeals=mine.filter(row=>Number(row.day_number)===selectedDay).sort((a,b)=>Number(a.meal_order||0)-Number(b.meal_order||0));return <div className="cook-workspace"><BatchCooking planId={planId}/><section className="cook-today"><div className="food-pref-hero"><ChefHat/><span><small>COCINA DEL DÍA</small><h3>{selectedDay===todayDay?"Preparaciones de hoy":`Preparaciones del ${days.find(([day])=>day===selectedDay)?.[1]?.toLowerCase()||`día ${selectedDay}`}`}</h3><p>Abre una receta para ver el reparto exacto de cada comida.</p></span></div>{days.length>0&&<div className="plan-day-tabs">{days.map(([day,name])=><button key={day} className={selectedDay===day?"active":""} onClick={()=>setSelectedDay(day)}><b>{day===todayDay?"Hoy":name.slice(0,3)}</b><small>Día {day}</small></button>)}</div>}{loading?<div className="empty">Cargando comidas…</div>:dayMeals.length?dayMeals.map(meal=>{const recipe=recipes.find(item=>item.name.trim().toLocaleLowerCase("es")===String(meal.recipe).trim().toLocaleLowerCase("es"));return <button key={String(meal.planned_meal_id)} disabled={!recipe} onClick={()=>recipe&&open(recipe.id,String(meal.planned_meal_id))}><span><small>{mealTypeLabel(String(meal.meal_type))}</small><b>{String(meal.recipe)}</b><em>{Number(meal.calories||0).toFixed(0)} kcal para ti</em></span><strong>Ver reparto →</strong></button>}):<div className="empty">No hay preparaciones asignadas para este día.</div>}</section></div>}
 
-function CookByDate({planId,validFrom,recipes,open}:{planId?:string;validFrom?:string;recipes:Array<{id:string;name:string}>;open:(recipeId:string,mealId:string)=>void}) {
+function CookByDate({planId,recipes,open}:{planId?:string;recipes:Array<{id:string;name:string}>;open:(recipeId:string,mealId:string)=>void}) {
   const [rows,setRows]=useState<Array<Record<string,unknown>>>([]);
   const [selectedDay,setSelectedDay]=useState<number|null>(null);
   const [loading,setLoading]=useState(false);
@@ -437,14 +437,13 @@ function CookByDate({planId,validFrom,recipes,open}:{planId?:string;validFrom?:s
   useEffect(()=>{if(!planId){setRows([]);return}setLoading(true);void nutritionApi.week(planId).then(setRows).finally(()=>setLoading(false))},[planId]);
   const mine=rows.filter(row=>String(row.user_id)===String(currentUser.id));
   const days=[...new Map(mine.map(row=>[Number(row.day_number),String(row.day_name||`Día ${row.day_number}`)])).entries()].sort((a,b)=>a[0]-b[0]);
-  const todayDay=planDayFromStart(validFrom,days.map(([day])=>day));
+  const todayDay=new Date().getDay()||7;
   const visibleDay=selectedDay??todayDay;
   const dayMeals=mine.filter(row=>Number(row.day_number)===visibleDay).sort((a,b)=>Number(a.meal_order||0)-Number(b.meal_order||0));
   return <div className="cook-workspace"><BatchCooking planId={planId}/><section className="cook-today"><div className="food-pref-hero"><ChefHat/><span><small>COCINA DEL DÍA</small><h3>{visibleDay===todayDay?"Preparaciones de hoy":`Preparaciones del ${days.find(([day])=>day===visibleDay)?.[1]?.toLowerCase()||`día ${visibleDay}`}`}</h3><p>Abre una receta para ver el reparto exacto de cada comida.</p></span></div>{days.length>0&&<div className="plan-day-tabs">{days.map(([day,name])=><button key={day} className={visibleDay===day?"active":""} onClick={()=>setSelectedDay(day)}><b>{day===todayDay?"Hoy":name.slice(0,3)}</b><small>Día {day}</small></button>)}</div>}{loading?<div className="empty">Cargando comidas…</div>:dayMeals.length?dayMeals.map(meal=>{const recipe=recipes.find(item=>item.name.trim().toLocaleLowerCase("es")===String(meal.recipe).trim().toLocaleLowerCase("es"));return <button key={String(meal.planned_meal_id)} disabled={!recipe} onClick={()=>recipe&&open(recipe.id,String(meal.planned_meal_id))}><span><small>{mealTypeLabel(String(meal.meal_type))}</small><b>{String(meal.recipe)}</b><em>{Number(meal.calories||0).toFixed(0)} kcal para ti</em></span><strong>Ver reparto →</strong></button>}):<div className="empty">No hay preparaciones asignadas para este día.</div>}</section></div>
 }
 
 function normalizeWeekday(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLocaleLowerCase("es")}
-function planDayFromStart(validFrom:string|undefined,days:number[]){if(!validFrom)return days[0]??1;const start=new Date(`${validFrom}T12:00:00`),now=new Date();start.setHours(12,0,0,0);now.setHours(12,0,0,0);const offset=Math.floor((now.getTime()-start.getTime())/86400000)+1;return days.includes(offset)?offset:days[0]??1}
 
 type PrepRow={planned_meal_id:string;day_number:number;day_name:string;meal_type:string;meal_name:string;recipe:string;user_id:string;display_name:string;ingredients:unknown};
 type PrepIngredient={name:string;quantity:number;unit:string};
