@@ -23,6 +23,8 @@ public class WorkoutExecutionService {
     private final JdbcTemplate db;
     private final int maxSyncOperations;
     private final int maxEstimateReps;
+    @Value("${app.workout.completed-edit-window-minutes:15}")
+    private int completedEditWindowMinutes = 15;
 
     WorkoutExecutionService(JdbcTemplate db,
         @Value("${app.workout.sync-max-operations:100}") int maxSyncOperations,
@@ -286,7 +288,12 @@ public class WorkoutExecutionService {
     private List<SetView> sets(UUID exercise) { return db.query("SELECT id FROM set_performance WHERE exercise_performance_id=? AND deleted_at IS NULL ORDER BY set_number",(r,n)->set(r.getObject(1,UUID.class)),exercise); }
     private SetView set(UUID id) { return db.query("SELECT id,set_number,set_type,weight,repetitions,rir,rpe,duration_seconds,distance_meters,rest_seconds,tempo,pain_level,completed,performed_at,client_external_id FROM set_performance WHERE id=? AND deleted_at IS NULL",(r,n)->new SetView(r.getObject(1,UUID.class),r.getInt(2),r.getString(3),decimal(r,4),integer(r,5),decimal(r,6),decimal(r,7),integer(r,8),decimal(r,9),integer(r,10),r.getString(11),integer(r,12),r.getBoolean(13),instant(r,14),r.getObject(15,UUID.class)),id).getFirst(); }
     private SessionHeader header(ResultSet r,int n)throws SQLException{return new SessionHeader(r.getObject(1,UUID.class),r.getString(2),r.getObject(3,LocalDate.class),r.getString(4),r.getTimestamp(5).toInstant(),instant(r,6),integer(r,7),decimal(r,8),integer(r,9),integer(r,10),integer(r,11),integer(r,12),r.getString(13),r.getObject(14,UUID.class),r.getLong(15),r.getObject(16,UUID.class),integer(r,17),r.getObject(18,UUID.class),instant(r,19),r.getInt(20));}
-    private void assertEditable(UUID session){String status=view(session).header().status();if(!List.of("IN_PROGRESS","PAUSED").contains(status))throw conflict("SESSION_NOT_EDITABLE","La sesión está cerrada");}
+    private void assertEditable(UUID session){
+        SessionHeader header=view(session).header();
+        if(List.of("IN_PROGRESS","PAUSED").contains(header.status())) return;
+        if("COMPLETED".equals(header.status()) && db.queryForObject("SELECT count(*) FROM workout_session WHERE id=? AND user_id=? AND completed_at>=CURRENT_TIMESTAMP-(? * INTERVAL '1 minute')",Integer.class,session,CurrentUser.id(),completedEditWindowMinutes)>0) return;
+        throw conflict("SESSION_NOT_EDITABLE","La sesión está cerrada");
+    }
     private void assertExercise(UUID session,UUID exercise){assertEditable(session);if(db.queryForObject("SELECT count(*) FROM exercise_performance WHERE id=? AND workout_session_id=?",Integer.class,exercise,session)==0)throw notFound();}
     private void validateSet(SetRequest r){if(r.weight()!=null&&r.weight().signum()<0)throw bad("INVALID_WEIGHT","El peso no puede ser negativo");if(r.repetitions()!=null&&r.repetitions()<0)throw bad("INVALID_REPETITIONS","Las repeticiones no pueden ser negativas");validateDecimal(r.rir(),0,"RIR");validateDecimal(r.rpe(),1,"RPE");validateLevel(r.painLevel(),0,"dolor");}
     private void validateDecimal(BigDecimal n,int min,String field){if(n!=null&&(n.compareTo(BigDecimal.valueOf(min))<0||n.compareTo(BigDecimal.TEN)>0))throw bad("INVALID_"+field,"Valor de "+field+" fuera de rango");}
