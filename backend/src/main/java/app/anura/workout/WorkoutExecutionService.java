@@ -84,7 +84,6 @@ public class WorkoutExecutionService {
             AND NOT EXISTS(SELECT 1 FROM workout_session s WHERE s.user_id=p.user_id AND s.workout_plan_day_id=d.id AND s.planned_date=CURRENT_DATE AND s.status IN ('COMPLETED','ABANDONED') AND s.deleted_at IS NULL)
             AND (
               EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=CURRENT_DATE)
-              AND NOT EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.original_date=CURRENT_DATE)
               OR (
                 CASE
                   WHEN p.valid_from IS NOT NULL THEN
@@ -115,6 +114,7 @@ public class WorkoutExecutionService {
         UUID user=CurrentUser.id();
         int chained=db.update("UPDATE workout_day_adjustment SET scheduled_date=?,status='MOVED',reason=NULL,updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND workout_plan_day_id=? AND scheduled_date=? AND status='MOVED'",target,user,dayId,original);
         if(chained==0) db.update("INSERT INTO workout_day_adjustment(id,user_id,workout_plan_id,workout_plan_day_id,original_date,scheduled_date,status) VALUES(?,?,?,?,?,?,'MOVED') ON CONFLICT(user_id,workout_plan_day_id,original_date) DO UPDATE SET scheduled_date=EXCLUDED.scheduled_date,status='MOVED',reason=NULL,updated_at=CURRENT_TIMESTAMP",UUID.randomUUID(),user,day.get("plan_id"),dayId,original,target);
+        else db.update("DELETE FROM workout_day_adjustment WHERE user_id=? AND workout_plan_day_id=? AND original_date=?",user,dayId,original);
         audit("WORKOUT_DAY_MOVED","WORKOUT_PLAN_DAY",dayId,"SUCCESS");
     }
 
