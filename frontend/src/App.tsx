@@ -88,6 +88,7 @@ export function App() {
   const [dailyLoading, setDailyLoading] = useState(false);
   const [mealsExpanded,setMealsExpanded]=useState(false);
   const [mealFlowOpen, setMealFlowOpen] = useState(false);
+  const [dayCelebration,setDayCelebration]=useState(false);
   const [selectedPlannedMeal,setSelectedPlannedMeal]=useState<string|null>(null);
   const [editingMeal, setEditingMeal] = useState<Entry | null>(null);
   const [progressAddSignal,setProgressAddSignal]=useState(0);
@@ -108,6 +109,12 @@ export function App() {
   useEffect(() => {
     load();
   }, [user]);
+  useEffect(()=>{
+    if(!user)return;
+    const mealsDone=todayMeals.length>0&&todayMeals.every(meal=>meal.status!=="PENDING");
+    const workoutDone=!todayWorkout||todayWorkoutDone;
+    if(mealsDone&&workoutDone){setDayCelebration(true);const timer=window.setTimeout(()=>setDayCelebration(false),5200);return()=>window.clearTimeout(timer)}
+  },[todayMeals,todayWorkout,todayWorkoutDone,user]);
   useEffect(() => {
     if (!user) return;
     void Promise.all([nutritionApi.today().catch(() => []), workoutApi.today().catch(() => ({ workout: null, adjustment: null })), workoutApi.history().catch(() => [])]).then(([meals, status, sessions]) => {
@@ -329,6 +336,7 @@ export function App() {
       )}
       {accountOpen && <AccountModal initialTab={accountInitialTab} user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} />}
       {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} initialMealId={selectedPlannedMeal} onClose={() => {setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onBackToMeals={()=>{setMealFlowOpen(false);setSelectedPlannedMeal(null);setNutritionOpen(true)}} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);setSelectedPlannedMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
+      {dayCelebration&&<div className="day-celebration" role="status" aria-live="polite" onClick={()=>setDayCelebration(false)}><div className="celebration-glow"/><div className="celebration-confetti">{Array.from({length:28},(_,i)=><i key={i} style={{"--i":i} as CSSProperties}/>)}</div><div className="celebration-card"><span>✦</span><small>DÍA COMPLETADO</small><h2>Hoy has cumplido contigo.</h2><p>Entrenamiento, comidas y constancia. Quédate con este impulso.</p><b>Toca para continuar</b></div></div>}
     </main>
   );
 }

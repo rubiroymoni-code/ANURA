@@ -174,6 +174,12 @@ public class WorkoutExecutionService {
         return new SessionView(h, exercises(id), metrics(id));
     }
 
+    @Transactional public SessionView updateDuration(UUID id,Integer seconds) {
+        view(id); if(seconds==null||seconds<1||seconds>86400) throw bad("INVALID_DURATION","Indica una duración válida");
+        db.update("UPDATE workout_session SET duration_seconds=?,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND user_id=? AND status='COMPLETED'",seconds,id,CurrentUser.id());
+        return view(id);
+    }
+
     @Transactional public void deleteSession(UUID id) {
         SessionView session=view(id);
         if(List.of("IN_PROGRESS","PAUSED").contains(session.header().status())) throw conflict("ACTIVE_SESSION_DELETE","Cancela primero el entrenamiento en curso");
@@ -194,7 +200,7 @@ public class WorkoutExecutionService {
     @Transactional public SessionView complete(UUID id, CompleteRequest r) {
         SessionView current=view(id); if(!List.of("IN_PROGRESS","PAUSED").contains(current.header().status())) throw conflict("INVALID_SESSION_STATE","La sesión ya está cerrada");
         validateLevel(r.globalRpe(),1,"RPE"); validateLevel(r.energyLevel(),0,"energía"); validateLevel(r.pumpLevel(),0,"congestión"); validateLevel(r.painLevel(),0,"dolor"); validateLevel(r.difficultyLevel(),0,"dificultad");
-        db.update("UPDATE workout_session SET status='COMPLETED',completed_at=CURRENT_TIMESTAMP,last_activity_at=CURRENT_TIMESTAMP,duration_seconds=EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-started_at))::integer-paused_seconds-CASE WHEN paused_at IS NULL THEN 0 ELSE EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-paused_at))::integer END,paused_at=NULL,global_rpe=?,energy_level=?,pump_level=?,pain_level=?,difficulty_level=?,notes=?,adherence_reason=?,adherence_percent=(SELECT CASE WHEN COUNT(*)=0 THEN 100 ELSE ROUND(100.0*COUNT(*) FILTER(WHERE completed_at IS NOT NULL)/COUNT(*))::integer END FROM exercise_performance WHERE workout_session_id=?),updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND user_id=?",r.globalRpe(),r.energyLevel(),r.pumpLevel(),r.painLevel(),r.difficultyLevel(),r.notes(),r.adherenceReason(),id,id,CurrentUser.id());
+        db.update("UPDATE workout_session SET status='COMPLETED',completed_at=CURRENT_TIMESTAMP,last_activity_at=CURRENT_TIMESTAMP,duration_seconds=COALESCE(?,EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-started_at))::integer-paused_seconds-CASE WHEN paused_at IS NULL THEN 0 ELSE EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP-paused_at))::integer END),paused_at=NULL,global_rpe=?,energy_level=?,pump_level=?,pain_level=?,difficulty_level=?,notes=?,adherence_reason=?,adherence_percent=(SELECT CASE WHEN COUNT(*)=0 THEN 100 ELSE ROUND(100.0*COUNT(*) FILTER(WHERE completed_at IS NOT NULL)/COUNT(*))::integer END FROM exercise_performance WHERE workout_session_id=?),updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=? AND user_id=?",r.durationSeconds(),r.globalRpe(),r.energyLevel(),r.pumpLevel(),r.painLevel(),r.difficultyLevel(),r.notes(),r.adherenceReason(),id,id,CurrentUser.id());
         detectRecords(id); audit("SESSION_COMPLETED","WORKOUT_SESSION",id,"SUCCESS"); return view(id);
     }
 
@@ -324,7 +330,7 @@ public class WorkoutExecutionService {
     public record WorkoutDayAdjustment(UUID dayId,LocalDate originalDate,LocalDate scheduledDate,String status,String reason,String sessionName,int dayNumber){}
     public record PlannedExerciseView(UUID plannedExerciseId,UUID exerciseId,String name,String muscleGroup,String equipment,int order,int sets,int repsMin,int repsMax,BigDecimal targetRir,BigDecimal targetRpe,Integer restSeconds,String instructions){}
     public record StartRequest(UUID workoutPlanDayId,String name,LocalDate plannedDate,UUID clientExternalId){public StartRequest{if(clientExternalId==null)clientExternalId=UUID.randomUUID();}}
-    public record CompleteRequest(BigDecimal globalRpe,Integer energyLevel,Integer pumpLevel,Integer painLevel,Integer difficultyLevel,String notes,String adherenceReason){}
+    public record CompleteRequest(BigDecimal globalRpe,Integer energyLevel,Integer pumpLevel,Integer painLevel,Integer difficultyLevel,String notes,String adherenceReason,Integer durationSeconds){public CompleteRequest(BigDecimal globalRpe,Integer energyLevel,Integer pumpLevel,Integer painLevel,Integer difficultyLevel,String notes,String adherenceReason){this(globalRpe,energyLevel,pumpLevel,painLevel,difficultyLevel,notes,adherenceReason,null);}}
     public record AbandonRequest(String reason){}
     public record AddExerciseRequest(UUID exerciseId,Integer order,String notes){} public record SubstituteRequest(UUID replacementExerciseId,String reason,String notes){} public record PainRequest(Integer intensity,String area,String comment){}
     public record SetRequest(Integer setNumber,String setType,BigDecimal weight,Integer repetitions,BigDecimal rir,BigDecimal rpe,Integer durationSeconds,BigDecimal distanceMeters,Integer restSeconds,String tempo,Integer painLevel,boolean completed,UUID clientExternalId){}

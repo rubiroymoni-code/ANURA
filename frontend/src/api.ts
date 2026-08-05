@@ -177,6 +177,7 @@ export const workoutApi = {
   pause:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/pause`,{method:"POST"}),
   resume:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/resume`,{method:"POST"}),
   complete:(id:string,body:object)=>request<WorkoutSession>(`/workout-sessions/${id}/complete`,{method:"POST",body:JSON.stringify(body)}),
+  updateDuration:(id:string,seconds:number)=>request<WorkoutSession>(`/workout-sessions/${id}/duration`,{method:"PATCH",body:JSON.stringify({seconds})}),
   abandon:(id:string,reason?:string)=>request<WorkoutSession>(`/workout-sessions/${id}/abandon`,{method:"POST",body:JSON.stringify({reason})}),
   addExercise:(session:string,body:object)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises`,{method:"POST",body:JSON.stringify(body)}),
   addSet:(session:string,exercise:string,body:object)=>request<WorkoutSet>(`/workout-sessions/${session}/exercises/${exercise}/sets`,{method:"POST",body:JSON.stringify(body)}),
