@@ -30,6 +30,49 @@ public class WorkoutExecutionService {
         this.db = db; this.maxSyncOperations = maxSyncOperations; this.maxEstimateReps = maxEstimateReps;
     }
 
+    public TodayWorkoutStatus todayStatus() {
+        return new TodayWorkoutStatus(today(), todayAdjustment());
+    }
+
+    public List<WorkoutDayAdjustment> planAdjustments(UUID planId) {
+        UUID user = CurrentUser.id();
+        if (db.queryForObject("SELECT count(*) FROM workout_plan WHERE id=? AND user_id=? AND status='ACTIVE'", Integer.class, planId, user) == 0)
+            throw notFound();
+        return db.query("""
+            SELECT a.workout_plan_day_id,a.original_date,a.scheduled_date,a.status,a.reason,d.session_name,d.day_number
+            FROM workout_day_adjustment a
+            JOIN workout_plan_day d ON d.id=a.workout_plan_day_id
+            WHERE a.user_id=? AND a.workout_plan_id=?
+            AND a.original_date>=CURRENT_DATE-7 AND a.original_date<=CURRENT_DATE+14
+            ORDER BY a.original_date
+            """, (r, n) -> new WorkoutDayAdjustment(
+                r.getObject(1, UUID.class),
+                r.getObject(2, LocalDate.class),
+                r.getObject(3, LocalDate.class),
+                r.getString(4),
+                r.getString(5),
+                r.getString(6),
+                r.getInt(7)), user, planId);
+    }
+
+    private TodayAdjustment todayAdjustment() {
+        UUID user = CurrentUser.id();
+        List<TodayAdjustment> rows = db.query("""
+            SELECT a.status,a.scheduled_date,d.session_name,a.reason
+            FROM workout_day_adjustment a
+            JOIN workout_plan_day d ON d.id=a.workout_plan_day_id
+            JOIN workout_plan p ON p.id=a.workout_plan_id
+            WHERE a.user_id=? AND p.status='ACTIVE' AND a.original_date=CURRENT_DATE
+            AND a.status IN ('MOVED','SKIPPED')
+            LIMIT 1
+            """, (r, n) -> new TodayAdjustment(
+                r.getString(1),
+                r.getObject(2, LocalDate.class),
+                r.getString(3),
+                r.getString(4)), user);
+        return rows.stream().findFirst().orElse(null);
+    }
+
     public TodayWorkout today() {
         UUID user = CurrentUser.id();
         List<TodayWorkout> rows = db.query("""
@@ -266,6 +309,9 @@ public class WorkoutExecutionService {
     private static Instant instant(ResultSet r,int i)throws SQLException{return r.getTimestamp(i)==null?null:r.getTimestamp(i).toInstant();} private static Integer integer(ResultSet r,int i)throws SQLException{Object x=r.getObject(i);return x==null?null:((Number)x).intValue();} private static BigDecimal decimal(ResultSet r,int i)throws SQLException{return r.getBigDecimal(i);} private static BigDecimal decimal(JsonNode n,String k){return n.hasNonNull(k)?n.get(k).decimalValue():null;} private static Integer integer(JsonNode n,String k){return n.hasNonNull(k)?n.get(k).intValue():null;} private static String text(JsonNode n,String k){return n.hasNonNull(k)?n.get(k).asText():null;}
 
     public record TodayWorkout(UUID planId,String planName,int planVersion,UUID dayId,String sessionName,String dayName,int weekNumber,int dayNumber,int estimatedMinutes,int exerciseCount,List<PlannedExerciseView> exercises){}
+    public record TodayAdjustment(String status,LocalDate scheduledDate,String sessionName,String reason){}
+    public record TodayWorkoutStatus(TodayWorkout workout,TodayAdjustment adjustment){}
+    public record WorkoutDayAdjustment(UUID dayId,LocalDate originalDate,LocalDate scheduledDate,String status,String reason,String sessionName,int dayNumber){}
     public record PlannedExerciseView(UUID plannedExerciseId,UUID exerciseId,String name,String muscleGroup,String equipment,int order,int sets,int repsMin,int repsMax,BigDecimal targetRir,BigDecimal targetRpe,Integer restSeconds,String instructions){}
     public record StartRequest(UUID workoutPlanDayId,String name,LocalDate plannedDate,UUID clientExternalId){public StartRequest{if(clientExternalId==null)clientExternalId=UUID.randomUUID();}}
     public record CompleteRequest(BigDecimal globalRpe,Integer energyLevel,Integer pumpLevel,Integer painLevel,Integer difficultyLevel,String notes,String adherenceReason){}
