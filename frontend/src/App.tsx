@@ -100,7 +100,7 @@ export function App() {
         .catch(() => logout());
   };
   const refreshWorkoutStatus = () =>
-    void Promise.all([workoutApi.today().catch(() => ({ workout: null })), workoutApi.history().catch(() => [])]).then(([status, sessions]) => {
+    void Promise.all([workoutApi.today().catch(() => ({ workout: null, adjustment: null })), workoutApi.history().catch(() => [])]).then(([status, sessions]) => {
       setTodayWorkout(status.workout ?? null);
       setTodayWorkoutAdjustment(status.adjustment ?? null);
       setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0, 10) && session.status === "COMPLETED"));
@@ -110,7 +110,7 @@ export function App() {
   }, [user]);
   useEffect(() => {
     if (!user) return;
-    void Promise.all([nutritionApi.today().catch(() => []), workoutApi.today().catch(() => ({ workout: null })), workoutApi.history().catch(() => [])]).then(([meals, status, sessions]) => {
+    void Promise.all([nutritionApi.today().catch(() => []), workoutApi.today().catch(() => ({ workout: null, adjustment: null })), workoutApi.history().catch(() => [])]).then(([meals, status, sessions]) => {
       setTodayMeals(meals);
       setTodayWorkout(status.workout ?? null);
       setTodayWorkoutAdjustment(status.adjustment ?? null);
