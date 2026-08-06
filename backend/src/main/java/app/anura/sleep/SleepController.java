@@ -86,11 +86,9 @@ public class SleepController {
         double average = rows.stream().mapToInt(this::minutes).average().orElse(0);
         double quality = rows.stream().filter(row -> row.get("quality_score") != null).mapToInt(row -> ((Number) row.get("quality_score")).intValue()).average().orElse(0);
         double energy = rows.stream().filter(row -> row.get("morning_energy") != null).mapToInt(row -> ((Number) row.get("morning_energy")).intValue()).average().orElse(0);
-        int meetingGoal = (int) rows.stream().filter(row -> minutes(row) >= GOAL_MINUTES).count();
-        int debt = rows.stream().mapToInt(row -> Math.max(0, GOAL_MINUTES - minutes(row))).sum();
         return Map.of("days", range, "records", rows.size(), "averageSleepMinutes", Math.round(average), "averageQuality", quality, "averageEnergy", energy,
-                "goalMinutes", GOAL_MINUTES, "goalCompletionPercentage", rows.isEmpty() ? 0 : Math.round(meetingGoal * 100.0 / rows.size()),
-                "sleepDebtMinutes", debt, "currentStreak", streak(rows, to), "series", rows);
+                "goalMinutes", GOAL_MINUTES, "goalCompletionPercentage", goalPercentage(rows),
+                "sleepDebtMinutes", debt(rows), "currentStreak", streak(rows, to), "series", rows);
     }
 
     private Map<String, Object> findByDate(UUID user, LocalDate date) { return db.queryForMap("SELECT * FROM sleep_session WHERE user_id=? AND sleep_date=?", user, date); }
@@ -98,7 +96,8 @@ public class SleepController {
     private int minutes(Map<String, Object> row) { return ((Number) row.get("total_sleep_minutes")).intValue(); }
     static int goalPercentage(List<Map<String, Object>> rows) { int count = (int) rows.stream().filter(row -> ((Number) row.get("total_sleep_minutes")).intValue() >= GOAL_MINUTES).count(); return rows.isEmpty() ? 0 : Math.round(count * 100.0f / rows.size()); }
     static int debt(List<Map<String, Object>> rows) { return rows.stream().mapToInt(row -> Math.max(0, GOAL_MINUTES - ((Number) row.get("total_sleep_minutes")).intValue())).sum(); }
-    static int streak(List<Map<String, Object>> rows, LocalDate end) { int result = 0; LocalDate expected = end; for (int i = rows.size() - 1; i >= 0; i--) { LocalDate date = ((java.sql.Date) rows.get(i).get("sleep_date")).toLocalDate(); if (!date.equals(expected)) break; result++; expected = expected.minusDays(1); } return result; }
+    static int streak(List<Map<String, Object>> rows, LocalDate end) { int result = 0; LocalDate expected = end; for (int i = rows.size() - 1; i >= 0; i--) { LocalDate date = asLocalDate(rows.get(i).get("sleep_date")); if (!date.equals(expected)) break; result++; expected = expected.minusDays(1); } return result; }
+    private static LocalDate asLocalDate(Object value) { return value instanceof LocalDate date ? date : ((java.sql.Date) value).toLocalDate(); }
     static void validate(Input input) { if (input == null || input.sleepDate() == null || input.totalSleepMinutes() == null || input.totalSleepMinutes() < 0 || input.totalSleepMinutes() > 1440 || input.qualityScore() != null && (input.qualityScore() < 1 || input.qualityScore() > 5) || input.morningEnergy() != null && (input.morningEnergy() < 1 || input.morningEnergy() > 5)) throw bad("INVALID_SLEEP", "Revisa duración, calidad y energía"); }
     private static ApiException bad(String code, String message) { return new ApiException(HttpStatus.BAD_REQUEST, code, message); }
     private static ApiException conflict(String code, String message) { return new ApiException(HttpStatus.CONFLICT, code, message); }

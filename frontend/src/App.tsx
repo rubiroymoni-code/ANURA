@@ -204,7 +204,7 @@ export function App() {
                 {mealsExpanded&&todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.status !== "PENDING" ? "completed" : ""}><button onClick={() => setMealFlowOpen(true)}><span><b>{meal.custom_name||meal.meal_name}</b><small>{meal.status === "SKIPPED" ? "Saltada" : meal.status === "SUBSTITUTED" ? "Sustituida" : `${meal.recipe} · ${Number(meal.calories || 0).toFixed(0)} kcal`}</small></span></button><button className="meal-complete" disabled={dailyLoading} title={meal.status==="PENDING"?"Marcar como hecha":"Deshacer registro"} onClick={async () => {setDailyLoading(true);try{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id);else await nutritionApi.undoToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setNutritionDashboard(await nutritionApi.dashboard());load();}finally{setDailyLoading(false)}}}>{meal.status !== "PENDING" ? "Deshacer" : "Completar"}</button></div>)}</div>}
                 {mealsExpanded&&<button className="daily-add-meal" onClick={() => {setEditingMeal(null);setMealFlowOpen(true)}}><Plus/>Revisar dieta o añadir comida</button>}
               </div>
-              <button className="daily-focus sleep" onClick={()=>setSleepOpen(true)}><span className="daily-focus-icon">☾</span><span><small>DESCANSO</small><strong>{todaySleep?`${Math.floor(todaySleep.total_sleep_minutes/60)} h ${todaySleep.total_sleep_minutes%60} min`:"¿Cómo has dormido?"}</strong><b>{todaySleep?`Calidad ${todaySleep.quality_score || "—"}/5 · Energía ${todaySleep.morning_energy || "—"}/5`:"Registra el sueño de anoche"}</b></span><em>{todaySleep?"Registrado":"Registrar"}</em></button>
+              <button className="daily-focus sleep" onClick={()=>setSleepOpen(true)}><span className="daily-focus-icon">☾</span><span><small>DESCANSO</small><strong>{todaySleep?`${Math.floor(todaySleep.total_sleep_minutes/60)} h ${todaySleep.total_sleep_minutes%60} min`:"¿Cómo has dormido?"}</strong><b>{todaySleep?`Calidad ${["","Muy mala","Mala","Normal","Buena","Excelente"][todaySleep.quality_score||0]||"—"} · Energía ${["","Agotado","Cansado","Normal","Con energía","A tope"][todaySleep.morning_energy||0]||"—"}`:"Registra el sueño de anoche"}</b></span><em>{todaySleep?"Registrado":"Registrar"}</em></button>
             </div>
             <div className="score">
               <div>
@@ -280,7 +280,7 @@ export function App() {
           </button>
         )}
       </section>
-      {(tab === "HOME" || tab === "WEIGHT") && !modal && !importOpen && !nutritionOpen && !workoutOpen && !accountOpen && !mealFlowOpen && <button type="button" className="fab" aria-label={tab==="WEIGHT"?"Registrar check-in":"Añadir al día"} title={tab==="WEIGHT"?"Registrar check-in":"Añadir al día"} onClick={() => tab === "WEIGHT" ? setProgressAddSignal(value=>value+1) : setModal(true)}>
+      {(tab === "HOME" || tab === "WEIGHT") && !modal && !importOpen && !nutritionOpen && !workoutOpen && !accountOpen && !mealFlowOpen && !sleepOpen && <button type="button" className="fab" aria-label={tab==="WEIGHT"?"Registrar check-in":"Añadir al día"} title={tab==="WEIGHT"?"Registrar check-in":"Añadir al día"} onClick={() => tab === "WEIGHT" ? setProgressAddSignal(value=>value+1) : setModal(true)}>
         <Plus />
       </button>}
       <nav>
