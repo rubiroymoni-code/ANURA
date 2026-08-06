@@ -112,7 +112,7 @@ export function App() {
     void Promise.all([workoutApi.today().catch(() => ({ workout: null, adjustment: null })), workoutApi.history().catch(() => [])]).then(([status, sessions]) => {
       setTodayWorkout(status.workout ?? null);
       setTodayWorkoutAdjustment(status.adjustment ?? null);
-      setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0, 10) && session.status === "COMPLETED"));
+      setTodayWorkoutDone(sessions.some((session) => session.date === localDate() && session.status === "COMPLETED"));
     });
   useEffect(() => {
     load();
@@ -129,7 +129,7 @@ export function App() {
       setTodayMeals(meals);
       setTodayWorkout(status.workout ?? null);
       setTodayWorkoutAdjustment(status.adjustment ?? null);
-      setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0, 10) && session.status === "COMPLETED"));
+      setTodayWorkoutDone(sessions.some((session) => session.date === localDate() && session.status === "COMPLETED"));
       setTodaySleep(sleep);
     });
     void nutritionApi.dashboard().then(setNutritionDashboard).catch(()=>setNutritionDashboard(null));
@@ -154,7 +154,7 @@ export function App() {
     );
   const visible =
     tab === "HOME" ? entries : entries.filter((e) => e.type === tab);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDate();
   const todayItems = entries.filter((e) => e.entryDate === today);
   const plannedToday=todayMeals.length+(todayWorkout?1:0)+1;
   const completedToday=todayMeals.filter(meal=>meal.status!=="PENDING").length+(todayWorkout&&(todayWorkoutDone||todayItems.some(item=>item.type==="WORKOUT"))?1:0)+(todaySleep?1:0);
@@ -333,7 +333,7 @@ export function App() {
       {nutritionOpen && (
         <NutritionHub onClose={() => setNutritionOpen(false)} onAddMeal={()=>{setNutritionOpen(false);setSelectedPlannedMeal(null);setEditingMeal(null);setMealFlowOpen(true)}} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setNutritionOpen(false);setEditingMeal(null);setMealFlowOpen(true)}} />
       )}
-      {sleepOpen&&<SleepModal value={todaySleep} close={()=>setSleepOpen(false)} saved={value=>{setTodaySleep(value);setSleepOpen(false)}}/>}
+      {sleepOpen&&<SleepModal value={todaySleep} close={()=>setSleepOpen(false)} saved={value=>{setTodaySleep(value);setSleepOpen(false)}} deleted={()=>{setTodaySleep(null);setSleepOpen(false);}}/>}
       {workoutOpen && (
         <WorkoutHub
           onWorkoutChanged={refreshWorkoutStatus}
@@ -683,7 +683,7 @@ function EntryModal({
               required
               type="date"
               name="date"
-              defaultValue={new Date().toISOString().slice(0, 10)}
+              defaultValue={localDate()}
             />
           </label>
           {type!=="WORKOUT"&&<label>
