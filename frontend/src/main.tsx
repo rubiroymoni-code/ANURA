@@ -42,6 +42,7 @@ import './batch-cooking.css';
 import './plan-meal-details.css';
 import './evolution-redesign.css';
 import './reminder-center.css';
+import './sleep-dashboard.css';
 import './day-celebration.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);

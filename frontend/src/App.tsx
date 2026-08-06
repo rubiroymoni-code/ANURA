@@ -35,6 +35,8 @@ import {
   TodayWorkoutAdjustment,
   workoutApi,
   User,
+  sleepApi,
+  SleepSession,
 } from "./api";
 import { NutritionHub } from "./NutritionHub";
 import { BodyProgress } from "./BodyProgress";
@@ -44,6 +46,8 @@ import { clearWorkoutOffline } from "./workoutOffline";
 import { MealFlow } from "./MealFlow";
 import { CycleTracker } from "./CycleTracker";
 import { HomeNotifications, ReminderSettingsPanel } from "./ReminderCenter";
+import { SleepModal } from "./SleepModal";
+import { SleepDashboard } from "./SleepDashboard";
 
 const meta: Record<
   EntryType,
@@ -72,6 +76,7 @@ export function App() {
   });
   const [entries, setEntries] = useState<Entry[]>([]);
   const [tab, setTab] = useState<"HOME" | EntryType | "CYCLE">("HOME");
+  const [evolutionView, setEvolutionView] = useState<"weight" | "sleep">("weight");
   const [modal, setModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -85,6 +90,8 @@ export function App() {
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null>(null);
   const [todayWorkoutAdjustment, setTodayWorkoutAdjustment] = useState<TodayWorkoutAdjustment | null>(null);
   const [todayWorkoutDone, setTodayWorkoutDone] = useState(false);
+  const [todaySleep,setTodaySleep]=useState<SleepSession|null>(null);
+  const [sleepOpen,setSleepOpen]=useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
   const [mealsExpanded,setMealsExpanded]=useState(false);
   const [mealFlowOpen, setMealFlowOpen] = useState(false);
@@ -117,11 +124,12 @@ export function App() {
   },[todayMeals,todayWorkout,todayWorkoutDone,user]);
   useEffect(() => {
     if (!user) return;
-    void Promise.all([nutritionApi.today().catch(() => []), workoutApi.today().catch(() => ({ workout: null, adjustment: null })), workoutApi.history().catch(() => [])]).then(([meals, status, sessions]) => {
+    void Promise.all([nutritionApi.today().catch(() => []), workoutApi.today().catch(() => ({ workout: null, adjustment: null })), workoutApi.history().catch(() => []),sleepApi.today().catch(()=>null)]).then(([meals, status, sessions,sleep]) => {
       setTodayMeals(meals);
       setTodayWorkout(status.workout ?? null);
       setTodayWorkoutAdjustment(status.adjustment ?? null);
       setTodayWorkoutDone(sessions.some((session) => session.date === new Date().toISOString().slice(0, 10) && session.status === "COMPLETED"));
+      setTodaySleep(sleep);
     });
     void nutritionApi.dashboard().then(setNutritionDashboard).catch(()=>setNutritionDashboard(null));
     void nutritionApi.plans().then(setNutritionPlans).catch(()=>setNutritionPlans([]));
@@ -147,8 +155,8 @@ export function App() {
     tab === "HOME" ? entries : entries.filter((e) => e.type === tab);
   const today = new Date().toISOString().slice(0, 10);
   const todayItems = entries.filter((e) => e.entryDate === today);
-  const plannedToday=todayMeals.length+(todayWorkout?1:0);
-  const completedToday=todayMeals.filter(meal=>meal.status!=="PENDING").length+(todayWorkout&&(todayWorkoutDone||todayItems.some(item=>item.type==="WORKOUT"))?1:0);
+  const plannedToday=todayMeals.length+(todayWorkout?1:0)+1;
+  const completedToday=todayMeals.filter(meal=>meal.status!=="PENDING").length+(todayWorkout&&(todayWorkoutDone||todayItems.some(item=>item.type==="WORKOUT"))?1:0)+(todaySleep?1:0);
   const workoutStatusLabel=todayWorkout?(todayWorkoutDone||todayItems.some(e=>e.type==="WORKOUT")?"Hecho":"Pendiente"):todayWorkoutAdjustment?.status==="MOVED"?`Movido al ${new Date(`${todayWorkoutAdjustment.scheduledDate}T12:00:00`).toLocaleDateString("es",{weekday:"long"})}`:todayWorkoutAdjustment?.status==="SKIPPED"?"No realizado":"Sin plan hoy";
   const workoutTitle=todayWorkout?.sessionName||todayWorkoutAdjustment?.sessionName||"Sesión libre";
   const workoutDetail=todayWorkout?`${todayWorkout.exerciseCount} ejercicios · ~${todayWorkout.estimatedMinutes||45} min`:todayWorkoutAdjustment?.status==="MOVED"?"Ya no cuenta en las acciones de hoy":todayWorkoutAdjustment?.status==="SKIPPED"?"Marcado como no realizado hoy":"No hay plan asignado hoy";
@@ -195,6 +203,7 @@ export function App() {
                 {mealsExpanded&&todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.status !== "PENDING" ? "completed" : ""}><button onClick={() => setMealFlowOpen(true)}><span><b>{meal.custom_name||meal.meal_name}</b><small>{meal.status === "SKIPPED" ? "Saltada" : meal.status === "SUBSTITUTED" ? "Sustituida" : `${meal.recipe} · ${Number(meal.calories || 0).toFixed(0)} kcal`}</small></span></button><button className="meal-complete" disabled={dailyLoading} title={meal.status==="PENDING"?"Marcar como hecha":"Deshacer registro"} onClick={async () => {setDailyLoading(true);try{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id);else await nutritionApi.undoToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setNutritionDashboard(await nutritionApi.dashboard());load();}finally{setDailyLoading(false)}}}>{meal.status !== "PENDING" ? "Deshacer" : "Completar"}</button></div>)}</div>}
                 {mealsExpanded&&<button className="daily-add-meal" onClick={() => {setEditingMeal(null);setMealFlowOpen(true)}}><Plus/>Revisar dieta o añadir comida</button>}
               </div>
+              <button className="daily-focus sleep" onClick={()=>setSleepOpen(true)}><span className="daily-focus-icon">☾</span><span><small>DESCANSO</small><strong>{todaySleep?`${Math.floor(todaySleep.total_sleep_minutes/60)} h ${todaySleep.total_sleep_minutes%60} min`:"¿Cómo has dormido?"}</strong><b>{todaySleep?"Registrado":"Registra el sueño de anoche"}</b></span><em>{todaySleep?"Registrado":"Registrar"}</em></button>
             </div>
             <div className="score">
               <div>
@@ -223,7 +232,10 @@ export function App() {
             {tab !== "WEIGHT"&&<h1>{tab === "CYCLE" ? "Ciclo menstrual" : `${meta[tab].label}s`}</h1>}
           </div>
         )}
-        {tab === "WEIGHT" && <BodyProgress addSignal={progressAddSignal}/>}
+        {tab === "WEIGHT" && <>
+          <div className="evolution-view-switch"><button className={evolutionView === "weight" ? "active" : ""} onClick={() => setEvolutionView("weight")}>Peso</button><button className={evolutionView === "sleep" ? "active" : ""} onClick={() => setEvolutionView("sleep")}>Sueño</button></div>
+          {evolutionView === "weight" ? <BodyProgress addSignal={progressAddSignal}/> : <SleepDashboard current={todaySleep} onSaved={setTodaySleep}/>}
+        </>}
         {tab === "CYCLE" && <CycleTracker />}
         {tab === "GOAL" && <GoalVision goals={entries.filter(entry=>entry.type==="GOAL")} onAdd={()=>setModal(true)}/>}
         {tab === "WORKOUT" && (
@@ -232,8 +244,8 @@ export function App() {
             <Dumbbell />
           </button>
         )}
-        {tab === "WEIGHT" && entries.some((entry) => entry.type === "WEIGHT") && <h2 className="subsection-title">Registros anteriores</h2>}
-        {tab !== "CYCLE" && (tab !== "WEIGHT" || visible.length > 0) && (
+        {tab === "WEIGHT" && evolutionView === "weight" && entries.some((entry) => entry.type === "WEIGHT") && <h2 className="subsection-title">Registros anteriores</h2>}
+        {tab !== "CYCLE" && (tab !== "WEIGHT" || evolutionView === "weight" ? (tab !== "WEIGHT" || visible.length > 0) : false) && (
           <EntryList
             entries={visible.slice(0, 12)}
             onEdit={(entry) => {if(entry.type === "MEAL"){setEditingMeal(entry);setMealFlowOpen(true)}}}
@@ -320,6 +332,7 @@ export function App() {
       {nutritionOpen && (
         <NutritionHub onClose={() => setNutritionOpen(false)} onAddMeal={()=>{setNutritionOpen(false);setSelectedPlannedMeal(null);setEditingMeal(null);setMealFlowOpen(true)}} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setNutritionOpen(false);setEditingMeal(null);setMealFlowOpen(true)}} />
       )}
+      {sleepOpen&&<SleepModal value={todaySleep} close={()=>setSleepOpen(false)} saved={value=>{setTodaySleep(value);setSleepOpen(false)}}/>}
       {workoutOpen && (
         <WorkoutHub
           onWorkoutChanged={refreshWorkoutStatus}

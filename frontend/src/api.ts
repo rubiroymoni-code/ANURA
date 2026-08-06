@@ -12,6 +12,10 @@ export type Entry = {
   completed: boolean;
 };
 export type User = { id: string; email: string; displayName: string };
+export type SleepSession={id:string;sleep_date:string;total_sleep_minutes:number;quality_score?:number;morning_energy?:number;bed_time?:string;wake_time?:string;notes?:string};
+export type SleepInput={sleepDate:string;totalSleepMinutes:number;qualityScore?:number;morningEnergy?:number;bedTime?:string;wakeTime?:string;notes?:string};
+export type SleepSummary={days:number;records:number;averageSleepMinutes:number;averageQuality:number;averageEnergy:number;goalMinutes:number;goalCompletionPercentage:number;sleepDebtMinutes:number;currentStreak:number;series:Array<Record<string,unknown>>};
+export const sleepApi={today:()=>request<SleepSession|null>("/sleep/today"),save:(body:SleepInput)=>request<SleepSession>("/sleep",{method:"POST",body:JSON.stringify(body)}),update:(id:string,body:SleepInput)=>request<SleepSession>(`/sleep/${id}`,{method:"PUT",body:JSON.stringify(body)}),remove:(id:string)=>request<void>(`/sleep/${id}`,{method:"DELETE"}),summary:(days:number)=>request<SleepSummary>(`/sleep/summary?days=${days}`)};
 export type ProgressPhoto={id:string;photoType:"FRONT"|"SIDE"|"BACK"|"OTHER";storageUrl:string;thumbnailUrl?:string;takenAt:string};
 export type BodyCheckin={id:string;checkinDate:string;weight:number;bodyFatPercentage?:number;muscleMassKg?:number;visceralFatPercentage?:number;subcutaneousFatPercentage?:number;waistCm?:number;chestCm?:number;hipCm?:number;leftArmCm?:number;rightArmCm?:number;leftThighCm?:number;rightThighCm?:number;notes?:string;createdAt:string;updatedAt:string;photos:ProgressPhoto[]};
 export type BodyCheckinInput=Omit<BodyCheckin,"id"|"createdAt"|"updatedAt"|"photos">;
