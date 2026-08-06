@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 
 import app.anura.config.CurrentUser;
@@ -16,11 +17,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 class SleepControllerTest {
+    @AfterEach void clearSecurityContext() { SecurityContextHolder.clearContext(); }
     private Map<String, Object> night(String date, int minutes) { return Map.of("sleep_date", Date.valueOf(date), "total_sleep_minutes", minutes); }
 
     @Test void calculatesGoalPercentageFromIndividualNights() { assertEquals(50, SleepController.goalPercentage(List.of(night("2026-08-04", 480), night("2026-08-05", 300)))); }
@@ -44,19 +47,17 @@ class SleepControllerTest {
     @Test void missingRecordIs404() {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(UUID.randomUUID().toString(), ""));
         JdbcTemplate db = mock(JdbcTemplate.class);
-        when(db.queryForList(anyString(), any(), any())).thenReturn(List.of());
+        doReturn(List.of()).when(db).queryForList(anyString(), any(Object[].class));
         assertEquals(404, assertThrows(ApiException.class, () -> new SleepController(db).delete(UUID.randomUUID())).status.value());
-        SecurityContextHolder.clearContext();
     }
 
     @Test void changingToAnExistingDateIs409() {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(UUID.randomUUID().toString(), ""));
         JdbcTemplate db = mock(JdbcTemplate.class);
         UUID id = UUID.randomUUID();
-        when(db.queryForList(anyString(), any(), any())).thenReturn(List.of(night("2026-08-04", 480)));
+        doReturn(List.of(night("2026-08-04", 480))).when(db).queryForList(anyString(), any(Object[].class));
         when(db.queryForObject(anyString(), eq(Integer.class), any(), any(), any())).thenReturn(1);
         SleepController.Input input = new SleepController.Input(LocalDate.of(2026, 8, 5), 480, 4, 3, null, null, null);
         assertEquals(409, assertThrows(ApiException.class, () -> new SleepController(db).update(id, input)).status.value());
-        SecurityContextHolder.clearContext();
     }
 }
