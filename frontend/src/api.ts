@@ -12,6 +12,12 @@ export type Entry = {
   completed: boolean;
 };
 export type User = { id: string; email: string; displayName: string };
+export const localDate = () => { const date = new Date(); return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`; };
+export type SleepDay={sleep_date:string;total_sleep_minutes:number;quality_score?:number;morning_energy?:number};
+export type SleepSession=SleepDay & {id:string;bed_time?:string;wake_time?:string;notes?:string};
+export type SleepInput={sleepDate:string;totalSleepMinutes:number;qualityScore?:number;morningEnergy?:number;bedTime?:string;wakeTime?:string;notes?:string};
+export type SleepSummary={days:number;records:number;averageSleepMinutes:number;averageQuality:number;averageEnergy:number;goalMinutes:number;goalCompletionPercentage:number;sleepDebtMinutes:number;currentStreak:number;series:SleepDay[]};
+export const sleepApi={today:async(date=localDate())=>(await request<SleepSession|null|undefined>(`/sleep/today?date=${date}`)) ?? null,save:(body:SleepInput)=>request<SleepSession>("/sleep",{method:"POST",body:JSON.stringify(body)}),update:(id:string,body:SleepInput)=>request<SleepSession>(`/sleep/${id}`,{method:"PUT",body:JSON.stringify(body)}),remove:(id:string)=>request<void>(`/sleep/${id}`,{method:"DELETE"}),summary:(days:number,to=localDate())=>request<SleepSummary>(`/sleep/summary?days=${days}&to=${to}`)};
 export type ProgressPhoto={id:string;photoType:"FRONT"|"SIDE"|"BACK"|"OTHER";storageUrl:string;thumbnailUrl?:string;takenAt:string};
 export type BodyCheckin={id:string;checkinDate:string;weight:number;bodyFatPercentage?:number;muscleMassKg?:number;visceralFatPercentage?:number;subcutaneousFatPercentage?:number;waistCm?:number;chestCm?:number;hipCm?:number;leftArmCm?:number;rightArmCm?:number;leftThighCm?:number;rightThighCm?:number;notes?:string;createdAt:string;updatedAt:string;photos:ProgressPhoto[]};
 export type BodyCheckinInput=Omit<BodyCheckin,"id"|"createdAt"|"updatedAt"|"photos">;
