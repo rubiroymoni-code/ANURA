@@ -48,10 +48,11 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: ()
   const [todayMeals,setTodayMeals]=useState<TodayMeal[]>([]);
   const [dashboard,setDashboard]=useState<NutritionDashboard|null>(null);
   const [balanceExpanded,setBalanceExpanded]=useState(false);
+  const [mealDate,setMealDate]=useState(new Date().toLocaleDateString("en-CA"));
   const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
   const expiry=nutritionPlanExpiry(activePlan?.valid_until);
   useEffect(() => {
-    void nutritionApi.today().then(rows=>setTodayMeals(rows.map(localizeMeal))).catch(()=>setTodayMeals([]));
+    void nutritionApi.today(mealDate).then(rows=>setTodayMeals(rows.map(localizeMeal))).catch(()=>setTodayMeals([]));
     void nutritionApi.dashboard().then(setDashboard).catch(()=>setDashboard(null));
     void Promise.allSettled([
       householdApi.list(), nutritionApi.recipes(), nutritionApi.plans(),
@@ -63,6 +64,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: ()
       if (rejected?.status === "rejected") setLoadError(rejected.reason instanceof Error ? rejected.reason.message : "No se pudo cargar nutrición");
     });
   }, []);
+  const reloadMeals=async(date=mealDate)=>setTodayMeals((await nutritionApi.today(date)).map(localizeMeal));
   useEffect(()=>{if(todayMeals.some(meal=>/^[A-Z_]+$/.test(meal.meal_type)))setTodayMeals(rows=>rows.map(localizeMeal))},[todayMeals]);
   return (
     <div className="overlay">
@@ -101,7 +103,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: ()
         {section === "home" && (
           <>
             {dashboard&&<section className={`nutrition-overview ${balanceExpanded?"expanded":""}`}><button className="nutrition-overview-summary" onClick={()=>setBalanceExpanded(value=>!value)}><span><small>BALANCE DE HOY</small><b>{Number(dashboard.consumed.calories||0).toFixed(0)} / {Number(dashboard.target.calories||dashboard.planned.calories||0).toFixed(0)} kcal</b><em>{activePlan?`${activePlan.name} · versión ${activePlan.version}`:"Sin plan activo"}</em></span><strong>{Math.round(Number(dashboard.target.calories||dashboard.planned.calories||0)?Number(dashboard.consumed.calories||0)/Number(dashboard.target.calories||dashboard.planned.calories||1)*100:0)}%</strong><ChevronDown/></button>{balanceExpanded&&<div className="nutrition-overview-detail"><NutritionBalance data={dashboard}/>{activePlan&&<button className="primary" onClick={()=>{setSelectedPlan(activePlan.id);setSection("plan")}}>Ver plan actual</button>}</div>}</section>}
-            <section className="nutrition-today"><div><small>HOY</small><h3>Lo que te toca comer</h3><p>Abre una comida para consultar su receta. Pulsa el check otra vez si necesitas deshacerla.</p></div>{todayMeals.length?todayMeals.map(meal=><TodayNutritionCard key={meal.planned_meal_id} meal={meal} open={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);setSection("recipe")}}} toggle={async()=>{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id);else await nutritionApi.undoToday(meal.planned_meal_id);setTodayMeals((await nutritionApi.today()).map(localizeMeal));setDashboard(await nutritionApi.dashboard())}}/>):<p>No hay comidas asignadas para hoy en el plan activo.</p>}{onAddMeal&&<button className="nutrition-add-meal" onClick={onAddMeal}><Plus/>Registrar otra comida</button>}</section>
+            <section className="nutrition-today"><div><small>{mealDate===new Date().toLocaleDateString("en-CA")?"HOY":"OTRO DÍA"}</small><h3>Lo que te toca comer</h3><p>También puedes completar una comida pendiente de un día anterior.</p><label className="meal-day-picker">Ver día<input type="date" value={mealDate} max={new Date().toLocaleDateString("en-CA")} onChange={event=>{setMealDate(event.target.value);void reloadMeals(event.target.value)}}/></label></div>{todayMeals.length?todayMeals.map(meal=><TodayNutritionCard key={meal.planned_meal_id} meal={meal} open={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);setSection("recipe")}}} toggle={async()=>{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id,mealDate);else await nutritionApi.undoToday(meal.planned_meal_id,mealDate);await reloadMeals();if(mealDate===new Date().toLocaleDateString("en-CA"))setDashboard(await nutritionApi.dashboard())}}/>):<p>No hay comidas asignadas para ese día en el plan activo.</p>}{onAddMeal&&<button className="nutrition-add-meal" onClick={onAddMeal}><Plus/>Registrar otra comida</button>}</section>
             <details className="nutrition-tools"><summary>Gestión y configuración</summary><div className="nutrition-menu">
               <button onClick={() => setSection("household")}>
                 <Users />
