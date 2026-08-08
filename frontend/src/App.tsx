@@ -97,6 +97,7 @@ export function App() {
   const [mealsExpanded,setMealsExpanded]=useState(false);
   const [mealFlowOpen, setMealFlowOpen] = useState(false);
   const [dayCelebration,setDayCelebration]=useState(false);
+  const wasDayComplete=useRef(false);
   const [selectedPlannedMeal,setSelectedPlannedMeal]=useState<string|null>(null);
   const [editingMeal, setEditingMeal] = useState<Entry | null>(null);
   const [progressAddSignal,setProgressAddSignal]=useState(0);
@@ -121,8 +122,10 @@ export function App() {
     if(!user)return;
     const mealsDone=todayMeals.length>0&&todayMeals.every(meal=>meal.status!=="PENDING");
     const workoutDone=!todayWorkout||todayWorkoutDone;
-    if(mealsDone&&workoutDone){setDayCelebration(true);const timer=window.setTimeout(()=>setDayCelebration(false),5200);return()=>window.clearTimeout(timer)}
-  },[todayMeals,todayWorkout,todayWorkoutDone,user]);
+    const complete=mealsDone&&workoutDone&&!!todaySleep;
+    if(complete&&!wasDayComplete.current){setDayCelebration(true);const timer=window.setTimeout(()=>setDayCelebration(false),5200);wasDayComplete.current=true;return()=>window.clearTimeout(timer)}
+    if(!complete)wasDayComplete.current=false;
+  },[todayMeals,todayWorkout,todayWorkoutDone,todaySleep,user]);
   useEffect(() => {
     if (!user) return;
     void Promise.all([nutritionApi.today().catch(() => []), workoutApi.today().catch(() => ({ workout: null, adjustment: null })), workoutApi.history().catch(() => []),sleepApi.today(localDate()).catch(()=>null)]).then(([meals, status, sessions,sleep]) => {
