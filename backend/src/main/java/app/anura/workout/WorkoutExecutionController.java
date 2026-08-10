@@ -35,6 +35,7 @@ public class WorkoutExecutionController {
  @DeleteMapping("/api/v1/workout-sessions/{id}/exercises/{exerciseId}/sets/{setId}") @ResponseStatus(HttpStatus.NO_CONTENT) void deleteSet(@PathVariable UUID id,@PathVariable UUID exerciseId,@PathVariable UUID setId){service.deleteSet(id,exerciseId,setId);}
  @GetMapping("/api/v1/exercises/{exerciseId}/history") List<ExerciseHistory> exerciseHistory(@PathVariable UUID exerciseId,@RequestParam(defaultValue="40") int limit){return service.exerciseHistory(exerciseId,limit);}
  @GetMapping("/api/v1/exercises") List<ExerciseOption> exercises(){return service.exerciseCatalog();}
+ @PostMapping("/api/v1/exercises") @ResponseStatus(HttpStatus.CREATED) ExerciseOption createExercise(@RequestBody CustomExerciseRequest request){return service.createCustomExercise(request);}
  @GetMapping("/api/v1/exercises/{exerciseId}/last-performance") ExerciseHistory last(@PathVariable UUID exerciseId){return service.exerciseHistory(exerciseId,1).stream().findFirst().orElse(null);}
  @GetMapping("/api/v1/workout-sessions/{id}/metrics") Metrics metrics(@PathVariable UUID id){return service.metrics(id);}
  @GetMapping("/api/v1/training/summary") List<SessionSummary> summary(){return service.history(0,20);}

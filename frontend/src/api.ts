@@ -192,6 +192,7 @@ export const workoutApi = {
   finishExercise:(session:string,exercise:string)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises/${exercise}/complete`,{method:"POST"}),
   pain:(session:string,exercise:string,body:object)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises/${exercise}/pain`,{method:"PATCH",body:JSON.stringify(body)}),
   exercises:()=>request<Array<{id:string;name:string;muscleGroup?:string;equipment?:string}>>("/exercises"),
+  createExercise:(body:{name:string;muscleGroup:string})=>request<{id:string;name:string;muscleGroup?:string;equipment?:string}>("/exercises",{method:"POST",body:JSON.stringify(body)}),
   substitute:(session:string,exercise:string,body:object)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises/${exercise}/substitute`,{method:"POST",body:JSON.stringify(body)}),
   lastPerformance:(exercise:string)=>request<{weight?:number;repetitions?:number;rir?:number;rpe?:number}|null>(`/exercises/${exercise}/last-performance`),
   sync:(session:string,body:object[])=>request<Array<{operationId:string;result:string;entityId?:string;errorCode?:string}>>(`/workout-sessions/${session}/sync`,{method:"POST",body:JSON.stringify(body)}),
