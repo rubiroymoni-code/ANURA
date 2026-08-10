@@ -26,6 +26,11 @@ public class NutritionTravelController {
     return db.queryForList("SELECT t.id,t.title,t.start_date,t.end_date,t.general_guidance,d.plan_label,d.guidance,d.travel_date FROM nutrition_travel_mode t JOIN household_member m ON m.household_id=t.household_id LEFT JOIN nutrition_travel_day d ON d.travel_mode_id=t.id AND d.travel_date=? WHERE m.user_id=? AND t.status='ACTIVE' AND ? BETWEEN t.start_date AND t.end_date ORDER BY t.created_at DESC LIMIT 1",selected,CurrentUser.id(),selected).stream().findFirst().orElse(Map.of());
   }
 
+  @GetMapping("/calendar") List<Map<String,Object>> calendar(@RequestParam LocalDate from,@RequestParam LocalDate to){
+    if(to.isBefore(from)||to.isAfter(from.plusDays(62)))throw bad("TRAVEL_RANGE_INVALID","El periodo de calendario no es válido");
+    return db.queryForList("SELECT t.id,t.title,t.start_date,t.end_date,d.travel_date,d.plan_label,d.guidance FROM nutrition_travel_mode t JOIN household_member m ON m.household_id=t.household_id JOIN nutrition_travel_day d ON d.travel_mode_id=t.id WHERE m.user_id=? AND t.status='ACTIVE' AND d.travel_date BETWEEN ? AND ? ORDER BY d.travel_date",CurrentUser.id(),from,to);
+  }
+
   @PostMapping @Transactional Map<String,Object> create(@RequestBody Create body){
     if(body==null||body.startDate()==null||body.endDate()==null||body.endDate().isBefore(body.startDate()))throw bad("TRAVEL_DATES_INVALID","Revisa las fechas del viaje");
     UUID household=db.query("SELECT household_id FROM household_member WHERE user_id=? ORDER BY joined_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),CurrentUser.id()).stream().findFirst().orElseThrow(()->bad("HOUSEHOLD_REQUIRED","El modo viaje necesita una unidad doméstica"));
