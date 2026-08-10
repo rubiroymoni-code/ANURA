@@ -76,9 +76,11 @@ public class HouseholdController {
       person.put("routineTemplates",db.queryForList("SELECT id,name,work_start,work_end,training_moment,fasted_training,breakfast_location,lunch_location,snack_location,dinner_location,portable_meals,days_of_week,notes FROM daily_routine_template WHERE user_id=? ORDER BY name",user));
       person.put("calendar",db.queryForList("SELECT a.assignment_date,t.name,t.work_start,t.work_end,t.training_moment,t.fasted_training,t.breakfast_location,t.lunch_location,t.snack_location,t.dinner_location,t.portable_meals,a.notes FROM routine_calendar_assignment a JOIN daily_routine_template t ON t.id=a.template_id WHERE a.user_id=? AND a.assignment_date BETWEEN CURRENT_DATE-7 AND CURRENT_DATE+60 ORDER BY a.assignment_date",user));
       person.put("recentBody",db.queryForList("SELECT checkin_date,weight,body_fat_percentage,muscle_mass_kg,visceral_fat_percentage,subcutaneous_fat_percentage,waist_cm,chest_cm,hip_cm,notes FROM body_checkin WHERE user_id=? ORDER BY checkin_date DESC LIMIT 12",user));
-      person.put("nutritionAdherence",db.queryForList("SELECT meal_date,status,adherence_percent,deviation_reason,custom_name,notes FROM consumed_meal WHERE user_id=? AND meal_date>=CURRENT_DATE-28 ORDER BY meal_date DESC,completed_at DESC",user));
-      person.put("workoutAdherence",db.queryForList("SELECT planned_date,session_name,status,adherence_percent,adherence_reason,duration_seconds,global_rpe,energy_level,pump_level,pain_level,difficulty_level,notes FROM workout_session WHERE user_id=? AND planned_date>=CURRENT_DATE-28 AND deleted_at IS NULL ORDER BY planned_date DESC,started_at DESC",user));
-      person.put("sleep",db.queryForList("SELECT sleep_date,total_sleep_minutes,quality_score,morning_energy,notes FROM sleep_session WHERE user_id=? AND sleep_date>=CURRENT_DATE-28 ORDER BY sleep_date DESC",user));
+      person.put("nutritionPlans",nutritionPlans(user,id));
+      person.put("consumedMeals",db.queryForList("SELECT cm.meal_date,cm.meal_type,cm.status,COALESCE(cm.custom_name,pm.meal_name) meal_name,cm.portion,cm.calories,cm.protein,cm.carbohydrates,cm.fat,cm.adherence_percent,cm.deviation_reason,cm.notes,pm.meal_name planned_meal FROM consumed_meal cm LEFT JOIN planned_meal pm ON pm.id=cm.planned_meal_id WHERE cm.user_id=? AND cm.meal_date>=CURRENT_DATE-28 ORDER BY cm.meal_date DESC,cm.completed_at DESC",user));
+      person.put("workoutPlans",workoutPlans(user));
+      person.put("workoutSessions",workoutSessions(user));
+      person.put("sleep",db.queryForList("SELECT sleep_date,total_sleep_minutes,quality_score,morning_energy,bed_time,wake_time,notes FROM sleep_session WHERE user_id=? AND sleep_date>=CURRENT_DATE-28 ORDER BY sleep_date DESC",user));
       person.put("supplements",db.queryForList("SELECT name,dose,schedule,purpose,notes FROM user_supplement WHERE user_id=? AND active=TRUE ORDER BY name",user));
       if("FEMALE".equals(((Map<?,?>)person.get("preferences")).get("biological_sex")))person.put("cycles",db.queryForList("SELECT start_date,end_date,flow_level,symptoms,notes FROM menstrual_cycle_record WHERE user_id=? ORDER BY start_date DESC LIMIT 12",user));
       people.add(person);
@@ -86,6 +88,28 @@ public class HouseholdController {
     out.put("members",people);
     out.put("pantry",db.queryForList("SELECT i.name,s.quantity,s.unit,s.updated_at FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id WHERE s.household_id=? AND s.quantity>0 ORDER BY i.name",id));
     out.put("sharingNotice","Al aceptar la unidad doméstica, sus miembros aceptan usar estos datos dentro de ANURA para generar planificación conjunta.");return out;
+  }
+
+  private List<Map<String,Object>> nutritionPlans(UUID user,UUID household){
+    List<Map<String,Object>> plans=db.queryForList("SELECT DISTINCT p.id,p.name,p.version,p.status,p.valid_from,p.valid_until FROM nutrition_plan p JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id WHERE ump.user_id=? AND (p.owner_id=? OR p.household_id=?) ORDER BY p.version DESC,p.valid_from DESC NULLS LAST LIMIT 2",user,user,household);
+    for(Map<String,Object> plan:plans)plan.put("meals",db.queryForList("SELECT d.week_number,d.day_number,d.day_name,pm.meal_order,pm.meal_type,pm.meal_name,r.name recipe,ump.portion_multiplier,ump.quantity,ump.calories,ump.protein,ump.carbohydrates,ump.fat FROM nutrition_plan_day d JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE d.nutrition_plan_id=? ORDER BY d.week_number,d.day_order,pm.meal_order",user,plan.get("id")));
+    return plans;
+  }
+
+  private List<Map<String,Object>> workoutPlans(UUID user){
+    List<Map<String,Object>> plans=db.queryForList("SELECT id,name,version,status,valid_from,valid_until FROM workout_plan WHERE user_id=? ORDER BY version DESC,valid_from DESC NULLS LAST LIMIT 2",user);
+    for(Map<String,Object> plan:plans)plan.put("exercises",db.queryForList("SELECT d.week_number,d.day_number,d.day_name,d.session_name,pe.exercise_order,e.name exercise,e.muscle_group,e.equipment,pe.sets,pe.reps_min,pe.reps_max,pe.target_rir,pe.target_rpe,pe.rest_seconds,pe.tempo,pe.instructions,pe.notes FROM workout_plan_day d JOIN planned_exercise pe ON pe.workout_plan_day_id=d.id JOIN exercise e ON e.id=pe.exercise_id WHERE d.workout_plan_id=? ORDER BY d.week_number,d.day_order,pe.exercise_order",plan.get("id")));
+    return plans;
+  }
+
+  private List<Map<String,Object>> workoutSessions(UUID user){
+    List<Map<String,Object>> sessions=db.queryForList("SELECT id,planned_date,session_name,status,adherence_percent,adherence_reason,duration_seconds,global_rpe,energy_level,pump_level,pain_level,difficulty_level,notes FROM workout_session WHERE user_id=? AND planned_date>=CURRENT_DATE-28 AND deleted_at IS NULL ORDER BY planned_date DESC,started_at DESC",user);
+    for(Map<String,Object> session:sessions){
+      List<Map<String,Object>> exercises=db.queryForList("SELECT ep.id,ep.exercise_order,e.name exercise,ep.completed_at IS NOT NULL completed,ep.target_sets,ep.target_reps_min,ep.target_reps_max,ep.target_rir,ep.target_rpe,ep.pain_reported,ep.pain_area,ep.pain_intensity,ep.notes FROM exercise_performance ep JOIN exercise e ON e.id=ep.exercise_id WHERE ep.workout_session_id=? ORDER BY ep.exercise_order",session.get("id"));
+      for(Map<String,Object> exercise:exercises)exercise.put("sets",db.queryForList("SELECT set_number,set_type,weight,repetitions,rir,rpe,duration_seconds,distance_meters,rest_seconds,tempo,pain_level,completed FROM set_performance WHERE exercise_performance_id=? AND deleted_at IS NULL ORDER BY set_number",exercise.get("id")));
+      session.put("exercises",exercises);
+    }
+    return sessions;
   }
 
   @PatchMapping("/{id}")
