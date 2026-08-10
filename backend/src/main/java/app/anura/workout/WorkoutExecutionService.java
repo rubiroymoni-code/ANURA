@@ -208,12 +208,12 @@ public class WorkoutExecutionService {
 
     @Transactional public ExerciseView addExercise(UUID sessionId, AddExerciseRequest r) {
         assertEditable(sessionId); UUID id=UUID.randomUUID(); int order=r.order()==null?db.queryForObject("SELECT COALESCE(MAX(exercise_order),0)+1 FROM exercise_performance WHERE workout_session_id=?",Integer.class,sessionId):r.order();
-        int changed=db.update("INSERT INTO exercise_performance(id,workout_session_id,exercise_id,exercise_order,notes) SELECT ?,?,e.id,?,? FROM exercise e WHERE e.id=? AND e.active",id,sessionId,order,r.notes(),r.exerciseId());
+        int changed=db.update("INSERT INTO exercise_performance(id,workout_session_id,exercise_id,exercise_order,notes) SELECT ?,?,e.id,?,? FROM exercise e WHERE e.id=? AND e.active AND (e.owner_id IS NULL OR e.owner_id=?)",id,sessionId,order,r.notes(),r.exerciseId(),CurrentUser.id());
         if(changed==0) throw bad("EXERCISE_NOT_FOUND","Ejercicio no encontrado"); touch(sessionId); return exercise(id);
     }
 
     @Transactional public ExerciseView substitute(UUID sessionId,UUID performanceId,SubstituteRequest r) {
-        assertExercise(sessionId,performanceId); int changed=db.update("UPDATE exercise_performance ep SET original_exercise_id=ep.exercise_id,exercise_id=?,substitution_reason=?,substitution_notes=?,updated_at=CURRENT_TIMESTAMP WHERE ep.id=? AND EXISTS(SELECT 1 FROM exercise e WHERE e.id=? AND e.active)",r.replacementExerciseId(),r.reason(),r.notes(),performanceId,r.replacementExerciseId());
+        assertExercise(sessionId,performanceId); int changed=db.update("UPDATE exercise_performance ep SET original_exercise_id=ep.exercise_id,exercise_id=?,substitution_reason=?,substitution_notes=?,updated_at=CURRENT_TIMESTAMP WHERE ep.id=? AND EXISTS(SELECT 1 FROM exercise e WHERE e.id=? AND e.active AND (e.owner_id IS NULL OR e.owner_id=?))",r.replacementExerciseId(),r.reason(),r.notes(),performanceId,r.replacementExerciseId(),CurrentUser.id());
         if(changed==0) throw bad("EXERCISE_NOT_FOUND","Sustituto no encontrado"); audit("EXERCISE_SUBSTITUTED","EXERCISE_PERFORMANCE",performanceId,"SUCCESS"); return exercise(performanceId);
     }
 
@@ -251,7 +251,16 @@ public class WorkoutExecutionService {
     }
 
     public List<ExerciseOption> exerciseCatalog() {
-        return db.query("SELECT id,name,muscle_group,equipment FROM exercise WHERE active ORDER BY name",(r,n)->new ExerciseOption(r.getObject(1,UUID.class),r.getString(2),r.getString(3),r.getString(4)));
+        return db.query("SELECT id,name,muscle_group,equipment FROM exercise WHERE active AND (owner_id IS NULL OR owner_id=?) ORDER BY muscle_group,name",(r,n)->new ExerciseOption(r.getObject(1,UUID.class),r.getString(2),r.getString(3),r.getString(4)),CurrentUser.id());
+    }
+
+    @Transactional public ExerciseOption createCustomExercise(CustomExerciseRequest request){
+        String name=request==null||request.name()==null?"":request.name().trim(),group=request==null||request.muscleGroup()==null?"Otro":request.muscleGroup().trim();
+        if(name.length()<2||name.length()>180)throw bad("EXERCISE_NAME_INVALID","Escribe un nombre de ejercicio válido");
+        List<ExerciseOption> existing=db.query("SELECT id,name,muscle_group,equipment FROM exercise WHERE active AND lower(trim(name))=lower(?) AND (owner_id IS NULL OR owner_id=?) ORDER BY owner_id NULLS FIRST LIMIT 1",(r,n)->new ExerciseOption(r.getObject(1,UUID.class),r.getString(2),r.getString(3),r.getString(4)),name,CurrentUser.id());
+        if(!existing.isEmpty())return existing.getFirst();UUID id=UUID.randomUUID();
+        db.update("INSERT INTO exercise(id,code,name,muscle_group,equipment,owner_id) VALUES(?,?,?,?,?,?)",id,"CUSTOM_"+CurrentUser.id()+"_"+UUID.randomUUID(),name,group,"Otro",CurrentUser.id());
+        return new ExerciseOption(id,name,group,"Otro");
     }
 
     public Metrics metrics(UUID sessionId) {
@@ -341,6 +350,7 @@ public class WorkoutExecutionService {
     public record Metrics(int exercises,int sets,int repetitions,BigDecimal volume,int maxPain,int personalRecords){} public record SessionSummary(UUID id,String name,LocalDate date,String status,Instant startedAt,Instant completedAt,Integer durationSeconds,BigDecimal globalRpe,int exercises,int sets,BigDecimal volume){}
     public record ExerciseHistory(UUID sessionId,LocalDate date,String sessionName,BigDecimal weight,Integer repetitions,BigDecimal rir,BigDecimal rpe,int setNumber){}
     public record ExerciseOption(UUID id,String name,String muscleGroup,String equipment){}
+    public record CustomExerciseRequest(String name,String muscleGroup){}
     public record SyncOperation(UUID operationId,UUID clientEntityId,String operationType,String entityType,Instant occurredAt,Long baseVersion,JsonNode payload){public SyncOperation{if(operationId==null)operationId=UUID.randomUUID();if(occurredAt==null)occurredAt=Instant.now();}}
     public record SyncResult(UUID operationId,String result,UUID entityId,String errorCode){}
 }
