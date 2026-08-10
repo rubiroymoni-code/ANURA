@@ -216,6 +216,9 @@ export type TodayMeal = { planned_meal_id:string;plan_id:string;plan_name:string
 export type NutritionDashboard={target:Partial<Record<"calories"|"protein"|"carbohydrates"|"fat"|"fiber",number>>;planned:Record<"calories"|"protein"|"carbohydrates"|"fat",number>;consumed:Record<"calories"|"protein"|"carbohydrates"|"fat",number>;week:Array<{date:string;calories:number}>};
 export type AdherenceDashboard={days:number;meals:{completed:number;substituted:number;partial:number;skipped:number;missing:number;expected:number;score:number};workouts:{completed:number;partial:number;abandoned:number;missing:number;expected:number;score:number};patterns:Array<{day_number:number;incidents:number}>;weekly:Array<{week:string;meal_score?:number;workout_score?:number}>;currentWeek?:{expected:number;completed:number;score:number;complete:boolean};workoutReasons:Array<{reason:string;incidents:number}>};
 export type ConsumedMeal={id:string;meal_date:string;meal_type:string;status:MealStatus;name?:string;portion?:string;calories?:number;protein?:number;carbohydrates?:number;fat?:number;notes?:string;adherence_percent?:number;deviation_reason?:string;completed_at?:string;planned_meal?:string;planned_recipe?:string};
+export type TravelMode={id:string;title:string;start_date:string;end_date:string;status:string;general_guidance?:string;day_count:number;exclude_from_adherence:boolean;exclude_from_shopping:boolean};
+export type TravelDay={date:string;plan:string;guidance:string};
+export type TravelToday={id?:string;title?:string;start_date?:string;end_date?:string;general_guidance?:string;plan_label?:string;guidance?:string;travel_date?:string};
 export const householdApi = {
   list: () => request<Household[]>("/households"),
   create: (name: string) =>
@@ -258,6 +261,13 @@ export const nutritionApi = {
   dashboard:()=>request<NutritionDashboard>("/nutrition/dashboard"),
   adherence:(days=28)=>request<AdherenceDashboard>(`/nutrition/adherence?days=${days}`),
   consumedMeals:(from="2000-01-01")=>request<ConsumedMeal[]>(`/nutrition/consumed-meals?from=${from}`),
+  travelModes:()=>request<TravelMode[]>("/nutrition/travel-modes"),
+  travelToday:(date?:string)=>request<TravelToday>(`/nutrition/travel-modes/today${date?`?date=${date}`:""}`),
+  createTravel:(data:{title:string;startDate:string;endDate:string})=>request<{id:string;prompt:string}>("/nutrition/travel-modes",{method:"POST",body:JSON.stringify(data)}),
+  travelPrompt:(id:string)=>request<{prompt:string}>(`/nutrition/travel-modes/${id}/prompt`),
+  previewTravel:(id:string,content:string)=>request<{days:TravelDay[];confirmable:boolean;expectedDays:number}>(`/nutrition/travel-modes/${id}/preview`,{method:"POST",body:JSON.stringify({content})}),
+  importTravel:(id:string,content:string)=>request<{id:string;status:string;days:number}>(`/nutrition/travel-modes/${id}/import`,{method:"POST",body:JSON.stringify({content})}),
+  deleteTravel:(id:string)=>request<void>(`/nutrition/travel-modes/${id}`,{method:"DELETE"}),
   targets:()=>request<Array<Record<string,number|string>>>("/nutrition/targets"),
   saveTarget:(data:{validFrom:string;calories:number;protein?:number;carbohydrates?:number;fat?:number;fiber?:number})=>request<void>("/nutrition/targets",{method:"PUT",body:JSON.stringify(data)}),
   completeToday:(id:string,date?:string)=>request<Record<string,unknown>>(`/nutrition/today/${id}/complete${date?`?date=${date}`:""}`,{method:"POST"}),

@@ -13,6 +13,7 @@ import {
   CircleUserRound,
   Droplets,
   LogOut,
+  MoonStar,
   Plus,
   Scale,
   Sparkles,
@@ -237,7 +238,7 @@ export function App() {
           </div>
         )}
         {tab === "WEIGHT" && <>
-          <div className="evolution-view-switch"><button className={evolutionView === "weight" ? "active" : ""} onClick={() => setEvolutionView("weight")}>Peso</button><button className={evolutionView === "sleep" ? "active" : ""} onClick={() => setEvolutionView("sleep")}>Sueño</button></div>
+          <div className="evolution-view-switch" role="tablist" aria-label="Tipo de evolución"><button role="tab" aria-selected={evolutionView === "weight"} className={evolutionView === "weight" ? "active" : ""} onClick={() => setEvolutionView("weight")}><Scale/>Peso</button><button role="tab" aria-selected={evolutionView === "sleep"} className={evolutionView === "sleep" ? "active" : ""} onClick={() => setEvolutionView("sleep")}><MoonStar/>Sueño</button></div>
           {evolutionView === "weight" ? <BodyProgress addSignal={progressAddSignal}/> : <SleepDashboard current={todaySleep} onSaved={setTodaySleep}/>}
         </>}
         {tab === "CYCLE" && <CycleTracker />}

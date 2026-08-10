@@ -91,9 +91,9 @@ public class NutritionController {
             + " JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id"
             + " JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=?"
             + " LEFT JOIN consumed_meal cm ON cm.planned_meal_id=pm.id AND cm.user_id=? AND cm.meal_date=?"
-            + " WHERE p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?) AND d.day_number=EXTRACT(ISODOW FROM ?::date)::int"
+            + " WHERE p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?) AND d.day_number=EXTRACT(ISODOW FROM ?::date)::int AND NOT EXISTS(SELECT 1 FROM nutrition_travel_mode t JOIN household_member tm ON tm.household_id=t.household_id WHERE tm.user_id=? AND t.status='ACTIVE' AND ? BETWEEN t.start_date AND t.end_date)"
             + " ORDER BY pm.meal_order",
-        CurrentUser.id(),CurrentUser.id(),selected,CurrentUser.id(),CurrentUser.id(),selected);
+        CurrentUser.id(),CurrentUser.id(),selected,CurrentUser.id(),CurrentUser.id(),selected,CurrentUser.id(),selected);
   }
 
   @PostMapping("/today/{mealId}/complete")
@@ -153,7 +153,7 @@ public class NutritionController {
     int period=Math.min(Math.max(days,7),365);UUID user=CurrentUser.id();
     Map<String,Object> meals=db.queryForMap("SELECT COUNT(*) FILTER(WHERE status='COMPLETED') completed,COUNT(*) FILTER(WHERE status='SUBSTITUTED') substituted,COUNT(*) FILTER(WHERE status='PARTIAL') partial,COUNT(*) FILTER(WHERE status='SKIPPED') skipped,ROUND(COALESCE(AVG(COALESCE(adherence_percent,CASE status WHEN 'COMPLETED' THEN 100 WHEN 'SUBSTITUTED' THEN 85 ELSE 0 END)),0),1) score FROM consumed_meal WHERE user_id=? AND meal_date>=CURRENT_DATE-?",user,period-1);
     Map<String,Object> workouts=db.queryForMap("SELECT COUNT(*) FILTER(WHERE status='COMPLETED' AND COALESCE(adherence_percent,100)=100) completed,COUNT(*) FILTER(WHERE status='COMPLETED' AND adherence_percent<100) partial,COUNT(*) FILTER(WHERE status='ABANDONED') abandoned,ROUND(COALESCE(AVG(COALESCE(adherence_percent,CASE WHEN status='COMPLETED' THEN 100 WHEN status='ABANDONED' THEN 0 END)),0),1) score FROM workout_session WHERE user_id=? AND planned_date>=CURRENT_DATE-? AND deleted_at IS NULL",user,period-1);
-    Integer expectedMeals=db.queryForObject("SELECT COUNT(*) FROM generate_series(CURRENT_DATE-?,CURRENT_DATE,INTERVAL '1 day') AS calendar(day) JOIN nutrition_plan p ON p.status='ACTIVE' JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id AND d.day_number=EXTRACT(ISODOW FROM calendar.day) JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)",Integer.class,period-1,user,user,user);
+    Integer expectedMeals=db.queryForObject("SELECT COUNT(*) FROM generate_series(CURRENT_DATE-?,CURRENT_DATE,INTERVAL '1 day') AS calendar(day) JOIN nutrition_plan p ON p.status='ACTIVE' JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id AND d.day_number=EXTRACT(ISODOW FROM calendar.day) JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE (p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)) AND NOT EXISTS(SELECT 1 FROM nutrition_travel_mode t JOIN household_member tm ON tm.household_id=t.household_id WHERE tm.user_id=? AND t.status='ACTIVE' AND calendar.day::date BETWEEN t.start_date AND t.end_date AND t.exclude_from_adherence)",Integer.class,period-1,user,user,user,user);
     Integer expectedWorkouts=db.queryForObject("SELECT COUNT(*) FROM generate_series(CURRENT_DATE-?,CURRENT_DATE,INTERVAL '1 day') AS calendar(day) JOIN (SELECT DISTINCT d.day_number FROM workout_plan p JOIN workout_plan_day d ON d.workout_plan_id=p.id WHERE p.user_id=? AND p.status='ACTIVE') planned ON planned.day_number=EXTRACT(ISODOW FROM calendar.day)",Integer.class,period-1,user);
     long mealRecorded=((Number)meals.get("completed")).longValue()+((Number)meals.get("substituted")).longValue()+((Number)meals.get("partial")).longValue()+((Number)meals.get("skipped")).longValue();
     long workoutRecorded=((Number)workouts.get("completed")).longValue()+((Number)workouts.get("partial")).longValue()+((Number)workouts.get("abandoned")).longValue();
@@ -164,7 +164,7 @@ public class NutritionController {
     workouts.put("expected",workoutExpected);workouts.put("missing",Math.max(0,workoutExpected-workoutRecorded));workouts.put("score",workoutExpected==0?0:workoutPoints.divide(java.math.BigDecimal.valueOf(workoutExpected),1,java.math.RoundingMode.HALF_UP));
     List<Map<String,Object>> patterns=db.queryForList("SELECT EXTRACT(ISODOW FROM meal_date)::int day_number,COUNT(*) incidents FROM consumed_meal WHERE user_id=? AND meal_date>=CURRENT_DATE-? AND status IN ('SKIPPED','PARTIAL','SUBSTITUTED') GROUP BY 1 ORDER BY incidents DESC,day_number",user,period-1);
     List<Map<String,Object>> weekly=db.queryForList("SELECT week,ROUND(AVG(meal_score),1) meal_score,ROUND(AVG(workout_score),1) workout_score FROM (SELECT date_trunc('week',meal_date)::date week,COALESCE(adherence_percent,CASE status WHEN 'COMPLETED' THEN 100 WHEN 'SUBSTITUTED' THEN 85 ELSE 0 END) meal_score,NULL::numeric workout_score FROM consumed_meal WHERE user_id=? AND meal_date>=CURRENT_DATE-? UNION ALL SELECT date_trunc('week',planned_date)::date,NULL::numeric,COALESCE(adherence_percent,CASE status WHEN 'COMPLETED' THEN 100 WHEN 'ABANDONED' THEN 0 END) FROM workout_session WHERE user_id=? AND planned_date>=CURRENT_DATE-? AND deleted_at IS NULL) x GROUP BY week ORDER BY week",user,period-1,user,period-1);
-    int weekMeals=db.queryForObject("SELECT COUNT(*) FROM generate_series(date_trunc('week',CURRENT_DATE),date_trunc('week',CURRENT_DATE)+INTERVAL '6 days',INTERVAL '1 day') calendar(day) JOIN nutrition_plan p ON p.status='ACTIVE' JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id AND d.day_number=EXTRACT(ISODOW FROM calendar.day) JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)",Integer.class,user,user,user);
+    int weekMeals=db.queryForObject("SELECT COUNT(*) FROM generate_series(date_trunc('week',CURRENT_DATE),date_trunc('week',CURRENT_DATE)+INTERVAL '6 days',INTERVAL '1 day') calendar(day) JOIN nutrition_plan p ON p.status='ACTIVE' JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id AND d.day_number=EXTRACT(ISODOW FROM calendar.day) JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE (p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)) AND NOT EXISTS(SELECT 1 FROM nutrition_travel_mode t JOIN household_member tm ON tm.household_id=t.household_id WHERE tm.user_id=? AND t.status='ACTIVE' AND calendar.day::date BETWEEN t.start_date AND t.end_date AND t.exclude_from_adherence)",Integer.class,user,user,user,user);
     int weekWorkouts=db.queryForObject("SELECT COUNT(*) FROM (SELECT DISTINCT d.day_number FROM workout_plan p JOIN workout_plan_day d ON d.workout_plan_id=p.id WHERE p.user_id=? AND p.status='ACTIVE') planned",Integer.class,user);
     int completedWeekMeals=db.queryForObject("SELECT COUNT(*) FROM consumed_meal WHERE user_id=? AND planned_meal_id IS NOT NULL AND meal_date BETWEEN date_trunc('week',CURRENT_DATE)::date AND (date_trunc('week',CURRENT_DATE)+INTERVAL '6 days')::date AND status='COMPLETED' AND COALESCE(adherence_percent,100)=100",Integer.class,user);
     int completedWeekWorkouts=db.queryForObject("SELECT COUNT(*) FROM workout_session WHERE user_id=? AND workout_plan_day_id IS NOT NULL AND planned_date BETWEEN date_trunc('week',CURRENT_DATE)::date AND (date_trunc('week',CURRENT_DATE)+INTERVAL '6 days')::date AND status='COMPLETED' AND COALESCE(adherence_percent,100)=100 AND deleted_at IS NULL",Integer.class,user);
@@ -460,6 +460,7 @@ public class NutritionController {
               JOIN user_meal_ingredient_portion uip ON uip.planned_meal_id=pm.id
               JOIN ingredient i ON i.id=uip.ingredient_id
               WHERE d.nutrition_plan_id=? AND d.week_number=?
+                AND NOT EXISTS (SELECT 1 FROM nutrition_travel_mode t WHERE t.household_id=? AND t.status='ACTIVE' AND t.exclude_from_shopping AND (date_trunc('week',CURRENT_DATE)::date+d.day_number-1) BETWEEN t.start_date AND t.end_date)
               UNION ALL
               SELECT i.id,i.name,i.category,ri.unit,ri.quantity*ump.portion_multiplier
               FROM nutrition_plan_day d
@@ -468,6 +469,7 @@ public class NutritionController {
               JOIN recipe_ingredient ri ON ri.recipe_id=pm.recipe_id
               JOIN ingredient i ON i.id=ri.ingredient_id
               WHERE d.nutrition_plan_id=? AND d.week_number=?
+                AND NOT EXISTS (SELECT 1 FROM nutrition_travel_mode t WHERE t.household_id=? AND t.status='ACTIVE' AND t.exclude_from_shopping AND (date_trunc('week',CURRENT_DATE)::date+d.day_number-1) BETWEEN t.start_date AND t.end_date)
                 AND NOT EXISTS (
                   SELECT 1 FROM user_meal_ingredient_portion exact
                   WHERE exact.planned_meal_id=pm.id AND exact.user_id=ump.user_id
@@ -516,8 +518,10 @@ public class NutritionController {
             """,
             planId,
             sourceWeek,
+            household,
             planId,
-            sourceWeek);
+            sourceWeek,
+            household);
     int order = 0;
     for (Map<String, Object> row : totals) {
       java.math.BigDecimal required = (java.math.BigDecimal) row.get("quantity");
