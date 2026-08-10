@@ -263,6 +263,7 @@ export const nutritionApi = {
   consumedMeals:(from="2000-01-01")=>request<ConsumedMeal[]>(`/nutrition/consumed-meals?from=${from}`),
   travelModes:()=>request<TravelMode[]>("/nutrition/travel-modes"),
   travelToday:(date?:string)=>request<TravelToday>(`/nutrition/travel-modes/today${date?`?date=${date}`:""}`),
+  travelCalendar:(from:string,to:string)=>request<Array<{id:string;title:string;start_date:string;end_date:string;travel_date:string;plan_label:string;guidance:string}>>(`/nutrition/travel-modes/calendar?from=${from}&to=${to}`),
   createTravel:(data:{title:string;startDate:string;endDate:string})=>request<{id:string;prompt:string}>("/nutrition/travel-modes",{method:"POST",body:JSON.stringify(data)}),
   travelPrompt:(id:string)=>request<{prompt:string}>(`/nutrition/travel-modes/${id}/prompt`),
   previewTravel:(id:string,content:string)=>request<{days:TravelDay[];confirmable:boolean;expectedDays:number}>(`/nutrition/travel-modes/${id}/preview`,{method:"POST",body:JSON.stringify({content})}),

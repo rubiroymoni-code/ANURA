@@ -510,26 +510,37 @@ function RecipeView({ id,mealId }: { id: string;mealId:string|null }) {
 
 function PlanView({ id,status,onDeleted }: { id: string;status:string;onDeleted:()=>void }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);
+  const [travelDays,setTravelDays]=useState<Array<{id:string;title:string;travel_date:string;plan_label:string;guidance:string}>>([]);
   const [selectedDay,setSelectedDay]=useState(new Date().getDay()||7);
   const [expandedMeal,setExpandedMeal]=useState<string|null>(null);
   const currentUser = JSON.parse(localStorage.getItem("anura-user") || "{}");
   useEffect(() => {
     void nutritionApi.week(id).then(setRows);
+    const monday=startOfCurrentWeek(),sunday=new Date(monday);sunday.setDate(monday.getDate()+6);
+    void nutritionApi.travelCalendar(dateInput(monday),dateInput(sunday)).then(setTravelDays).catch(()=>setTravelDays([]));
   }, [id]);
   const todayDay=new Date().getDay()||7;
   const mine=rows.filter(row=>String(row.user_id)===String(currentUser.id));
-  const days=[...new Map(mine.map(row=>[Number(row.day_number),String(row.day_name||`Día ${row.day_number}`)])).entries()].sort((a,b)=>a[0]-b[0]);
+  const travelByDay=new Map(travelDays.map(day=>[isoDay(day.travel_date),day]));
+  const days=[...new Map([...mine.map(row=>[Number(row.day_number),String(row.day_name||`Día ${row.day_number}`)] as [number,string]),...travelDays.map(day=>[isoDay(day.travel_date),weekdayName(day.travel_date)] as [number,string])]).entries()].sort((a,b)=>a[0]-b[0]);
   const dayRows=mine.filter(row=>selectedDay===0||Number(row.day_number)===selectedDay).sort((a,b)=>Number(a.day_number)-Number(b.day_number)||Number(a.meal_order||0)-Number(b.meal_order||0));
+  const visibleTravel=selectedDay===0?travelDays:(travelByDay.has(selectedDay)?[travelByDay.get(selectedDay)!]:[]);
   return (
     <div className="plan-agenda">
       <div className="plan-day-tabs">{days.map(([day,name])=><button key={day} className={selectedDay===day?"active":""} onClick={()=>setSelectedDay(day)}><b>{day===todayDay?"Hoy":name.slice(0,3)}</b><small>Día {day}</small></button>)}<button className={selectedDay===0?"active":""} onClick={()=>setSelectedDay(0)}><b>Todo</b><small>semana</small></button></div>
       <div className="plan-agenda-intro"><CalendarDays/><span><b>{selectedDay===todayDay?"Tu menú de hoy":selectedDay===0?"Tu semana completa":`Tu menú del día ${selectedDay}`}</b><small>Para cantidades conjuntas y reparto abre Cocina.</small></span></div>
-      {!dayRows.length&&<div className="empty">No tienes comidas asignadas para este día.</div>}
-      <div className="plan-agenda-list">{dayRows.map((meal,index)=>{const key=String(meal.planned_meal_id||`${meal.meal_name}-${index}`);return <PlanMealCard key={key} meal={meal} dayVisible={selectedDay===0} open={expandedMeal===key} toggle={()=>setExpandedMeal(current=>current===key?null:key)}/>})}</div>
+      {!dayRows.length&&!visibleTravel.length&&<div className="empty">No tienes comidas asignadas para este día.</div>}
+      <div className="plan-agenda-list">{dayRows.map((meal,index)=>{const key=String(meal.planned_meal_id||`${meal.meal_name}-${index}`);return <PlanMealCard key={key} meal={meal} dayVisible={selectedDay===0} open={expandedMeal===key} toggle={()=>setExpandedMeal(current=>current===key?null:key)}/>})}{visibleTravel.map(day=><TravelPlanDay key={day.travel_date} day={day} showDay={selectedDay===0}/>)}</div>
       <div className="plan-actions"><span className={status==="ACTIVE"?"active":""}>{status==="ACTIVE"?"● Plan activo":status||"Plan"}</span>{status!=="ACTIVE"&&<button className="primary" onClick={async()=>{await nutritionApi.activate(id);location.reload()}}>Activar este plan</button>}<button className="danger" onClick={async()=>{if(confirm("¿Eliminar este plan nutricional? Se borrarán sus días y comidas planificadas. Esta acción no se puede deshacer.")){await nutritionApi.deletePlan(id);onDeleted()}}}>Eliminar plan</button></div>
     </div>
   );
 }
+
+function startOfCurrentWeek(){const date=new Date(),day=date.getDay()||7;date.setHours(12,0,0,0);date.setDate(date.getDate()-day+1);return date}
+function dateInput(date:Date){return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`}
+function isoDay(value:string){return new Date(`${value}T12:00:00`).getDay()||7}
+function weekdayName(value:string){return new Date(`${value}T12:00:00`).toLocaleDateString("es",{weekday:"long"})}
+function TravelPlanDay({day,showDay}:{day:{title:string;travel_date:string;plan_label:string;guidance:string};showDay:boolean}){return <article className="plan-travel-day"><span><Luggage/><small>{showDay?`${weekdayName(day.travel_date)} · `:""}{day.title}</small></span><h3>{day.plan_label||"Comer fuera"}</h3><p>{day.guidance}</p><footer><b>Día flexible planificado</b><em>Sin compra · fuera de adherencia</em></footer></article>}
 
 function PlanMealCard({meal,dayVisible,open,toggle}:{meal:Record<string,unknown>;dayVisible:boolean;open:boolean;toggle:()=>void}){const ingredients=ingredientRows(meal.ingredients);return <article className={`plan-meal-card ${open?"open":""}`}><button className="plan-meal-summary" onClick={toggle} aria-expanded={open}><span className="agenda-time"><small>{mealTypeLabel(String(meal.meal_type))}</small><b>{String(meal.meal_name)}</b><em>{String(meal.recipe)}</em></span><span className="agenda-macros"><b>{Number(meal.calories||0).toFixed(0)} kcal</b><small>P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</small></span><ChevronDown/>{dayVisible&&<i>Día {String(meal.day_number)}</i>}</button>{open&&<div className="plan-meal-ingredients"><small>INGREDIENTES · TU CANTIDAD</small>{ingredients.length?<div>{ingredients.map((ingredient,index)=><span key={`${ingredient.name}-${index}`}><b>{ingredient.name}</b><em>{displayQuantity(ingredient.quantity,ingredient.unit)}</em></span>)}</div>:<p>No hay ingredientes detallados para esta comida.</p>}<p>Para ver el total conjunto y el reparto de cada persona, abre <b>Cocina</b>.</p></div>}</article>}
 
