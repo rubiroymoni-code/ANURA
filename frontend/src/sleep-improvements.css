@@ -1,1 +1,10 @@
 .rating-grid output{margin-left:auto;border-radius:999px;background:#263d27;color:#fff;padding:4px 7px;font-size:10px;font-weight:900}.celebration-confetti i{left:calc(2% + var(--i) * 3.45%)!important;width:9px;height:16px;border-radius:5px;box-shadow:0 3px 7px #06120733}
+.evolution-view-switch{width:max-content;max-width:100%;display:flex;align-items:center;gap:4px;margin:0 0 16px;padding:5px;border:1px solid rgba(28,58,42,.1);border-radius:16px;background:rgba(235,241,236,.88);box-shadow:inset 0 1px 0 #fff,0 8px 22px rgba(25,52,38,.07);backdrop-filter:blur(12px)}
+.evolution-view-switch button{min-width:112px;height:42px;display:flex;align-items:center;justify-content:center;gap:8px;border:0!important;border-radius:11px!important;padding:0 18px!important;background:transparent!important;color:#64766b!important;font:800 12px/1 inherit!important;letter-spacing:.15px;box-shadow:none!important;cursor:pointer;transition:background .2s ease,color .2s ease,box-shadow .2s ease,transform .2s ease}
+.evolution-view-switch button svg{width:16px;height:16px;stroke-width:2.2}
+.evolution-view-switch button:hover{color:#244c37!important;background:rgba(255,255,255,.62)!important}
+.evolution-view-switch button.active{background:#173d2d!important;color:#fff!important;box-shadow:0 7px 17px rgba(20,57,40,.22)!important}
+.evolution-view-switch button.active svg{color:#c8f15d}
+.evolution-view-switch button:active{transform:scale(.98)}
+.evolution-view-switch button:focus-visible{outline:3px solid rgba(160,205,77,.35);outline-offset:2px}
+@media(max-width:420px){.evolution-view-switch{width:100%}.evolution-view-switch button{flex:1;min-width:0}}

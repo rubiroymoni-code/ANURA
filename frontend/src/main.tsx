@@ -45,6 +45,8 @@ import './reminder-center.css';
 import './sleep-dashboard.css';
 import './day-celebration.css';
 import './sleep-improvements.css';
+import './travel-mode.css';
+import './travel-today.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));

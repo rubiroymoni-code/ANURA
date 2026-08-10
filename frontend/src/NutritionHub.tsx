@@ -16,6 +16,7 @@ import {
   Download,
   FileUp,
   Home,
+  Luggage,
   ShoppingBasket,
   Copy,
   MessageCircle,
@@ -30,9 +31,10 @@ import {
 import { HouseholdView } from "./HouseholdView";
 import { SupplementsPanel } from "./SupplementsPanel";
 import { NutritionPreferencesPanel } from "./NutritionPreferencesPanel";
+import { TravelModePanel } from "./TravelModePanel";
 export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: () => void;onRegisterMeal?:(meal:TodayMeal)=>void;onAddMeal?:()=>void }) {
   const [section, setSection] = useState<
-    "home" | "cook" | "preferences" | "household" | "import" | "shopping" | "supplements" | "plan" | "recipe"
+    "home" | "cook" | "preferences" | "household" | "import" | "shopping" | "supplements" | "travel" | "plan" | "recipe"
   >("home");
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<string | null>(null);
@@ -49,11 +51,13 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: ()
   const [dashboard,setDashboard]=useState<NutritionDashboard|null>(null);
   const [balanceExpanded,setBalanceExpanded]=useState(false);
   const [mealDate,setMealDate]=useState(new Date().toLocaleDateString("en-CA"));
+  const [travelToday,setTravelToday]=useState<Awaited<ReturnType<typeof nutritionApi.travelToday>>>({});
   const activePlan = plans.find((plan) => plan.status === "ACTIVE") || plans[0];
   const expiry=nutritionPlanExpiry(activePlan?.valid_until);
   useEffect(() => {
     void nutritionApi.today(mealDate).then(rows=>setTodayMeals(rows.map(localizeMeal))).catch(()=>setTodayMeals([]));
     void nutritionApi.dashboard().then(setDashboard).catch(()=>setDashboard(null));
+    void nutritionApi.travelToday(mealDate).then(setTravelToday).catch(()=>setTravelToday({}));
     void Promise.allSettled([
       householdApi.list(), nutritionApi.recipes(), nutritionApi.plans(),
     ]).then(([householdResult, recipeResult, planResult]) => {
@@ -85,8 +89,10 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: ()
                     ? "Importar dieta"
                     : section === "shopping"
                       ? "Lista de compra"
-                      : section === "supplements"
-                        ? "Suplementos"
+                  : section === "supplements"
+                    ? "Suplementos"
+                  : section === "travel"
+                    ? "Modo viaje"
                       : section === "plan"
                         ? "Plan nutricional"
                         : "Receta"}
@@ -103,7 +109,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: ()
         {section === "home" && (
           <>
             {dashboard&&<section className={`nutrition-overview ${balanceExpanded?"expanded":""}`}><button className="nutrition-overview-summary" onClick={()=>setBalanceExpanded(value=>!value)}><span><small>BALANCE DE HOY</small><b>{Number(dashboard.consumed.calories||0).toFixed(0)} / {Number(dashboard.target.calories||dashboard.planned.calories||0).toFixed(0)} kcal</b><em>{activePlan?`${activePlan.name} · versión ${activePlan.version}`:"Sin plan activo"}</em></span><strong>{Math.round(Number(dashboard.target.calories||dashboard.planned.calories||0)?Number(dashboard.consumed.calories||0)/Number(dashboard.target.calories||dashboard.planned.calories||1)*100:0)}%</strong><ChevronDown/></button>{balanceExpanded&&<div className="nutrition-overview-detail"><NutritionBalance data={dashboard}/>{activePlan&&<button className="primary" onClick={()=>{setSelectedPlan(activePlan.id);setSection("plan")}}>Ver plan actual</button>}</div>}</section>}
-            <section className="nutrition-today"><div><small>{mealDate===new Date().toLocaleDateString("en-CA")?"HOY":"OTRO DÍA"}</small><h3>Lo que te toca comer</h3><p>También puedes completar una comida pendiente de un día anterior.</p><label className="meal-day-picker">Ver día<input type="date" value={mealDate} max={new Date().toLocaleDateString("en-CA")} onChange={event=>{setMealDate(event.target.value);void reloadMeals(event.target.value)}}/></label></div>{todayMeals.length?todayMeals.map(meal=><TodayNutritionCard key={meal.planned_meal_id} meal={meal} open={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);setSection("recipe")}}} toggle={async()=>{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id,mealDate);else await nutritionApi.undoToday(meal.planned_meal_id,mealDate);await reloadMeals();if(mealDate===new Date().toLocaleDateString("en-CA"))setDashboard(await nutritionApi.dashboard())}}/>):<p>No hay comidas asignadas para ese día en el plan activo.</p>}{onAddMeal&&<button className="nutrition-add-meal" onClick={onAddMeal}><Plus/>Registrar otra comida</button>}</section>
+            <section className="nutrition-today"><div><small>{mealDate===new Date().toLocaleDateString("en-CA")?"HOY":"OTRO DÍA"}</small><h3>Lo que te toca comer</h3><p>También puedes completar una comida pendiente de un día anterior.</p><label className="meal-day-picker">Ver día<input type="date" value={mealDate} max={new Date().toLocaleDateString("en-CA")} onChange={event=>{setMealDate(event.target.value);void reloadMeals(event.target.value);void nutritionApi.travelToday(event.target.value).then(setTravelToday)}}/></label></div>{travelToday.id&&<article className="travel-today-card"><Luggage/><span><small>{travelToday.title} · {travelToday.plan_label||"Día flexible"}</small><b>{travelToday.guidance||"Come con flexibilidad y registra solo lo que te resulte útil."}</b><em>No genera compra ni penaliza la adherencia.</em></span></article>}{todayMeals.length?todayMeals.map(meal=><TodayNutritionCard key={meal.planned_meal_id} meal={meal} open={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);setSection("recipe")}}} toggle={async()=>{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id,mealDate);else await nutritionApi.undoToday(meal.planned_meal_id,mealDate);await reloadMeals();if(mealDate===new Date().toLocaleDateString("en-CA"))setDashboard(await nutritionApi.dashboard())}}/>):!travelToday.id&&<p>No hay comidas asignadas para ese día en el plan activo.</p>}{onAddMeal&&<button className="nutrition-add-meal" onClick={onAddMeal}><Plus/>Registrar otra comida</button>}</section>
             <details className="nutrition-tools"><summary>Gestión y configuración</summary><div className="nutrition-menu">
               <button onClick={() => setSection("household")}>
                 <Users />
@@ -122,6 +128,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: ()
                 <b>Preferencias alimentarias</b>
                 <span>Gustos, exclusiones y planificación</span>
               </button>
+              <button onClick={() => setSection("travel")}><Luggage/><b>Modo viaje</b><span>Fechas flexibles, criterios y seguimiento</span></button>
             </div></details>
             <details className="nutrition-tools nutrition-history"><summary>Planes anteriores y versiones</summary>
             {plans.map((p) => (
@@ -156,6 +163,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: ()
         {section === "preferences" && <NutritionPreferencesPanel />}
         {section === "cook" && <CookByDate planId={activePlan?.id} recipes={recipes} open={(recipeId,mealId)=>{setSelectedRecipe(recipeId);setSelectedMeal(mealId);setSection("recipe")}} />}
         {section === "supplements" && <SupplementsPanel />}
+        {section === "travel" && <TravelModePanel onChanged={()=>void nutritionApi.travelToday(mealDate).then(setTravelToday)}/>}
         {section === "plan" && selectedPlan && <PlanView id={selectedPlan} status={plans.find(plan=>plan.id===selectedPlan)?.status||""} onDeleted={async()=>{setPlans(await nutritionApi.plans());setSelectedPlan(null);setSection("home")}} />}
         {section === "recipe" && selectedRecipe && (
           <RecipeView id={selectedRecipe} mealId={selectedMeal} />

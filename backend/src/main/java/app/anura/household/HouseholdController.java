@@ -87,6 +87,9 @@ public class HouseholdController {
     }
     out.put("members",people);
     out.put("pantry",db.queryForList("SELECT i.name,s.quantity,s.unit,s.updated_at FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id WHERE s.household_id=? AND s.quantity>0 ORDER BY i.name",id));
+    List<Map<String,Object>> travel=db.queryForList("SELECT id,title,start_date,end_date,status,general_guidance FROM nutrition_travel_mode WHERE household_id=? AND end_date>=CURRENT_DATE-28 ORDER BY start_date",id);
+    for(Map<String,Object> mode:travel)mode.put("days",db.queryForList("SELECT travel_date,plan_label,guidance FROM nutrition_travel_day WHERE travel_mode_id=? ORDER BY travel_date",mode.get("id")));
+    out.put("travelModes",travel);
     out.put("sharingNotice","Al aceptar la unidad doméstica, sus miembros aceptan usar estos datos dentro de ANURA para generar planificación conjunta.");return out;
   }
 
