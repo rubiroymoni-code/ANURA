@@ -1,0 +1,98 @@
+/* Mobile dialog guardrails shared by every modal, sheet and portal. */
+@media (max-width: 720px) {
+  :is(
+    .overlay,
+    .exercise-picker-overlay,
+    .workout-change-overlay,
+    .reminder-edit-overlay
+  ) {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+
+  :is(
+    .overlay > .modal,
+    .exercise-picker,
+    .workout-change-dialog,
+    .reminder-edit-dialog,
+    .confirm-card,
+    .finish-sheet
+  ) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  :is(
+    .overlay > .modal,
+    .exercise-picker,
+    .workout-change-dialog,
+    .reminder-edit-dialog,
+    .confirm-card,
+    .finish-sheet
+  ) :is(form, fieldset, label, section, article, header, footer, div, span) {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  :is(
+    .overlay > .modal,
+    .exercise-picker,
+    .workout-change-dialog,
+    .reminder-edit-dialog,
+    .confirm-card,
+    .finish-sheet
+  ) :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    font-size: 16px !important;
+  }
+
+  :is(
+    .overlay > .modal,
+    .exercise-picker,
+    .workout-change-dialog,
+    .reminder-edit-dialog,
+    .confirm-card,
+    .finish-sheet
+  ) :is(h1, h2, h3, h4, p, small, strong, b, em, a) {
+    overflow-wrap: anywhere;
+  }
+
+  :is(
+    .overlay > .modal,
+    .exercise-picker,
+    .workout-change-dialog,
+    .reminder-edit-dialog,
+    .confirm-card,
+    .finish-sheet
+  ) :is(img, svg, canvas, video) {
+    max-width: 100%;
+  }
+
+  :is(
+    .overlay > .modal,
+    .exercise-picker,
+    .workout-change-dialog,
+    .reminder-edit-dialog,
+    .confirm-card,
+    .finish-sheet
+  ) table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}

@@ -96,6 +96,8 @@ export function App() {
   const [sleepOpen,setSleepOpen]=useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
   const [mealsExpanded,setMealsExpanded]=useState(false);
+  const [workoutExpanded,setWorkoutExpanded]=useState(false);
+  const [launchSplash,setLaunchSplash]=useState(true);
   const [mealFlowOpen, setMealFlowOpen] = useState(false);
   const [dayCelebration,setDayCelebration]=useState(false);
   const wasDayComplete=useRef(false);
@@ -103,6 +105,7 @@ export function App() {
   const [editingMeal, setEditingMeal] = useState<Entry | null>(null);
   const [progressAddSignal,setProgressAddSignal]=useState(0);
   const [nutritionPlans,setNutritionPlans]=useState<Awaited<ReturnType<typeof nutritionApi.plans>>>([]);
+  useEffect(()=>{const timer=window.setTimeout(()=>setLaunchSplash(false),1000);return()=>window.clearTimeout(timer)},[]);
   const load = () => {
     if (user)
       void api
@@ -146,6 +149,7 @@ export function App() {
     void clearWorkoutOffline();
     setUser(null);
   }
+  if(launchSplash)return <div className="anura-launch" role="status" aria-label="Abriendo ANURA"><div><img src="/assets/anura-frog-lifting.png" alt="Rana levantando una barra"/><span>ANURA</span></div></div>;
   if (!user)
     return (
       <Auth
@@ -193,11 +197,12 @@ export function App() {
             </section>
             <div className="daily-plan-head"><span>PLAN DE HOY</span></div>
             <div className="daily-plan-grid">
-              <button className="daily-focus workout" onClick={() => setWorkoutOpen(true)}>
-                <span className="daily-focus-icon"><Dumbbell /></span>
-                <span><small>ENTRENAMIENTO</small><strong>{workoutTitle}</strong><b>{workoutDetail}</b></span>
-                <em>{workoutStatusLabel}</em>
-              </button>
+              <div className={`daily-focus workout ${workoutExpanded?"expanded":""}`}>
+                <button className="daily-focus-main" onClick={()=>setWorkoutExpanded(value=>!value)} aria-expanded={workoutExpanded}><span className="daily-focus-icon"><Dumbbell /></span><span><small>ENTRENAMIENTO</small><strong>{workoutTitle}</strong><b>{workoutDetail}</b></span><ChevronDown className={`daily-expand-icon ${workoutExpanded?"open":""}`}/></button>
+                <div className="daily-workout-actions"><button onClick={()=>setWorkoutExpanded(value=>!value)}>{workoutExpanded?"Ocultar entreno":"Desplegar entreno"}<ChevronDown className={workoutExpanded?"open":""}/></button><button onClick={()=>setWorkoutOpen(true)}>{todayWorkoutDone?"Ver sesión":"Entrenar"}</button></div>
+                {workoutExpanded&&todayWorkout&&<div className="today-workout-mini">{todayWorkout.exercises.map((exercise,index)=><div key={`${exercise.exerciseId}-${index}`}><i>{index+1}</i><span><b>{exercise.name}</b><small>{exercise.muscleGroup||"Ejercicio"} · {exercise.sets}×{exercise.repsMin}-{exercise.repsMax}{exercise.targetRir!=null?` · RIR ${exercise.targetRir}`:""}</small></span></div>)}</div>}
+                {workoutExpanded&&!todayWorkout&&<p className="daily-workout-empty">{workoutDetail}</p>}
+              </div>
               <div className={`daily-focus nutrition ${nutritionExpiry.urgent?"plan-expiring":""}`}>
                 <button className="daily-focus-main" onClick={() => setMealsExpanded(value=>!value)} aria-expanded={mealsExpanded}>
                   <span className="daily-focus-icon"><Apple /></span>
@@ -333,16 +338,14 @@ export function App() {
           }}
         />
       )}
-      {importOpen && <TrainingImport onClose={() => setImportOpen(false)} />}
       {nutritionOpen && (
-        <NutritionHub onClose={() => setNutritionOpen(false)} onAddMeal={()=>{setNutritionOpen(false);setSelectedPlannedMeal(null);setEditingMeal(null);setMealFlowOpen(true)}} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setNutritionOpen(false);setEditingMeal(null);setMealFlowOpen(true)}} />
+        <NutritionHub onClose={() => setNutritionOpen(false)} onAddMeal={()=>{setSelectedPlannedMeal(null);setEditingMeal(null);setMealFlowOpen(true)}} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setEditingMeal(null);setMealFlowOpen(true)}} />
       )}
       {sleepOpen&&<SleepModal value={todaySleep} close={()=>setSleepOpen(false)} saved={value=>{setTodaySleep(value);setSleepOpen(false)}} deleted={()=>{setTodaySleep(null);setSleepOpen(false);}}/>}
       {workoutOpen && (
         <WorkoutHub
           onWorkoutChanged={refreshWorkoutStatus}
           onImport={() => {
-            setWorkoutOpen(false);
             setImportOpen(true);
           }}
           onClose={() => {
@@ -352,8 +355,9 @@ export function App() {
           }}
         />
       )}
+      {importOpen && <TrainingImport onClose={() => setImportOpen(false)} />}
       {accountOpen && <AccountModal initialTab={accountInitialTab} user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} />}
-      {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} initialMealId={selectedPlannedMeal} onClose={() => {setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onBackToMeals={()=>{setMealFlowOpen(false);setSelectedPlannedMeal(null);setNutritionOpen(true)}} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);setSelectedPlannedMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
+      {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} initialMealId={selectedPlannedMeal} onClose={() => {setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onBackToMeals={()=>{setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);setSelectedPlannedMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
       {dayCelebration&&<div className="day-celebration" role="status" aria-live="polite" onClick={()=>setDayCelebration(false)}><div className="celebration-glow"/><div className="celebration-confetti">{Array.from({length:28},(_,i)=><i key={i} style={{"--i":i} as CSSProperties}/>)}</div><div className="celebration-card"><span>✦</span><small>DÍA COMPLETADO</small><h2>Hoy has cumplido contigo.</h2><p>Entrenamiento, comidas y constancia. Quédate con este impulso.</p><b>Toca para continuar</b></div></div>}
     </main>
   );

@@ -10,3 +10,42 @@
 @media(max-width:420px){.evolution-view-switch{width:100%}.evolution-view-switch button{flex:1;min-width:0}}
 .sleep-dashboard,.sleep-dashboard *{box-sizing:border-box}.sleep-dashboard{width:100%;font-family:Manrope,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important}.sleep-dashboard button{font-family:inherit}.sleep-dashboard-head h2{color:#173126!important;font-size:clamp(28px,3vw,38px)!important;font-weight:800!important;line-height:1.08!important}.sleep-dashboard-head p{color:#66776d!important;font-size:14px!important;line-height:1.55!important}.sleep-dashboard-head .eyebrow{font-size:10px!important}.sleep-dashboard .range-switch{display:flex!important;align-items:center!important;gap:3px!important;margin:0!important;padding:4px!important;border:1px solid #d9e2dc!important;border-radius:13px!important;background:#eef3ef!important}.sleep-dashboard .range-switch button{min-width:48px!important;height:34px!important;margin:0!important;padding:0 11px!important;border:0!important;border-radius:9px!important;background:transparent!important;color:#64766b!important;font-size:11px!important;font-weight:900!important;box-shadow:none!important}.sleep-dashboard .range-switch button.active{background:#173d2d!important;color:#fff!important;box-shadow:0 5px 12px rgba(23,61,45,.2)!important}.sleep-hero-main>span,.sleep-card-head small,.sleep-insight>small{font-size:10px!important}.sleep-hero-main p{font-size:13px!important}.sleep-hero-ring small{font-size:9px!important}.sleep-kpis small{font-size:9px!important;line-height:1.3!important}.sleep-kpis strong{font-size:18px!important}.sleep-kpis p{font-size:11px!important;line-height:1.35!important}.sleep-card-head h3{font-size:19px!important}.sleep-card-head>span{font-size:11px!important}.sleep-bar-column>small,.sleep-bar-track em{font-size:9px!important}.sleep-insight h3{font-size:23px!important;line-height:1.15!important}.sleep-insight>p{font-size:13px!important;line-height:1.6!important}.sleep-insight>div b{font-size:12px!important}.sleep-insight>div small{font-size:10px!important}.sleep-dashboard .sleep-add{min-height:46px!important;margin-top:0!important;border:1px solid #d7e1da!important;border-radius:14px!important;background:#fff!important;color:#244b37!important;font-size:12px!important;font-weight:900!important;align-items:center!important}
 @media(max-width:520px){.sleep-dashboard-head p{font-size:12px!important}.sleep-dashboard .range-switch{width:max-content!important}.sleep-kpis small{font-size:8px!important}.sleep-kpis p{font-size:10px!important}}
+
+/* Keep Evolution / Sleep aligned with ANURA's typography and fluid on phones. */
+.sleep-dashboard :is(h1,h2,h3,h4,strong,b,small,p,span,button){font-family:Manrope,"DM Sans",system-ui,sans-serif!important}
+.sleep-hero-main>strong,.sleep-insight h3{font-family:Manrope,"DM Sans",system-ui,sans-serif!important;font-weight:800!important;letter-spacing:-.035em!important}
+.sleep-dashboard-head>div,.sleep-hero-main,.sleep-kpis article>div,.sleep-card-head>div,.sleep-insight{min-width:0}
+.sleep-kpis{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.sleep-kpis article>span{flex:0 0 38px}
+.sleep-kpis strong{max-width:100%;font-size:clamp(15px,1.5vw,18px)!important;line-height:1.15!important;overflow-wrap:anywhere}
+.sleep-kpis :is(small,p){overflow-wrap:anywhere}
+.sleep-hero-ring{isolation:isolate}
+.sleep-hero-ring>div{z-index:1;display:grid;place-items:center;width:calc(100% - 24px);max-width:calc(100% - 24px);line-height:1}
+.sleep-hero-ring strong{max-width:100%;font-size:clamp(20px,3vw,27px)!important;line-height:1!important;white-space:nowrap}
+.sleep-hero-ring small{display:block;max-width:76px;margin-top:7px;font-size:7px!important;line-height:1.2!important;letter-spacing:.55px!important;text-align:center;overflow-wrap:normal;word-break:normal}
+
+@media(max-width:760px){
+  .sleep-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+
+@media(max-width:520px){
+  .sleep-dashboard{min-width:0;overflow-x:hidden}
+  .sleep-command{min-width:0}
+  .sleep-dashboard-head{gap:14px}
+  .sleep-dashboard-head h2{font-size:27px!important;letter-spacing:-.7px!important}
+  .sleep-dashboard-head .eyebrow{font-size:9px!important;letter-spacing:1.15px!important}
+  .sleep-hero{display:grid;grid-template-columns:minmax(0,1fr) 104px;gap:12px;padding:20px 16px}
+  .sleep-hero-main>strong{font-size:clamp(27px,8vw,34px)!important;line-height:1.05!important;letter-spacing:-1px!important}
+  .sleep-hero-main p{align-items:flex-start;font-size:11px!important;line-height:1.35!important}
+  .sleep-hero-main p svg{flex:0 0 15px}
+  .sleep-hero-ring{width:104px;height:104px;flex-basis:104px}
+  .sleep-hero-ring strong{font-size:21px!important}
+  .sleep-hero-ring small{max-width:68px;font-size:6.5px!important;letter-spacing:.4px!important}
+  .sleep-kpis{grid-template-columns:1fr!important}
+  .sleep-kpis article{padding:14px}
+}
+
+@media(max-width:370px){
+  .sleep-hero{grid-template-columns:1fr;justify-items:start}
+  .sleep-hero-ring{justify-self:start;width:112px;height:112px}
+}
