@@ -180,14 +180,6 @@ export function App() {
   const currentHour=new Date().getHours();
   const mealMoment=(currentHour>=12&&currentHour<16)||(currentHour>=19&&currentHour<23);
   const dayComplete=dailyPercent>=100;
-  const weekStartDate=new Date();
-  weekStartDate.setHours(0,0,0,0);
-  weekStartDate.setDate(weekStartDate.getDate()-((weekStartDate.getDay()+6)%7));
-  const weekStart=weekStartDate.toLocaleDateString("en-CA");
-  const weekEntries=entries.filter(entry=>entry.entryDate>=weekStart&&entry.entryDate<=today);
-  const activeWeekDays=new Set(weekEntries.map(entry=>entry.entryDate));
-  if(completedToday>0)activeWeekDays.add(today);
-  const weeklyRecords=weekEntries.length+(todaySleep?1:0);
   const heroStates:HomeHeroState[]=dayComplete?["complete"]:[];
   if(!dayComplete&&mealMoment&&pendingMeals>0)heroStates.push("meal");
   if(!dayComplete&&workoutComplete)heroStates.push("recovery");
@@ -197,28 +189,28 @@ export function App() {
   const heroState=heroStates[heroMessageIndex%heroStates.length];
   const heroMessages={
     complete:[
-      {kicker:"DÍA COMPLETADO",title:"Todo en su sitio.",accent:`Buen cierre, ${firstName}.`,detail:"Comidas, movimiento y descanso registrados. Mañana seguimos sumando."},
-      {kicker:"100% DE HOY",title:"Objetivo del día",accent:"cumplido.",detail:"No hace falta añadir más. Disfruta el trabajo bien hecho y recupera."}
+      {kicker:"DÍA COMPLETADO",title:"Día cerrado.",accent:"Todo hecho.",detail:`Buen trabajo, ${firstName}. Ahora toca recuperar.`},
+      {kicker:"100% DE HOY",title:"Hoy: 100%.",accent:"Objetivo cumplido.",detail:"Disfruta el trabajo hecho. Mañana seguimos."}
     ],
     meal:[
-      {kicker:"MOMENTO NUTRICIÓN",title:"Toca recargar",accent:"con intención.",detail:`Tienes ${pendingMeals} ${pendingMeals===1?"comida pendiente":"comidas pendientes"}. La rana ya está en cocina.`},
-      {kicker:"ENERGÍA PARA EL DÍA",title:"Siguiente parada:",accent:"comer bien.",detail:"Abre tu plan, revisa lo que toca y registra después sin complicarte."}
+      {kicker:"MOMENTO NUTRICIÓN",title:"Hora de comer.",accent:"Recarga bien.",detail:`Quedan ${pendingMeals} ${pendingMeals===1?"comida":"comidas"}. La rana ya cocina.`},
+      {kicker:"ENERGÍA PARA EL DÍA",title:"Siguiente paso:",accent:"comer bien.",detail:"Revisa el plan y registra después. Sin complicarte."}
     ],
     recovery:[
-      {kicker:"ENTRENO COMPLETADO",title:"Trabajo hecho.",accent:"Ahora, recupera.",detail:"Buen momento para hidratarte, comer según el plan y dejar que el cuerpo responda."},
-      {kicker:"SESIÓN CERRADA",title:"Ese entreno",accent:"ya cuenta.",detail:"La constancia se construye así: una sesión real cada vez."}
+      {kicker:"ENTRENO COMPLETADO",title:"Entreno hecho.",accent:"Toca recuperar.",detail:"Hidrátate, come bien y deja que el cuerpo responda."},
+      {kicker:"SESIÓN CERRADA",title:"Sesión cerrada.",accent:"Ahora, recarga.",detail:"Una sesión real más. Eso es constancia."}
     ],
     sleep:[
-      {kicker:"PRIMER CHECK DEL DÍA",title:`Buenos días, ${firstName}.`,accent:"¿Cómo has dormido?",detail:"Registra el descanso y ANURA podrá interpretar mejor tu energía y tu entreno."},
-      {kicker:"RECUPERACIÓN",title:"Antes de acelerar,",accent:"mide cómo llegas.",detail:"Un minuto para registrar el sueño mejora la lectura de todo el día."}
+      {kicker:"PRIMER CHECK DEL DÍA",title:`Buenos días, ${firstName}.`,accent:"¿Cómo has dormido?",detail:"Registra tu descanso para entender mejor tu energía."},
+      {kicker:"RECUPERACIÓN",title:"Antes de empezar:",accent:"revisa tu descanso.",detail:"Un minuto ahora mejora la lectura de todo el día."}
     ],
     workout:[
-      {kicker:"SESIÓN PENDIENTE",title:`Vamos, ${firstName}.`,accent:"Tu entreno espera.",detail:`Hoy tienes ${todayWorkout?.exerciseCount||0} ejercicios y unos ${todayWorkout?.estimatedMinutes||45} minutos por delante.`},
-      {kicker:"SIGUIENTE OBJETIVO",title:"Una sesión real",accent:"vale más que una perfecta.",detail:"Abre el entrenamiento cuando estés listo y registra lo que de verdad hagas."}
+      {kicker:"SESIÓN PENDIENTE",title:"Tu sesión espera.",accent:`Vamos, ${firstName}.`,detail:`${todayWorkout?.exerciseCount||0} ejercicios · unos ${todayWorkout?.estimatedMinutes||45} minutos.`},
+      {kicker:"SIGUIENTE OBJETIVO",title:"Hazlo posible.",accent:"No perfecto.",detail:"Entrena cuando estés listo y registra lo que hagas."}
     ],
     day:[
-      {kicker:"TU DÍA EN ANURA",title:`A por el día, ${firstName}.`,accent:"Paso a paso.",detail:"Aquí verás cómo cambian tus prioridades a medida que completas el plan."},
-      {kicker:"RITMO DIARIO",title:"Lo importante es",accent:"seguir sumando.",detail:"Comida, entrenamiento y descanso: céntrate solo en el siguiente paso."}
+      {kicker:"TU DÍA EN ANURA",title:`Vamos, ${firstName}.`,accent:"A por el día.",detail:"Tus prioridades cambiarán a medida que avances."},
+      {kicker:"RITMO DIARIO",title:"Sigue sumando.",accent:"Paso a paso.",detail:"Céntrate solo en la siguiente acción."}
     ]
   }[heroState];
   const heroMessage=heroMessages[Math.floor(heroMessageIndex/heroStates.length)%heroMessages.length];
@@ -244,7 +236,7 @@ export function App() {
         {tab === "HOME" ? (
           <>
             <section className={`home-hero home-hero-${heroState} ${dayComplete?"is-complete":""}`}>
-              <div className="home-hero-copy"><p><Sparkles/> {heroMessage.kicker}</p><h1>{heroMessage.title}<br/><em>{heroMessage.accent}</em></h1><span className="home-hero-detail">{heroMessage.detail}</span><div className="home-context-strip"><span className={workoutComplete?"done":"pending"}><Dumbbell/>{workoutComplete?"Entreno hecho":todayWorkout?"Entreno pendiente":"Sin entreno"}</span><span className={pendingMeals===0&&todayMeals.length?"done":"pending"}><Apple/>{todayMeals.length?(pendingMeals?`${pendingMeals} comidas pendientes`:"Comidas listas"):"Sin comidas"}</span><span className={todaySleep?"done":"pending"}><MoonStar/>{todaySleep?"Sueño registrado":"Sueño pendiente"}</span></div><div className="home-hero-metrics"><div className="home-streak"><b>{completedToday}/{plannedToday||"—"}</b><small>COMPLETADO HOY</small></div><div className="home-week-stat"><b>{activeWeekDays.size}<small>/7</small></b><span>DÍAS ACTIVOS</span><em>{weeklyRecords} registros esta semana</em></div></div></div>
+              <div className="home-hero-copy"><p><Sparkles/> {heroMessage.kicker}</p><h1>{heroMessage.title}<br/><em>{heroMessage.accent}</em></h1><span className="home-hero-detail">{heroMessage.detail}</span><div className="home-context-strip"><span className={workoutComplete?"done":"pending"}><Dumbbell/>{workoutComplete?"Entreno hecho":todayWorkout?"Entreno pendiente":"Sin entreno"}</span><span className={pendingMeals===0&&todayMeals.length?"done":"pending"}><Apple/>{todayMeals.length?(pendingMeals?`${pendingMeals} comidas pendientes`:"Comidas listas"):"Sin comidas"}</span><span className={todaySleep?"done":"pending"}><MoonStar/>{todaySleep?"Sueño registrado":"Sueño pendiente"}</span></div><div className="home-hero-metrics"><div className="home-streak"><b>{completedToday}/{plannedToday||"—"}</b><small>ACCIONES COMPLETADAS HOY</small></div></div></div>
               <div className={`home-hero-visual mascot-${heroState}`}><i/><i/><i/>{(Object.entries(HOME_HERO_ASSETS) as [HomeHeroState,{src:string;alt:string}][]).map(([state,asset])=><img className={`hero-frog hero-frog-${state} ${state===heroState?"active":""}`} key={state} src={asset.src} alt={state===heroState?asset.alt:""} aria-hidden={state!==heroState}/>) }<div className="home-progress-ring" style={{"--home-progress":`${dailyPercent*3.6}deg`} as CSSProperties}><span><b>{dailyPercent}%</b><small>{dayComplete?"LISTO":"HOY"}</small></span></div></div>
             </section>
             <div className="daily-plan-head"><span>PLAN DE HOY</span></div>
