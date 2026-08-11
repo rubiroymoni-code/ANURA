@@ -54,6 +54,7 @@ import './mobile-dialog-safety.css';
 import './home-dynamic-hero.css';
 import './section-mascots.css';
 import './weekly-summary.css';
+import './home-evolution-stability.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
 if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
