@@ -267,26 +267,13 @@ export function App() {
               </div>
               <button className="daily-focus sleep" onClick={()=>setSleepOpen(true)}><span className="daily-focus-icon">☾</span><span><small>DESCANSO</small><strong>{todaySleep?`${Math.floor(todaySleep.total_sleep_minutes/60)} h ${todaySleep.total_sleep_minutes%60} min`:"¿Cómo has dormido?"}</strong><b>{todaySleep?`Calidad ${["","Muy mala","Mala","Normal","Buena","Excelente"][todaySleep.quality_score||0]||"—"} · Energía ${["","Agotado","Cansado","Normal","Con energía","A tope"][todaySleep.morning_energy||0]||"—"}`:"Registra el sueño de anoche"}</b></span><em>{todaySleep?"Registrado":"Registrar"}</em></button>
             </div>
-            <div className="score">
-              <div>
-                <small>RITMO DE HOY</small>
-                <strong>{dailyPercent}%</strong>
-              </div>
-              <div
-                className="ring"
-                style={
-                  {
-                    "--score": `${dailyPercent * 3.6}deg`,
-                  } as CSSProperties
-                }
-              >
-                <span>{completedToday}</span>
-              </div>
-            </div>
             <WeeklySummary refreshKey={`${completedToday}-${todaySleep?.id||""}-${todayTravel.id||""}`}/>
             <HomeNotifications openSettings={()=>{setAccountInitialTab("reminders");setAccountOpen(true)}} onAction={action=>{if(action==="WEIGHT")setTab("WEIGHT");else if(action==="WORKOUT")setWorkoutOpen(true);else if(action==="DIET"||action==="SHOPPING")setNutritionOpen(true);else{setAccountInitialTab("reminders");setAccountOpen(true)}}}/>
-            <div className="plan-tools"><span><b>Gestionar planes</b><small>Plantillas, CSV y nuevas versiones</small></span><button onClick={() => setImportOpen(true)}><FileUp />Importar entreno</button><button onClick={() => setNutritionOpen(true)}><Apple />Dietas y hogar</button></div>
-            <h2>Actividad reciente</h2>
+            <details className="home-secondary">
+              <summary><span><small>MÁS OPCIONES</small><b>Planes y actividad reciente</b></span><ChevronDown/></summary>
+              <div className="plan-tools"><span><b>Gestionar planes</b><small>Plantillas, CSV y nuevas versiones</small></span><button onClick={() => setImportOpen(true)}><FileUp />Importar entreno</button><button onClick={() => setNutritionOpen(true)}><Apple />Dietas y hogar</button></div>
+              <h2>Actividad reciente</h2>
+            </details>
           </>
         ) : (
           <div className="section-title">
@@ -308,16 +295,8 @@ export function App() {
           </button>
         )}
         {tab === "WEIGHT" && evolutionView === "weight" && entries.some((entry) => entry.type === "WEIGHT") && <h2 className="subsection-title">Registros anteriores</h2>}
-        {tab !== "CYCLE" && (tab !== "WEIGHT" || evolutionView === "weight" ? (tab !== "WEIGHT" || visible.length > 0) : false) && (
-          <EntryList
-            entries={visible.slice(0, 12)}
-            onEdit={(entry) => {if(entry.type === "MEAL"){setEditingMeal(entry);setMealFlowOpen(true)}}}
-            onDelete={async (id) => {
-              await api.remove(id);
-              load();
-            }}
-          />
-        )}
+        {tab !== "HOME" && tab !== "CYCLE" && (tab !== "WEIGHT" || evolutionView === "weight" ? (tab !== "WEIGHT" || visible.length > 0) : false) && <EntryList entries={visible.slice(0,12)} onEdit={(entry)=>{if(entry.type==="MEAL"){setEditingMeal(entry);setMealFlowOpen(true)}}} onDelete={async(id)=>{await api.remove(id);load()}}/>}
+        {tab === "HOME" && <div className="home-recent-entries"><EntryList entries={visible.slice(0,6)} onEdit={(entry)=>{if(entry.type==="MEAL"){setEditingMeal(entry);setMealFlowOpen(true)}}} onDelete={async(id)=>{await api.remove(id);load()}}/></div>}
         {tab === "WORKOUT" && (
           <button className="import-card" onClick={() => setImportOpen(true)}>
             <FileUp />
