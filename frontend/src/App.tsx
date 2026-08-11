@@ -68,6 +68,7 @@ const meta: Record<
 };
 type ProfilePreferences={primary_goal?:string;experience_level?:string;activity_level?:string;height_cm?:number;training_days?:number;limitations?:string;biological_sex?:string;avatar_url?:string;reminder_email_enabled?:boolean;reminder_frequency?:string;last_summary_sent_at?:string};
 type HomeHeroState="complete"|"meal"|"recovery"|"sleep"|"workout"|"day";
+const HOME_HERO_ASSETS:Record<HomeHeroState,{src:string;alt:string}>={complete:{src:"/assets/anura-frog-celebrating.png",alt:"Rana de ANURA celebrando"},meal:{src:"/assets/anura-frog-cooking.png",alt:"Rana de ANURA cocinando"},recovery:{src:"/assets/anura-frog-recovery.png",alt:"Rana de ANURA recuperándose tras entrenar"},sleep:{src:"/assets/anura-frog-sleeping.png",alt:"Rana de ANURA durmiendo"},workout:{src:"/assets/anura-frog-lifting.png",alt:"Rana de ANURA entrenando"},day:{src:"/assets/anura-frog-morning.png",alt:"Rana de ANURA empezando el día"}};
 
 export function App() {
   const [user, setUser] = useState<User | null>(() => {
@@ -221,8 +222,6 @@ export function App() {
     ]
   }[heroState];
   const heroMessage=heroMessages[Math.floor(heroMessageIndex/heroStates.length)%heroMessages.length];
-  const heroImage={complete:"/assets/anura-frog-celebrating.png",meal:"/assets/anura-frog-cooking.png",recovery:"/assets/anura-frog-recovery.png",sleep:"/assets/anura-frog-sleeping.png",workout:"/assets/anura-frog-lifting.png",day:"/assets/anura-frog-morning.png"}[heroState];
-  const heroImageAlt={complete:"Rana de ANURA celebrando",meal:"Rana de ANURA cocinando",recovery:"Rana de ANURA recuperándose tras entrenar",sleep:"Rana de ANURA durmiendo",workout:"Rana de ANURA entrenando",day:"Rana de ANURA empezando el día"}[heroState];
   const activeNutritionPlan=nutritionPlans.find(plan=>plan.status==="ACTIVE");
   const nutritionExpiry=planExpiry(activeNutritionPlan?.valid_until);
   return (
@@ -245,8 +244,8 @@ export function App() {
         {tab === "HOME" ? (
           <>
             <section className={`home-hero home-hero-${heroState} ${dayComplete?"is-complete":""}`}>
-              <div className="home-hero-copy" key={`${heroState}-${Math.floor(heroMessageIndex/heroStates.length)%heroMessages.length}`}><p><Sparkles/> {heroMessage.kicker}</p><h1>{heroMessage.title}<br/><em>{heroMessage.accent}</em></h1><span className="home-hero-detail">{heroMessage.detail}</span><div className="home-context-strip"><span className={workoutComplete?"done":"pending"}><Dumbbell/>{workoutComplete?"Entreno hecho":todayWorkout?"Entreno pendiente":"Sin entreno"}</span><span className={pendingMeals===0&&todayMeals.length?"done":"pending"}><Apple/>{todayMeals.length?(pendingMeals?`${pendingMeals} comidas pendientes`:"Comidas listas"):"Sin comidas"}</span><span className={todaySleep?"done":"pending"}><MoonStar/>{todaySleep?"Sueño registrado":"Sueño pendiente"}</span></div><div className="home-hero-metrics"><div className="home-streak"><b>{completedToday}/{plannedToday||"—"}</b><small>COMPLETADO HOY</small></div><div className="home-week-stat"><b>{activeWeekDays.size}<small>/7</small></b><span>DÍAS ACTIVOS</span><em>{weeklyRecords} registros esta semana</em></div></div></div>
-              <div className={`home-hero-visual mascot-${heroState}`}><i/><i/><i/><img key={heroImage} src={heroImage} alt={heroImageAlt}/><div className="home-progress-ring" style={{"--home-progress":`${dailyPercent*3.6}deg`} as CSSProperties}><span><b>{dailyPercent}%</b><small>{dayComplete?"LISTO":"HOY"}</small></span></div></div>
+              <div className="home-hero-copy"><p><Sparkles/> {heroMessage.kicker}</p><h1>{heroMessage.title}<br/><em>{heroMessage.accent}</em></h1><span className="home-hero-detail">{heroMessage.detail}</span><div className="home-context-strip"><span className={workoutComplete?"done":"pending"}><Dumbbell/>{workoutComplete?"Entreno hecho":todayWorkout?"Entreno pendiente":"Sin entreno"}</span><span className={pendingMeals===0&&todayMeals.length?"done":"pending"}><Apple/>{todayMeals.length?(pendingMeals?`${pendingMeals} comidas pendientes`:"Comidas listas"):"Sin comidas"}</span><span className={todaySleep?"done":"pending"}><MoonStar/>{todaySleep?"Sueño registrado":"Sueño pendiente"}</span></div><div className="home-hero-metrics"><div className="home-streak"><b>{completedToday}/{plannedToday||"—"}</b><small>COMPLETADO HOY</small></div><div className="home-week-stat"><b>{activeWeekDays.size}<small>/7</small></b><span>DÍAS ACTIVOS</span><em>{weeklyRecords} registros esta semana</em></div></div></div>
+              <div className={`home-hero-visual mascot-${heroState}`}><i/><i/><i/>{(Object.entries(HOME_HERO_ASSETS) as [HomeHeroState,{src:string;alt:string}][]).map(([state,asset])=><img className={`hero-frog hero-frog-${state} ${state===heroState?"active":""}`} key={state} src={asset.src} alt={state===heroState?asset.alt:""} aria-hidden={state!==heroState}/>) }<div className="home-progress-ring" style={{"--home-progress":`${dailyPercent*3.6}deg`} as CSSProperties}><span><b>{dailyPercent}%</b><small>{dayComplete?"LISTO":"HOY"}</small></span></div></div>
             </section>
             <div className="daily-plan-head"><span>PLAN DE HOY</span></div>
             <div className="daily-plan-grid">

@@ -1,5 +1,5 @@
 .home-hero{isolation:isolate;transition:background .6s ease,box-shadow .6s ease}
-.home-hero-copy{animation:home-copy-swap .55s cubic-bezier(.2,.8,.2,1) both}
+.home-hero-copy{opacity:1;transform:none}
 .home-hero-copy .home-hero-detail{max-width:520px;text-transform:none;color:#c0cec4;font-size:12px;line-height:1.55}
 .home-context-strip{display:flex;flex-wrap:wrap;gap:6px;margin-top:13px}
 .home-context-strip>span{display:flex;align-items:center;gap:5px;padding:6px 8px;border:1px solid #ffffff18;border-radius:999px;background:#ffffff0b;color:#b8c7bc;font-size:8px;font-weight:800;white-space:nowrap}
@@ -13,21 +13,22 @@
 .home-week-stat>span{font-size:7px;font-weight:900;letter-spacing:1px;color:#fff}
 .home-week-stat>em{font-size:8px;font-style:normal;color:#aebeb2;white-space:nowrap}
 .home-hero-visual{z-index:1}
-.home-hero-visual>img{width:min(305px,36vw);right:-28px;bottom:-44px;opacity:1;mix-blend-mode:screen;animation:home-frog-live 4.2s ease-in-out infinite;transition:filter .5s}
+.home-hero-visual>.hero-frog{position:absolute;z-index:1;width:min(330px,39vw);max-width:none;right:-38px;bottom:-48px;opacity:0;pointer-events:none;mix-blend-mode:normal;filter:drop-shadow(0 18px 28px #0006);-webkit-mask-image:radial-gradient(ellipse 66% 68% at 52% 52%,#000 42%,rgba(0,0,0,.92) 62%,transparent 90%);mask-image:radial-gradient(ellipse 66% 68% at 52% 52%,#000 42%,rgba(0,0,0,.92) 62%,transparent 90%);animation:none;transition:opacity .8s ease,filter .8s ease}
+.home-hero-visual>.hero-frog.active{z-index:2;opacity:.96;animation:home-frog-live 4.2s ease-in-out infinite}
 .home-hero-visual>i{position:absolute;z-index:2;width:8px;height:8px;border-radius:50%;background:var(--acid);box-shadow:0 0 18px var(--acid);animation:home-particle 3s ease-in-out infinite}
 .home-hero-visual>i:nth-child(1){right:30%;top:25%;animation-delay:-.4s}
 .home-hero-visual>i:nth-child(2){right:12%;top:52%;width:5px;height:5px;animation-delay:-1.5s}
 .home-hero-visual>i:nth-child(3){right:44%;top:68%;width:6px;height:6px;animation-delay:-2.3s}
 .home-progress-ring{animation:home-ring-breathe 2.8s ease-in-out infinite}
 .home-hero-meal{background:radial-gradient(circle at 76% 25%,#84692d 0,#29412b 30%,#0e1c14 72%)}
-.home-hero-meal .home-hero-visual>img{animation-name:home-cook-live}
+.home-hero-meal .hero-frog-meal.active{animation-name:home-cook-live}
 .home-hero-recovery{background:radial-gradient(circle at 78% 20%,#496433 0,#1b3324 34%,#0d1b13 74%)}
-.home-hero-recovery .home-hero-visual>img{animation-name:home-recovery-live}
+.home-hero-recovery .hero-frog-recovery.active{animation-name:home-recovery-live}
 .home-hero-sleep{background:radial-gradient(circle at 80% 18%,#344b61 0,#1c3334 34%,#0d1b16 74%)}
-.home-hero-sleep .home-hero-visual>img{animation-name:home-sleep-live}
-.home-hero-day .home-hero-visual>img{animation-name:home-morning-live}
+.home-hero-sleep .hero-frog-sleep.active{animation-name:home-sleep-live}
+.home-hero-day .hero-frog-day.active{animation-name:home-morning-live}
 .home-hero.is-complete{background:radial-gradient(circle at 78% 18%,#718d31 0,#29482d 34%,#102018 74%);box-shadow:0 25px 65px #6d91352f}
-.home-hero.is-complete .home-hero-visual>img{animation-name:home-celebrate-live;animation-duration:2.6s}
+.home-hero.is-complete .hero-frog-complete.active{animation-name:home-celebrate-live;animation-duration:2.6s}
 .home-hero.is-complete:after{border-color:#c8f15d55;animation:home-complete-orbit 8s linear infinite}
 .home-hero.is-complete .home-progress-ring{box-shadow:0 0 0 8px #c8f15d12,0 12px 30px #0004}
 @keyframes home-copy-swap{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
@@ -40,6 +41,6 @@
 @keyframes home-particle{0%,100%{opacity:0;transform:translateY(12px) scale(.5)}45%{opacity:.8}70%{opacity:.35;transform:translateY(-24px) scale(1)}}
 @keyframes home-ring-breathe{50%{transform:scale(1.055);filter:drop-shadow(0 0 10px #c8f15d33)}}
 @keyframes home-complete-orbit{to{transform:rotate(360deg)}}
-@media(max-width:620px){.home-hero{grid-template-columns:minmax(0,1fr) 112px;min-height:330px;padding:21px 18px}.home-hero h1{margin:12px 0 9px;font-size:clamp(31px,9vw,42px);line-height:.94;letter-spacing:-1.8px}.home-hero-copy .home-hero-detail{font-size:10px;line-height:1.45}.home-context-strip{gap:4px;margin-top:10px}.home-context-strip>span{padding:5px 7px;font-size:7px}.home-hero-metrics{gap:6px;margin-top:13px}.home-streak{padding:8px 10px}.home-week-stat{min-width:0;padding:7px 9px}.home-week-stat>b{font-size:18px}.home-week-stat>em{white-space:normal;font-size:7px}.home-hero-visual{min-height:220px}.home-hero-visual>img{width:205px;max-width:none;right:-72px;bottom:-16px}.home-progress-ring{top:4px;right:-4px}.home-hero-visual>i:nth-child(1){right:36%}}
-@media(max-width:390px){.home-hero{grid-template-columns:minmax(0,1fr) 88px}.home-hero-metrics{display:grid}.home-hero-metrics .home-streak{width:100%}.home-week-stat{width:100%}.home-hero-visual>img{width:178px;right:-70px}}
-@media(prefers-reduced-motion:reduce){.home-hero-copy,.home-hero-visual>img,.home-hero-visual>i,.home-progress-ring,.home-hero.is-complete:after{animation:none!important}}
+@media(max-width:620px){.home-hero{grid-template-columns:minmax(0,1fr) 112px;min-height:330px;padding:21px 18px}.home-hero h1{margin:12px 0 9px;font-size:clamp(31px,9vw,42px);line-height:.94;letter-spacing:-1.8px}.home-hero-copy .home-hero-detail{font-size:10px;line-height:1.45}.home-context-strip{gap:4px;margin-top:10px}.home-context-strip>span{padding:5px 7px;font-size:7px}.home-hero-metrics{gap:6px;margin-top:13px}.home-streak{padding:8px 10px}.home-week-stat{min-width:0;padding:7px 9px}.home-week-stat>b{font-size:18px}.home-week-stat>em{white-space:normal;font-size:7px}.home-hero-visual{min-height:220px}.home-hero-visual>.hero-frog{width:220px;right:-76px;bottom:-18px}.home-progress-ring{top:4px;right:-4px}.home-hero-visual>i:nth-child(1){right:36%}}
+@media(max-width:390px){.home-hero{grid-template-columns:minmax(0,1fr) 88px}.home-hero-metrics{display:grid}.home-hero-metrics .home-streak{width:100%}.home-week-stat{width:100%}.home-hero-visual>.hero-frog{width:190px;right:-73px}}
+@media(prefers-reduced-motion:reduce){.home-hero-copy,.home-hero-visual>.hero-frog,.home-hero-visual>i,.home-progress-ring,.home-hero.is-complete:after{animation:none!important}}
