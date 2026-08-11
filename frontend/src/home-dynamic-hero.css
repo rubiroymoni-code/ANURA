@@ -1,4 +1,4 @@
-.home-hero{isolation:isolate;height:350px;min-height:350px;max-height:350px;box-sizing:border-box;transition:background .6s ease,box-shadow .6s ease}
+.home-hero{isolation:isolate;height:370px;min-height:370px;max-height:370px;box-sizing:border-box;transition:box-shadow .6s ease}
 .home-hero-copy{opacity:1;transform:none}
 .home-hero-copy>p{min-height:16px}
 .home-hero-copy>h1{height:126px;min-height:126px;max-height:126px;overflow:hidden}
@@ -19,14 +19,11 @@
 .home-hero-visual>i:nth-child(2){right:12%;top:52%;width:5px;height:5px;animation-delay:-1.5s}
 .home-hero-visual>i:nth-child(3){right:44%;top:68%;width:6px;height:6px;animation-delay:-2.3s}
 .home-progress-ring{animation:home-ring-breathe 2.8s ease-in-out infinite}
-.home-hero-meal{background:radial-gradient(circle at 76% 25%,#84692d 0,#29412b 30%,#0e1c14 72%)}
 .home-hero-meal .hero-frog-meal.active{animation-name:home-cook-live}
-.home-hero-recovery{background:radial-gradient(circle at 78% 20%,#496433 0,#1b3324 34%,#0d1b13 74%)}
 .home-hero-recovery .hero-frog-recovery.active{animation-name:home-recovery-live}
-.home-hero-sleep{background:radial-gradient(circle at 80% 18%,#344b61 0,#1c3334 34%,#0d1b16 74%)}
 .home-hero-sleep .hero-frog-sleep.active{animation-name:home-sleep-live}
 .home-hero-day .hero-frog-day.active{animation-name:home-morning-live}
-.home-hero.is-complete{background:radial-gradient(circle at 78% 18%,#718d31 0,#29482d 34%,#102018 74%);box-shadow:0 25px 65px #6d91352f}
+.home-hero.is-complete{box-shadow:0 25px 65px #6d91352f}
 .home-hero.is-complete .hero-frog-complete.active{animation-name:home-celebrate-live;animation-duration:2.6s}
 .home-hero.is-complete:after{border-color:#c8f15d55;animation:home-complete-orbit 8s linear infinite}
 .home-hero.is-complete .home-progress-ring{box-shadow:0 0 0 8px #c8f15d12,0 12px 30px #0004}
