@@ -1,0 +1,15 @@
+.body-summary:before,.sleep-hero:before,.nutrition-hub>.modal-head:before{content:"";position:absolute;pointer-events:none;background-repeat:no-repeat;background-position:center;background-size:contain;filter:drop-shadow(0 12px 25px #07140c45);-webkit-mask-image:radial-gradient(ellipse 58% 60% at 50% 50%,#000 34%,rgba(0,0,0,.82) 50%,rgba(0,0,0,.35) 62%,transparent 76%);mask-image:radial-gradient(ellipse 58% 60% at 50% 50%,#000 34%,rgba(0,0,0,.82) 50%,rgba(0,0,0,.35) 62%,transparent 76%)}
+.body-summary:before{z-index:0;right:-20px;top:-53px;width:230px;height:230px;opacity:.5;mix-blend-mode:screen;background-image:url('/assets/anura-frog-lifting.png');animation:section-mascot-float 6s ease-in-out infinite}
+.body-summary-head,.body-summary .body-kpis{position:relative;z-index:1}
+.sleep-hero{position:relative;isolation:isolate}
+.sleep-hero:before{z-index:1;right:82px;bottom:-45px;width:215px;height:215px;opacity:.58;mix-blend-mode:screen;background-image:url('/assets/anura-frog-sleeping.png');animation:section-mascot-breathe 7s ease-in-out infinite}
+.sleep-hero-main,.sleep-hero-ring{position:relative;z-index:2}
+.nutrition-hub>.modal-head{position:relative;isolation:isolate;min-height:74px;overflow:hidden;padding-right:64px}
+.nutrition-hub>.modal-head:before{z-index:1;right:42px;top:-43px;width:142px;height:142px;opacity:.42;mix-blend-mode:multiply;background-image:url('/assets/anura-frog-cooking.png');animation:section-mascot-cook 6s ease-in-out infinite}
+.nutrition-hub>.modal-head>div,.nutrition-hub>.modal-head>button{position:relative;z-index:2}
+@keyframes section-mascot-float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-7px) rotate(1deg)}}
+@keyframes section-mascot-breathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.025)}}
+@keyframes section-mascot-cook{0%,100%{transform:rotate(-1deg) translateY(0)}50%{transform:rotate(1deg) translateY(-5px)}}
+@media(max-width:720px){.body-summary:before{right:-42px;top:-30px;width:175px;height:175px;opacity:.38}.body-summary-head{padding-right:74px}.sleep-hero:before{right:62px;bottom:-28px;width:150px;height:150px;opacity:.43}.nutrition-hub>.modal-head{min-height:68px;padding-right:58px}.nutrition-hub>.modal-head:before{right:36px;top:-24px;width:108px;height:108px;opacity:.34}}
+@media(max-width:430px){.sleep-hero:before{right:66px;bottom:-15px;width:118px;height:118px;opacity:.32}.nutrition-hub>.modal-head:before{right:40px;width:96px;height:96px}.body-summary:before{right:-48px;width:158px;height:158px}}
+@media(prefers-reduced-motion:reduce){.body-summary:before,.sleep-hero:before,.nutrition-hub>.modal-head:before{animation:none!important}}
