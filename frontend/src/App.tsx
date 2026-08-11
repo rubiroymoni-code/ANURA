@@ -289,7 +289,7 @@ export function App() {
           </button>
         )}
       </section>
-      {(tab === "HOME" || tab === "WEIGHT") && !modal && !importOpen && !nutritionOpen && !workoutOpen && !accountOpen && !mealFlowOpen && !sleepOpen && <button type="button" className="fab" aria-label={tab==="WEIGHT"?"Registrar check-in":"Añadir al día"} title={tab==="WEIGHT"?"Registrar check-in":"Añadir al día"} onClick={() => tab === "WEIGHT" ? setProgressAddSignal(value=>value+1) : setModal(true)}>
+      {(tab === "HOME" || tab === "WEIGHT") && !modal && !importOpen && !nutritionOpen && !workoutOpen && !accountOpen && !mealFlowOpen && !sleepOpen && <button type="button" className="fab" aria-label={tab==="WEIGHT"?(evolutionView==="sleep"?"Registrar sueño":"Registrar check-in"):"Añadir al día"} title={tab==="WEIGHT"?(evolutionView==="sleep"?"Registrar sueño":"Registrar check-in"):"Añadir al día"} onClick={() => tab === "WEIGHT" ? (evolutionView === "sleep" ? setSleepOpen(true) : setProgressAddSignal(value=>value+1)) : setModal(true)}>
         <Plus />
       </button>}
       <nav>
