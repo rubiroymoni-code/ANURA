@@ -1,16 +1,16 @@
 .body-summary:before,.sleep-hero:before,.nutrition-overview-summary:before{content:"";position:absolute;pointer-events:none;background-repeat:no-repeat;background-position:center;background-size:contain;filter:drop-shadow(0 12px 25px #07140c45);-webkit-mask-image:radial-gradient(ellipse 58% 60% at 50% 50%,#000 34%,rgba(0,0,0,.82) 50%,rgba(0,0,0,.35) 62%,transparent 76%);mask-image:radial-gradient(ellipse 58% 60% at 50% 50%,#000 34%,rgba(0,0,0,.82) 50%,rgba(0,0,0,.35) 62%,transparent 76%)}
 .body-summary{isolation:isolate}
-.body-summary:before{z-index:0;right:-8px;top:-10px;width:220px;height:220px;opacity:.72;mix-blend-mode:screen;background-image:url('/assets/anura-frog-lifting.png');animation:section-mascot-float 6s ease-in-out infinite}
+.body-summary:before{inset:auto -5px auto auto;z-index:0;top:-5px;width:220px;height:220px;opacity:.88;mix-blend-mode:screen;background-size:142%;background-position:50% 28%;background-image:url('/assets/anura-frog-lifting.png');animation:section-mascot-float 6s ease-in-out infinite}
 .body-summary-head,.body-summary .body-kpis{position:relative;z-index:1}
 .sleep-hero{position:relative;isolation:isolate}
 .sleep-hero:before{z-index:1;right:82px;bottom:-45px;width:215px;height:215px;opacity:.58;mix-blend-mode:screen;background-image:url('/assets/anura-frog-sleeping.png');animation:section-mascot-breathe 7s ease-in-out infinite}
 .sleep-hero-main,.sleep-hero-ring{position:relative;z-index:2}
 .nutrition-overview-summary{position:relative;isolation:isolate;overflow:hidden;min-height:112px;padding-right:150px}
-.nutrition-overview-summary:before{z-index:0;right:34px;top:-29px;width:165px;height:165px;opacity:.55;mix-blend-mode:screen;background-image:url('/assets/anura-frog-cooking.png');animation:section-mascot-cook 6s ease-in-out infinite}
+.nutrition-overview-summary:before{z-index:0;right:24px;top:0;width:150px;height:112px;opacity:.62;mix-blend-mode:screen;background-size:178%;background-position:50% 23%;background-image:url('/assets/anura-frog-cooking.png');animation:section-mascot-cook 6s ease-in-out infinite}
 .nutrition-overview-summary>*{position:relative;z-index:1}
 @keyframes section-mascot-float{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-7px) rotate(1deg)}}
 @keyframes section-mascot-breathe{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.025)}}
 @keyframes section-mascot-cook{0%,100%{transform:rotate(-1deg) translateY(0)}50%{transform:rotate(1deg) translateY(-5px)}}
-@media(max-width:720px){.body-summary:before{right:-24px;top:-3px;width:165px;height:165px;opacity:.58}.body-summary-head{padding-right:72px}.sleep-hero:before{right:62px;bottom:-28px;width:150px;height:150px;opacity:.43}.nutrition-overview-summary{min-height:104px;padding-right:105px}.nutrition-overview-summary:before{right:18px;top:-9px;width:125px;height:125px;opacity:.48}}
-@media(max-width:430px){.sleep-hero:before{right:66px;bottom:-15px;width:118px;height:118px;opacity:.32}.nutrition-overview-summary{padding-right:88px}.nutrition-overview-summary:before{right:9px;top:0;width:108px;height:108px;opacity:.4}.body-summary:before{right:-25px;top:2px;width:145px;height:145px;opacity:.5}}
+@media(max-width:720px){.body-summary:before{inset:auto -8px auto auto;top:0;width:160px;height:160px;opacity:.78;background-size:150%}.body-summary-head{padding-right:72px}.sleep-hero:before{right:62px;bottom:-28px;width:150px;height:150px;opacity:.43}.nutrition-overview-summary{min-height:104px;padding-right:105px}.nutrition-overview-summary:before{right:5px;top:0;width:118px;height:104px;opacity:.56;background-size:185%}}
+@media(max-width:430px){.sleep-hero:before{right:66px;bottom:-15px;width:118px;height:118px;opacity:.32}.nutrition-overview-summary{padding-right:88px}.nutrition-overview-summary:before{right:0;width:98px;height:104px;opacity:.48;background-size:195%}.body-summary:before{inset:auto -5px auto auto;top:3px;width:140px;height:140px;opacity:.72}}
 @media(prefers-reduced-motion:reduce){.body-summary:before,.sleep-hero:before,.nutrition-overview-summary:before{animation:none!important}}

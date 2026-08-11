@@ -50,6 +50,7 @@ import { CycleTracker } from "./CycleTracker";
 import { HomeNotifications, ReminderSettingsPanel } from "./ReminderCenter";
 import { SleepModal } from "./SleepModal";
 import { SleepDashboard } from "./SleepDashboard";
+import { WeeklySummary } from "./WeeklySummary";
 
 const meta: Record<
   EntryType,
@@ -67,8 +68,8 @@ const meta: Record<
   GOAL: { label: "Objetivo", icon: Target, unit: "%", color: "pink" },
 };
 type ProfilePreferences={primary_goal?:string;experience_level?:string;activity_level?:string;height_cm?:number;training_days?:number;limitations?:string;biological_sex?:string;avatar_url?:string;reminder_email_enabled?:boolean;reminder_frequency?:string;last_summary_sent_at?:string};
-type HomeHeroState="complete"|"meal"|"recovery"|"sleep"|"workout"|"day";
-const HOME_HERO_ASSETS:Record<HomeHeroState,{src:string;alt:string}>={complete:{src:"/assets/anura-frog-celebrating.png",alt:"Rana de ANURA celebrando"},meal:{src:"/assets/anura-frog-cooking.png",alt:"Rana de ANURA cocinando"},recovery:{src:"/assets/anura-frog-recovery.png",alt:"Rana de ANURA recuperándose tras entrenar"},sleep:{src:"/assets/anura-frog-sleeping.png",alt:"Rana de ANURA durmiendo"},workout:{src:"/assets/anura-frog-lifting.png",alt:"Rana de ANURA entrenando"},day:{src:"/assets/anura-frog-morning.png",alt:"Rana de ANURA empezando el día"}};
+type HomeHeroState="complete"|"travel"|"meal"|"recovery"|"sleep"|"workout"|"day";
+const HOME_HERO_ASSETS:Record<HomeHeroState,{src:string;alt:string}>={complete:{src:"/assets/anura-frog-celebrating.png",alt:"Rana de ANURA celebrando"},travel:{src:"/assets/anura-frog-travel.png",alt:"Rana de ANURA en modo viaje"},meal:{src:"/assets/anura-frog-cooking.png",alt:"Rana de ANURA cocinando"},recovery:{src:"/assets/anura-frog-recovery.png",alt:"Rana de ANURA recuperándose tras entrenar"},sleep:{src:"/assets/anura-frog-sleeping.png",alt:"Rana de ANURA durmiendo"},workout:{src:"/assets/anura-frog-lifting.png",alt:"Rana de ANURA entrenando"},day:{src:"/assets/anura-frog-morning.png",alt:"Rana de ANURA empezando el día"}};
 
 export function App() {
   const [user, setUser] = useState<User | null>(() => {
@@ -95,6 +96,7 @@ export function App() {
   const [todayWorkoutAdjustment, setTodayWorkoutAdjustment] = useState<TodayWorkoutAdjustment | null>(null);
   const [todayWorkoutDone, setTodayWorkoutDone] = useState(false);
   const [todaySleep,setTodaySleep]=useState<SleepSession|null>(null);
+  const [todayTravel,setTodayTravel]=useState<Awaited<ReturnType<typeof nutritionApi.travelToday>>>({});
   const [sleepOpen,setSleepOpen]=useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
   const [mealsExpanded,setMealsExpanded]=useState(false);
@@ -144,6 +146,7 @@ export function App() {
       setTodaySleep(sleep);
     });
     void nutritionApi.dashboard().then(setNutritionDashboard).catch(()=>setNutritionDashboard(null));
+    void nutritionApi.travelToday().then(setTodayTravel).catch(()=>setTodayTravel({}));
     void nutritionApi.plans().then(setNutritionPlans).catch(()=>setNutritionPlans([]));
     void api.profilePreferences().then(setProfilePreferences).catch(()=>setProfilePreferences({}));
   }, [user]);
@@ -181,6 +184,7 @@ export function App() {
   const mealMoment=(currentHour>=12&&currentHour<16)||(currentHour>=19&&currentHour<23);
   const dayComplete=dailyPercent>=100;
   const heroStates:HomeHeroState[]=dayComplete?["complete"]:[];
+  if(!dayComplete&&todayTravel.id)heroStates.push("travel");
   if(!dayComplete&&mealMoment&&pendingMeals>0)heroStates.push("meal");
   if(!dayComplete&&workoutComplete)heroStates.push("recovery");
   if(!dayComplete&&currentHour<11&&!todaySleep)heroStates.push("sleep");
@@ -191,6 +195,10 @@ export function App() {
     complete:[
       {kicker:"DÍA COMPLETADO",title:"Día cerrado.",accent:"Todo hecho.",detail:`Buen trabajo, ${firstName}. Ahora toca recuperar.`},
       {kicker:"100% DE HOY",title:"Hoy: 100%.",accent:"Objetivo cumplido.",detail:"Disfruta el trabajo hecho. Mañana seguimos."}
+    ],
+    travel:[
+      {kicker:"MODO VIAJE",title:"Hoy toca fluir.",accent:"Sin perder el rumbo.",detail:todayTravel.guidance||"Disfruta, elige con criterio y vuelve al plan sin compensar."},
+      {kicker:todayTravel.title?.toUpperCase()||"DÍA FLEXIBLE",title:"Viajar también",accent:"forma parte del plan.",detail:todayTravel.plan_label||"Este día no genera compra ni penaliza tu adherencia."}
     ],
     meal:[
       {kicker:"MOMENTO NUTRICIÓN",title:"Hora de comer.",accent:"Recarga bien.",detail:`Quedan ${pendingMeals} ${pendingMeals===1?"comida":"comidas"}. La rana ya cocina.`},
@@ -236,7 +244,7 @@ export function App() {
         {tab === "HOME" ? (
           <>
             <section className={`home-hero home-hero-${heroState} ${dayComplete?"is-complete":""}`}>
-              <div className="home-hero-copy"><p><Sparkles/> {heroMessage.kicker}</p><h1>{heroMessage.title}<br/><em>{heroMessage.accent}</em></h1><span className="home-hero-detail">{heroMessage.detail}</span><div className="home-context-strip"><span className={workoutComplete?"done":"pending"}><Dumbbell/>{workoutComplete?"Entreno hecho":todayWorkout?"Entreno pendiente":"Sin entreno"}</span><span className={pendingMeals===0&&todayMeals.length?"done":"pending"}><Apple/>{todayMeals.length?(pendingMeals?`${pendingMeals} comidas pendientes`:"Comidas listas"):"Sin comidas"}</span><span className={todaySleep?"done":"pending"}><MoonStar/>{todaySleep?"Sueño registrado":"Sueño pendiente"}</span></div><div className="home-hero-metrics"><div className="home-streak"><b>{completedToday}/{plannedToday||"—"}</b><small>ACCIONES COMPLETADAS HOY</small></div></div></div>
+              <div className="home-hero-copy"><p><Sparkles/> {heroMessage.kicker}</p><h1>{heroMessage.title}<br/><em>{heroMessage.accent}</em></h1><span className="home-hero-detail">{heroMessage.detail}</span><div className="home-context-strip"><span className={workoutComplete?"done":"pending"}><Dumbbell/>{workoutComplete?"Entreno hecho":todayWorkout?"Entreno pendiente":"Sin entreno"}</span><span className={todayTravel.id?"done":pendingMeals===0&&todayMeals.length?"done":"pending"}><Apple/>{todayTravel.id?"Modo viaje":todayMeals.length?(pendingMeals?`${pendingMeals} comidas pendientes`:"Comidas listas"):"Sin comidas"}</span><span className={todaySleep?"done":"pending"}><MoonStar/>{todaySleep?"Sueño registrado":"Sueño pendiente"}</span></div><div className="home-hero-metrics"><div className="home-streak"><b>{completedToday}/{plannedToday||"—"}</b><small>ACCIONES COMPLETADAS HOY</small></div></div></div>
               <div className={`home-hero-visual mascot-${heroState}`}><i/><i/><i/>{(Object.entries(HOME_HERO_ASSETS) as [HomeHeroState,{src:string;alt:string}][]).map(([state,asset])=><img className={`hero-frog hero-frog-${state} ${state===heroState?"active":""}`} key={state} src={asset.src} alt={state===heroState?asset.alt:""} aria-hidden={state!==heroState}/>) }<div className="home-progress-ring" style={{"--home-progress":`${dailyPercent*3.6}deg`} as CSSProperties}><span><b>{dailyPercent}%</b><small>{dayComplete?"LISTO":"HOY"}</small></span></div></div>
             </section>
             <div className="daily-plan-head"><span>PLAN DE HOY</span></div>
@@ -275,6 +283,7 @@ export function App() {
                 <span>{completedToday}</span>
               </div>
             </div>
+            <WeeklySummary refreshKey={`${completedToday}-${todaySleep?.id||""}-${todayTravel.id||""}`}/>
             <HomeNotifications openSettings={()=>{setAccountInitialTab("reminders");setAccountOpen(true)}} onAction={action=>{if(action==="WEIGHT")setTab("WEIGHT");else if(action==="WORKOUT")setWorkoutOpen(true);else if(action==="DIET"||action==="SHOPPING")setNutritionOpen(true);else{setAccountInitialTab("reminders");setAccountOpen(true)}}}/>
             <div className="plan-tools"><span><b>Gestionar planes</b><small>Plantillas, CSV y nuevas versiones</small></span><button onClick={() => setImportOpen(true)}><FileUp />Importar entreno</button><button onClick={() => setNutritionOpen(true)}><Apple />Dietas y hogar</button></div>
             <h2>Actividad reciente</h2>
@@ -383,7 +392,7 @@ export function App() {
         />
       )}
       {nutritionOpen && (
-        <NutritionHub onClose={() => setNutritionOpen(false)} onAddMeal={()=>{setSelectedPlannedMeal(null);setEditingMeal(null);setMealFlowOpen(true)}} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setEditingMeal(null);setMealFlowOpen(true)}} />
+        <NutritionHub onClose={() => {setNutritionOpen(false);void nutritionApi.travelToday().then(setTodayTravel).catch(()=>setTodayTravel({}))}} onAddMeal={()=>{setSelectedPlannedMeal(null);setEditingMeal(null);setMealFlowOpen(true)}} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setEditingMeal(null);setMealFlowOpen(true)}} />
       )}
       {sleepOpen&&<SleepModal value={todaySleep} close={()=>setSleepOpen(false)} saved={value=>{setTodaySleep(value);setSleepOpen(false)}} deleted={()=>{setTodaySleep(null);setSleepOpen(false);}}/>}
       {workoutOpen && (
