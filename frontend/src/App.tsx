@@ -266,14 +266,14 @@ export function App() {
                 {mealsExpanded&&todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.status !== "PENDING" ? "completed" : ""}><button onClick={() => setMealFlowOpen(true)}><span><b>{meal.custom_name||meal.meal_name}</b><small>{meal.status === "SKIPPED" ? "Saltada" : meal.status === "SUBSTITUTED" ? "Sustituida" : `${meal.recipe} · ${Number(meal.calories || 0).toFixed(0)} kcal`}</small></span></button><button className="meal-complete" disabled={dailyLoading} title={meal.status==="PENDING"?"Marcar como hecha":"Deshacer registro"} onClick={async () => {setDailyLoading(true);try{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id);else await nutritionApi.undoToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setNutritionDashboard(await nutritionApi.dashboard());load();}finally{setDailyLoading(false)}}}>{meal.status !== "PENDING" ? "Deshacer" : "Completar"}</button></div>)}</div>}
                 {mealsExpanded&&<button className="daily-add-meal" onClick={() => {setEditingMeal(null);setMealFlowOpen(true)}}><Plus/>Revisar dieta o añadir comida</button>}
               </div>
-              <button className="daily-focus sleep" onClick={()=>setSleepOpen(true)}><span className="daily-focus-icon">☾</span><span><small>DESCANSO</small><strong>{todaySleep?`${Math.floor(todaySleep.total_sleep_minutes/60)} h ${todaySleep.total_sleep_minutes%60} min`:"¿Cómo has dormido?"}</strong><b>{todaySleep?`Calidad ${["","Muy mala","Mala","Normal","Buena","Excelente"][todaySleep.quality_score||0]||"—"} · Energía ${["","Agotado","Cansado","Normal","Con energía","A tope"][todaySleep.morning_energy||0]||"—"}`:"Registra el sueño de anoche"}</b></span><em>{todaySleep?"Registrado":"Registrar"}</em></button>
+              {!todaySleep&&<button className="daily-focus sleep" onClick={()=>setSleepOpen(true)}><span className="daily-focus-icon">☾</span><span><small>DESCANSO</small><strong>¿Cómo has dormido?</strong><b>Registra el sueño de anoche</b></span><em>Registrar</em></button>}
             </div>
             <WeeklySummary refreshKey={`${completedToday}-${todaySleep?.id||""}-${todayTravel.id||""}`}/>
             <HomeNotifications openSettings={()=>{setAccountInitialTab("reminders");setAccountOpen(true)}} onAction={action=>{if(action==="WEIGHT")setTab("WEIGHT");else if(action==="WORKOUT")setWorkoutOpen(true);else if(action==="SHOPPING"){setNutritionInitialSection("shopping");setNutritionOpen(true)}else if(action==="DIET")setNutritionOpen(true);else{setAccountInitialTab("reminders");setAccountOpen(true)}}}/>
             <details className="home-secondary">
               <summary><span><small>MÁS OPCIONES</small><b>Planes y actividad reciente</b></span><ChevronDown/></summary>
               <div className="plan-tools"><span><b>Gestionar planes</b><small>Plantillas, CSV y nuevas versiones</small></span><button onClick={() => setImportOpen(true)}><FileUp />Importar entreno</button><button onClick={() => setNutritionOpen(true)}><Apple />Dietas y hogar</button></div>
-              <h2>Actividad reciente</h2>
+              <section className="home-recent-entries"><h2>Actividad reciente</h2><EntryList entries={visible.slice(0,6)} onEdit={(entry)=>{if(entry.type==="MEAL"){setEditingMeal(entry);setMealFlowOpen(true)}}} onDelete={async(id)=>{await api.remove(id);load()}}/></section>
             </details>
           </>
         ) : (
@@ -297,7 +297,6 @@ export function App() {
         )}
         {tab === "WEIGHT" && evolutionView === "weight" && entries.some((entry) => entry.type === "WEIGHT") && <h2 className="subsection-title">Registros anteriores</h2>}
         {tab !== "HOME" && tab !== "CYCLE" && (tab !== "WEIGHT" || evolutionView === "weight" ? (tab !== "WEIGHT" || visible.length > 0) : false) && <EntryList entries={visible.slice(0,12)} onEdit={(entry)=>{if(entry.type==="MEAL"){setEditingMeal(entry);setMealFlowOpen(true)}}} onDelete={async(id)=>{await api.remove(id);load()}}/>}
-        {tab === "HOME" && <div className="home-recent-entries"><EntryList entries={visible.slice(0,6)} onEdit={(entry)=>{if(entry.type==="MEAL"){setEditingMeal(entry);setMealFlowOpen(true)}}} onDelete={async(id)=>{await api.remove(id);load()}}/></div>}
         {tab === "WORKOUT" && (
           <button className="import-card" onClick={() => setImportOpen(true)}>
             <FileUp />
