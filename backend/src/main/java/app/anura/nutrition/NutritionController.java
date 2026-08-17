@@ -2,6 +2,7 @@ package app.anura.nutrition;
 
 import app.anura.config.CurrentUser;
 import app.anura.error.ApiException;
+import java.text.Normalizer;
 import java.util.*;
 import java.time.LocalDate;
 import org.springframework.http.HttpStatus;
@@ -372,7 +373,8 @@ public class NutritionController {
     if(unit.equals("kg")){unit="g";quantity=quantity.multiply(java.math.BigDecimal.valueOf(1000));}
     if(unit.equals("l")){unit="ml";quantity=quantity.multiply(java.math.BigDecimal.valueOf(1000));}
     final String normalizedUnit=unit;
-    UUID ingredient=db.query("SELECT id FROM ingredient WHERE household_id=? AND lower(trim(name))=lower(?) AND lower(base_unit)=? ORDER BY created_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),household,name,normalizedUnit).stream().findFirst().orElseGet(()->{UUID id=UUID.randomUUID();db.update("INSERT INTO ingredient(id,household_id,code,name,category,base_unit) VALUES(?,?,?,?,?,?)",id,household,"PANTRY_"+id,name,category,normalizedUnit);return id;});
+    String identity=pantryKey(name);
+    UUID ingredient=db.queryForList("SELECT id,name FROM ingredient WHERE household_id=? AND lower(base_unit)=? ORDER BY created_at",household,normalizedUnit).stream().filter(candidate->pantryKey(candidate.get("name")).equals(identity)).map(candidate->(UUID)candidate.get("id")).findFirst().orElseGet(()->{UUID id=UUID.randomUUID();db.update("INSERT INTO ingredient(id,household_id,code,name,category,base_unit) VALUES(?,?,?,?,?,?)",id,household,"PANTRY_"+id,name,category,normalizedUnit);return id;});
     db.update("INSERT INTO household_pantry_stock(household_id,ingredient_id,unit,quantity) VALUES(?,?,?,?) ON CONFLICT(household_id,ingredient_id,unit) DO UPDATE SET quantity=household_pantry_stock.quantity+EXCLUDED.quantity,updated_at=CURRENT_TIMESTAMP",household,ingredient,normalizedUnit,quantity);
     return Map.of("ingredientId",ingredient,"name",name);
   }
@@ -525,11 +527,13 @@ public class NutritionController {
     int order = 0;
     for (Map<String, Object> row : totals) {
       java.math.BigDecimal required = (java.math.BigDecimal) row.get("quantity");
-      List<Map<String,Object>> stockRows=db.queryForList("SELECT s.ingredient_id,s.unit stock_unit,s.quantity original_quantity,CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='mg' THEN 1.0/60000 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='g' THEN 1.0/60 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='kg' THEN 1000.0/60 WHEN lower(s.unit) IN ('kg','l') THEN 1000 WHEN lower(s.unit)='mg' THEN 0.001 ELSE 1 END conversion_factor,s.quantity*CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='mg' THEN 1.0/60000 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='g' THEN 1.0/60 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='kg' THEN 1000.0/60 WHEN lower(s.unit) IN ('kg','l') THEN 1000 WHEN lower(s.unit)='mg' THEN 0.001 ELSE 1 END quantity FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id WHERE s.household_id=? AND lower(trim(i.name))=lower(trim(?)) AND CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit) IN ('mg','g','kg') THEN 'ud' WHEN lower(s.unit) IN ('l','ml') OR (lower(s.unit) IN ('mg','g','kg') AND (upper(i.category) IN ('DRINKS','BEBIDA','BEBIDAS') OR lower(i.name) ~ '(^| )(leche|agua|zumo|bebida)')) THEN 'ml' WHEN lower(s.unit) IN ('mg','kg','g') THEN 'g' WHEN lower(s.unit) IN ('ud','uds','unidad','unidades') THEN 'ud' ELSE lower(s.unit) END=? AND s.quantity>0 ORDER BY s.updated_at",household,row.get("name"),row.get("unit"));
+      String requiredIdentity=pantryKey(row.get("name"));
+      List<Map<String,Object>> stockRows=db.queryForList("SELECT s.ingredient_id,i.name,s.unit stock_unit,s.quantity original_quantity,CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='mg' THEN 1.0/60000 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='g' THEN 1.0/60 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='kg' THEN 1000.0/60 WHEN lower(s.unit) IN ('kg','l') THEN 1000 WHEN lower(s.unit)='mg' THEN 0.001 ELSE 1 END conversion_factor,s.quantity*CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='mg' THEN 1.0/60000 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='g' THEN 1.0/60 WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit)='kg' THEN 1000.0/60 WHEN lower(s.unit) IN ('kg','l') THEN 1000 WHEN lower(s.unit)='mg' THEN 0.001 ELSE 1 END quantity FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id WHERE s.household_id=? AND CASE WHEN lower(i.name) ~ '(^| )huevos?( entero)?($| )' AND lower(s.unit) IN ('mg','g','kg') THEN 'ud' WHEN lower(s.unit) IN ('l','ml') OR (lower(s.unit) IN ('mg','g','kg') AND (upper(i.category) IN ('DRINKS','BEBIDA','BEBIDAS') OR lower(i.name) ~ '(^| )(leche|agua|zumo|bebida)')) THEN 'ml' WHEN lower(s.unit) IN ('mg','kg','g') THEN 'g' WHEN lower(s.unit) IN ('ud','uds','unidad','unidades') THEN 'ud' ELSE lower(s.unit) END=? AND s.quantity>0 ORDER BY s.updated_at",household,row.get("unit")).stream().filter(stockRow->pantryKey(stockRow.get("name")).equals(requiredIdentity)).toList();
       java.math.BigDecimal stock=stockRows.stream().map(value->(java.math.BigDecimal)value.get("quantity")).reduce(java.math.BigDecimal.ZERO,java.math.BigDecimal::add);
       if (stock == null) stock = java.math.BigDecimal.ZERO;
       java.math.BigDecimal pantryUsed = stock.min(required);
       java.math.BigDecimal toBuy = required.subtract(pantryUsed);
+      Object pantryIngredient=stockRows.isEmpty()?row.get("ingredient_id"):stockRows.getFirst().get("ingredient_id");
       java.math.BigDecimal remainingUse=pantryUsed;
       for(Map<String,Object> stockRow:stockRows){if(remainingUse.signum()<=0)break;java.math.BigDecimal available=(java.math.BigDecimal)stockRow.get("quantity"),used=available.min(remainingUse),factor=(java.math.BigDecimal)stockRow.get("conversion_factor");db.update("UPDATE household_pantry_stock SET quantity=GREATEST(0,quantity-?),updated_at=CURRENT_TIMESTAMP WHERE household_id=? AND ingredient_id=? AND unit=?",used.divide(factor,6,java.math.RoundingMode.HALF_UP),household,stockRow.get("ingredient_id"),stockRow.get("stock_unit"));remainingUse=remainingUse.subtract(used);}
       db.update(
@@ -538,7 +542,7 @@ public class NutritionController {
               + " VALUES(?,?,?,?,?,?,?,?,?,?)",
           UUID.randomUUID(),
           list,
-          row.get("ingredient_id"),
+          pantryIngredient,
           row.get("name"),
           row.get("category"),
           toBuy,
@@ -633,6 +637,17 @@ public class NutritionController {
     }
     db.update("UPDATE shopping_list_item SET quantity=? WHERE id=?",body.quantity(),id);
     db.update("UPDATE shopping_list SET manually_modified=TRUE,updated_at=CURRENT_TIMESTAMP WHERE id=(SELECT shopping_list_id FROM shopping_list_item WHERE id=?)",id);
+  }
+
+  static String pantryKey(Object value) {
+    String normalized=Normalizer.normalize(String.valueOf(value),Normalizer.Form.NFD)
+        .replaceAll("\\p{M}+","").toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+"," ").trim();
+    boolean preserved=normalized.matches(".*\\b(al natural|en conserva|envasad[oa]s?|escurrid[oa]s?|latas?)\\b.*");
+    boolean fresh=normalized.matches(".*\\b(filetes?|lomos?|fresc[oa]s?|congelad[oa]s?)\\b.*");
+    String base=normalized
+        .replaceAll("\\b(al natural|en conserva|envasad[oa]s?|escurrid[oa]s?|latas?|filetes?|lomos?|fresc[oa]s?|congelad[oa]s?)\\b"," ")
+        .replaceAll("\\b(de|del|en|al)\\b"," ").replaceAll("\\s+"," ").trim();
+    return base+"|"+(preserved?"conserva":fresh?"fresco":"base");
   }
 }
 
