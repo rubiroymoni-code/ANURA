@@ -32,9 +32,11 @@ import { HouseholdView } from "./HouseholdView";
 import { SupplementsPanel } from "./SupplementsPanel";
 import { NutritionPreferencesPanel } from "./NutritionPreferencesPanel";
 import { TravelModePanel } from "./TravelModePanel";
+
+const nutritionPlanStatusLabel:Record<string,string>={ACTIVE:"Activo",SUPERSEDED:"Archivado",DRAFT:"Borrador"};
 type NutritionSection="home"|"cook"|"preferences"|"household"|"import"|"shopping"|"supplements"|"travel"|"plan"|"recipe";
-export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: () => void;onRegisterMeal?:(meal:TodayMeal)=>void;onAddMeal?:()=>void }) {
-  const [section, setSection] = useState<NutritionSection>("home");
+export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="home" }: { onClose: () => void;onRegisterMeal?:(meal:TodayMeal)=>void;onAddMeal?:()=>void;initialSection?:NutritionSection }) {
+  const [section, setSection] = useState<NutritionSection>(initialSection);
   const [sectionHistory,setSectionHistory]=useState<NutritionSection[]>([]);
   const navigate=(next:NutritionSection)=>{if(next===section)return;setSectionHistory(history=>[...history,section]);setSection(next)};
   const goBack=()=>{const previous=sectionHistory.at(-1)||"home";setSectionHistory(history=>history.slice(0,-1));setSection(previous)};
@@ -146,8 +148,8 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal }: { onClose: ()
                 <Utensils />
                 <span>
                   <b>{p.name}</b>
-                  <small>
-                    Versión {p.version} · {p.status}
+                  <small className="nutrition-plan-meta">
+                    <span>Versión {p.version}</span><em className={`plan-status plan-status-${p.status.toLowerCase()}`}>{nutritionPlanStatusLabel[p.status]||p.status}</em>
                   </small>
                 </span>
               </button>
@@ -534,7 +536,7 @@ function PlanView({ id,status,onDeleted }: { id: string;status:string;onDeleted:
       <div className="plan-agenda-intro"><CalendarDays/><span><b>{selectedDay===todayDay?"Tu menú de hoy":selectedDay===0?"Tu semana completa":`Tu menú del día ${selectedDay}`}</b><small>Para cantidades conjuntas y reparto abre Cocina.</small></span></div>
       {!dayRows.length&&!visibleTravel.length&&<div className="empty">No tienes comidas asignadas para este día.</div>}
       <div className="plan-agenda-list">{dayRows.map((meal,index)=>{const key=String(meal.planned_meal_id||`${meal.meal_name}-${index}`);return <PlanMealCard key={key} meal={meal} dayVisible={selectedDay===0} open={expandedMeal===key} toggle={()=>setExpandedMeal(current=>current===key?null:key)}/>})}{visibleTravel.map(day=><TravelPlanDay key={day.travel_date} day={day} showDay={selectedDay===0}/>)}</div>
-      <div className="plan-actions"><span className={status==="ACTIVE"?"active":""}>{status==="ACTIVE"?"● Plan activo":status||"Plan"}</span>{status!=="ACTIVE"&&<button className="primary" onClick={async()=>{await nutritionApi.activate(id);location.reload()}}>Activar este plan</button>}<button className="danger" onClick={async()=>{if(confirm("¿Eliminar este plan nutricional? Se borrarán sus días y comidas planificadas. Esta acción no se puede deshacer.")){await nutritionApi.deletePlan(id);onDeleted()}}}>Eliminar plan</button></div>
+      <div className="plan-actions"><span className={status==="ACTIVE"?"active":""}>{status==="ACTIVE"?"● Plan activo":nutritionPlanStatusLabel[status||""]||status||"Plan"}</span>{status!=="ACTIVE"&&<button className="primary" onClick={async()=>{await nutritionApi.activate(id);location.reload()}}>Activar este plan</button>}<button className="danger" onClick={async()=>{if(confirm("¿Eliminar este plan nutricional? Se borrarán sus días y comidas planificadas. Esta acción no se puede deshacer.")){await nutritionApi.deletePlan(id);onDeleted()}}}>Eliminar plan</button></div>
     </div>
   );
 }
