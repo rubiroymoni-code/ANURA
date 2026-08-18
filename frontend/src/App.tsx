@@ -111,6 +111,7 @@ export function App() {
   const [recipeMealToOpen,setRecipeMealToOpen]=useState<TodayMeal|null>(null);
   const [editingMeal, setEditingMeal] = useState<Entry | null>(null);
   const [progressAddSignal,setProgressAddSignal]=useState(0);
+  const [cycleAddSignal,setCycleAddSignal]=useState(0);
   const [heroMessageIndex,setHeroMessageIndex]=useState(0);
   const [nutritionPlans,setNutritionPlans]=useState<Awaited<ReturnType<typeof nutritionApi.plans>>>([]);
   useEffect(()=>{const timer=window.setTimeout(()=>setLaunchSplash(false),1000);return()=>window.clearTimeout(timer)},[]);
@@ -261,7 +262,7 @@ export function App() {
                   <ChevronDown className={`daily-expand-icon ${mealsExpanded?"open":""}`}/>
                 </button>
                 <div className="daily-meal-actions"><button onClick={()=>setMealsExpanded(value=>!value)}>{mealsExpanded?"Ocultar comidas":"Desplegar comidas"}<ChevronDown className={mealsExpanded?"open":""}/></button><button onClick={()=>setNutritionOpen(true)}>Ver plan</button></div>
-                {mealsExpanded&&todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.status !== "PENDING" ? "completed" : ""}><button onClick={() => setMealFlowOpen(true)}><span><b>{meal.custom_name||meal.meal_name}</b><small>{meal.status === "SKIPPED" ? "Saltada" : meal.status === "SUBSTITUTED" ? "Sustituida" : `${meal.recipe} · ${Number(meal.calories || 0).toFixed(0)} kcal`}</small></span></button><button className="meal-complete" disabled={dailyLoading} title={meal.status==="PENDING"?"Marcar como hecha":"Deshacer registro"} onClick={async () => {setDailyLoading(true);try{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id);else await nutritionApi.undoToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setNutritionDashboard(await nutritionApi.dashboard());load();}finally{setDailyLoading(false)}}}>{meal.status !== "PENDING" ? "Deshacer" : "Completar"}</button></div>)}</div>}
+                {mealsExpanded&&todayMeals.length > 0 && <div className="today-meals-mini">{todayMeals.map(meal => <div key={meal.planned_meal_id} className={meal.status !== "PENDING" ? "completed" : ""}><button onClick={() => {setRecipeMealToOpen(meal);setNutritionInitialSection("home");setNutritionOpen(true)}}><span><b>{meal.custom_name||meal.meal_name}</b><small>{meal.status === "SKIPPED" ? "Saltada" : meal.status === "SUBSTITUTED" ? "Sustituida" : `${meal.recipe} · ${Number(meal.calories || 0).toFixed(0)} kcal`}</small></span></button><button className="meal-complete" disabled={dailyLoading} title={meal.status==="PENDING"?"Marcar como hecha":"Deshacer registro"} onClick={async () => {setDailyLoading(true);try{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id);else await nutritionApi.undoToday(meal.planned_meal_id);setTodayMeals(await nutritionApi.today());setNutritionDashboard(await nutritionApi.dashboard());load();}finally{setDailyLoading(false)}}}>{meal.status !== "PENDING" ? "Deshacer" : "Completar"}</button></div>)}</div>}
                 {mealsExpanded&&<button className="daily-add-meal" onClick={() => {setEditingMeal(null);setMealFlowOpen(true)}}><Plus/>Revisar dieta o añadir comida</button>}
               </div>
               {!todaySleep&&<button className="daily-focus sleep" onClick={()=>setSleepOpen(true)}><span className="daily-focus-icon">☾</span><span><small>DESCANSO</small><strong>¿Cómo has dormido?</strong><b>Registra el sueño de anoche</b></span><em>Registrar</em></button>}
@@ -275,8 +276,8 @@ export function App() {
           </>
         ) : (
           <div className="section-title">
-            <button onClick={() => setTab("HOME")}>← Inicio</button>
-            {tab !== "WEIGHT"&&<p>{tab === "CYCLE" ? "Ciclo" : meta[tab].label}</p>}
+            {tab!=="CYCLE"&&<button onClick={() => setTab("HOME")}>← Inicio</button>}
+            {tab !== "WEIGHT"&&tab!=="CYCLE"&&<p>{meta[tab].label}</p>}
             {tab !== "WEIGHT"&&<h1>{tab === "CYCLE" ? "Ciclo menstrual" : `${meta[tab].label}s`}</h1>}
           </div>
         )}
@@ -284,7 +285,7 @@ export function App() {
           <div className="evolution-view-switch" role="tablist" aria-label="Tipo de evolución"><button role="tab" aria-selected={evolutionView === "weight"} className={evolutionView === "weight" ? "active" : ""} onClick={() => setEvolutionView("weight")}><Scale/>Peso</button><button role="tab" aria-selected={evolutionView === "sleep"} className={evolutionView === "sleep" ? "active" : ""} onClick={() => setEvolutionView("sleep")}><MoonStar/>Sueño</button></div>
           {evolutionView === "weight" ? <BodyProgress addSignal={progressAddSignal}/> : <SleepDashboard current={todaySleep} onSaved={setTodaySleep}/>}
         </>}
-        {tab === "CYCLE" && <CycleTracker />}
+        {tab === "CYCLE" && <CycleTracker addSignal={cycleAddSignal}/>}
         {tab === "GOAL" && <GoalVision goals={entries.filter(entry=>entry.type==="GOAL")} onAdd={()=>setModal(true)}/>}
         {tab === "WORKOUT" && (
           <button className="workout-launch" onClick={() => setWorkoutOpen(true)}>
@@ -318,7 +319,7 @@ export function App() {
           </button>
         )}
       </section>
-      {(tab === "HOME" || tab === "WEIGHT") && !modal && !importOpen && !nutritionOpen && !workoutOpen && !accountOpen && !mealFlowOpen && !sleepOpen && <button type="button" className="fab" aria-label={tab==="WEIGHT"?(evolutionView==="sleep"?"Registrar sueño":"Registrar check-in"):"Añadir al día"} title={tab==="WEIGHT"?(evolutionView==="sleep"?"Registrar sueño":"Registrar check-in"):"Añadir al día"} onClick={() => tab === "WEIGHT" ? (evolutionView === "sleep" ? setSleepOpen(true) : setProgressAddSignal(value=>value+1)) : setModal(true)}>
+      {(tab === "HOME" || tab === "WEIGHT" || tab === "CYCLE") && !modal && !importOpen && !nutritionOpen && !workoutOpen && !accountOpen && !mealFlowOpen && !sleepOpen && <button type="button" className="fab" aria-label={tab==="CYCLE"?"Registrar periodo":tab==="WEIGHT"?(evolutionView==="sleep"?"Registrar sueño":"Registrar check-in"):"Añadir al día"} title={tab==="CYCLE"?"Registrar periodo":tab==="WEIGHT"?(evolutionView==="sleep"?"Registrar sueño":"Registrar check-in"):"Añadir al día"} onClick={() => tab === "CYCLE" ? setCycleAddSignal(value=>value+1) : tab === "WEIGHT" ? (evolutionView === "sleep" ? setSleepOpen(true) : setProgressAddSignal(value=>value+1)) : setModal(true)}>
         <Plus />
       </button>}
       <nav>

@@ -119,13 +119,13 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
             <X />
           </button>
         </div>
-        <nav className="nutrition-primary-nav"><button className={section==="home"?"active":""} onClick={()=>navigate("home")}><Utensils/>Hoy</button><button className={section==="plan"?"active":""} disabled={!activePlan} onClick={()=>{if(activePlan){setSelectedPlan(activePlan.id);navigate("plan")}}}><CalendarDays/>Plan</button><button className={section==="cook"||section==="recipe"?"active":""} onClick={()=>navigate("cook")}><ChefHat/>Cocina</button><button className={section==="shopping"?"active":""} onClick={()=>navigate("shopping")}><ShoppingBasket/>Compra</button><button className={section==="supplements"?"active":""} onClick={()=>navigate("supplements")}><Pill/>Suplementos</button></nav>
+        <nav className="nutrition-primary-nav nutrition-primary-nav-four"><button className={section==="home"?"active":""} onClick={()=>navigate("home")}><Utensils/>Hoy</button><button className={section==="cook"||section==="recipe"?"active":""} onClick={()=>navigate("cook")}><ChefHat/>Cocina</button><button className={section==="shopping"?"active":""} onClick={()=>navigate("shopping")}><ShoppingBasket/>Compra</button><button className={section==="supplements"?"active":""} onClick={()=>navigate("supplements")}><Pill/>Suplementos</button></nav>
         <div className="nutrition-hub-content" onClickCapture={(event)=>{const target=(event.target as HTMLElement).closest(".nutrition-today .today-recipe-link");if(!target||!onRegisterMeal)return;event.preventDefault();event.stopPropagation();const buttons=Array.from(event.currentTarget.querySelectorAll(".nutrition-today .today-recipe-link"));const meal=todayMeals[buttons.indexOf(target as HTMLButtonElement)];if(meal)onRegisterMeal({...meal,meal_date:mealDate})}}>
         {loadError && <div className="error" role="alert">{loadError}</div>}
         {expiry.urgent&&<section className="nutrition-expiry-warning" role="alert"><CalendarDays/><span><b>{expiry.expired?"Plan caducado":"Actualiza tu plan"}</b><small>{expiry.message} Genera el prompt con tu progreso e importa la siguiente versión para mantener comidas, macros y compra al día.</small></span></section>}
         {section === "home" && (
           <>
-            {dashboard&&<section className={`nutrition-overview ${balanceExpanded?"expanded":""}`}><button className="nutrition-overview-summary" onClick={()=>setBalanceExpanded(value=>!value)}><span><small>BALANCE DE HOY</small><b>{Number(dashboard.consumed.calories||0).toFixed(0)} / {Number(dashboard.target.calories||dashboard.planned.calories||0).toFixed(0)} kcal</b><em>{activePlan?`${activePlan.name} · versión ${activePlan.version}`:"Sin plan activo"}</em></span><strong>{Math.round(Number(dashboard.target.calories||dashboard.planned.calories||0)?Number(dashboard.consumed.calories||0)/Number(dashboard.target.calories||dashboard.planned.calories||1)*100:0)}%</strong><ChevronDown/></button>{balanceExpanded&&<div className="nutrition-overview-detail"><NutritionBalance data={dashboard}/>{activePlan&&<button className="primary" onClick={()=>{setSelectedPlan(activePlan.id);navigate("plan")}}>Ver plan actual</button>}</div>}</section>}
+            {dashboard&&<section className={`nutrition-overview ${balanceExpanded?"expanded":""}`}><button className="nutrition-overview-summary" onClick={()=>setBalanceExpanded(value=>!value)}><span><small>BALANCE DE HOY</small><b>{Number(dashboard.consumed.calories||0).toFixed(0)} / {Number(dashboard.target.calories||dashboard.planned.calories||0).toFixed(0)} kcal</b><em>{activePlan?`${activePlan.name} · versión ${activePlan.version}`:"Sin plan activo"}</em></span><strong>{Math.round(Number(dashboard.target.calories||dashboard.planned.calories||0)?Number(dashboard.consumed.calories||0)/Number(dashboard.target.calories||dashboard.planned.calories||1)*100:0)}%</strong><ChevronDown/></button>{balanceExpanded&&<div className="nutrition-overview-detail"><NutritionBalance data={dashboard}/></div>}</section>}
             <section className="nutrition-today"><div><small>{mealDate===new Date().toLocaleDateString("en-CA")?"HOY":"OTRO DÍA"}</small><h3>Lo que te toca comer</h3><p>También puedes completar una comida pendiente de un día anterior.</p><label className="meal-day-picker">Ver día<input type="date" value={mealDate} max={new Date().toLocaleDateString("en-CA")} onChange={event=>{setMealDate(event.target.value);void reloadMeals(event.target.value);void nutritionApi.travelToday(event.target.value).then(setTravelToday)}}/></label></div>{travelToday.id&&<article className="travel-today-card"><Luggage/><span><small>{travelToday.title} · {travelToday.plan_label||"Día flexible"}</small><b>{travelToday.guidance||"Come con flexibilidad y registra solo lo que te resulte útil."}</b><em>No genera compra ni penaliza la adherencia.</em></span></article>}{todayMeals.length?todayMeals.map(meal=><TodayNutritionCard key={meal.planned_meal_id} meal={meal} open={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);navigate("recipe")}}} toggle={async()=>{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id,mealDate);else await nutritionApi.undoToday(meal.planned_meal_id,mealDate);await reloadMeals();if(mealDate===new Date().toLocaleDateString("en-CA"))setDashboard(await nutritionApi.dashboard())}}/>):!travelToday.id&&<p>No hay comidas asignadas para ese día en el plan activo.</p>}{onAddMeal&&<button className="nutrition-add-meal" onClick={onAddMeal}><Plus/>Registrar otra comida</button>}</section>
             <details className="nutrition-tools"><summary>Gestión y configuración</summary><div className="nutrition-menu">
               <button onClick={() => navigate("household")}>
@@ -146,27 +146,8 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
                 <span>Gustos, exclusiones y planificación</span>
               </button>
               <button onClick={() => navigate("travel")}><Luggage/><b>Modo viaje</b><span>Fechas flexibles, criterios y seguimiento</span></button>
+              {plans.map(p=><button key={p.id} onClick={()=>{setSelectedPlan(p.id);navigate("plan")}}><CalendarDays/><b>{p.name}</b><span>Versión {p.version} · {nutritionPlanStatusLabel[p.status]||p.status}</span></button>)}
             </div></details>
-            <details className="nutrition-tools nutrition-history"><summary>Planes anteriores y versiones</summary>
-            {plans.map((p) => (
-              <button
-                className="nutrition-row"
-                key={p.name + p.version}
-                onClick={() => {
-                  setSelectedPlan(p.id);
-                  navigate("plan");
-                }}
-              >
-                <Utensils />
-                <span>
-                  <b>{p.name}</b>
-                  <small className="nutrition-plan-meta">
-                    <span>Versión {p.version}</span><em className={`plan-status plan-status-${p.status.toLowerCase()}`}>{nutritionPlanStatusLabel[p.status]||p.status}</em>
-                  </small>
-                </span>
-              </button>
-            ))}
-            </details>
           </>
         )}
         {section === "household" && (
