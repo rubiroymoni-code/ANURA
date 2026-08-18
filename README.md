@@ -58,3 +58,16 @@ Consulta [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) para las decisiones técni
 Consulta [docs/RAILWAY.md](docs/RAILWAY.md). El backend y el frontend se despliegan como servicios separados con directorios raíz `/backend` y `/frontend`.
 
 > ANURA no sustituye el asesoramiento médico, nutricional o deportivo profesional.
+
+## Web Push (PWA)
+
+ANURA admite notificaciones Web Push sin aplicación nativa. Genera una pareja VAPID estable con la utilidad `generate-key` de `webpush-java` y configura en el backend:
+
+```env
+WEB_PUSH_ENABLED=true
+WEB_PUSH_PUBLIC_KEY=<clave pública VAPID en base64url>
+WEB_PUSH_PRIVATE_KEY=<clave privada VAPID en base64url>
+WEB_PUSH_SUBJECT=mailto:soporte@tu-dominio.com
+```
+
+No cambies estas claves después de tener dispositivos suscritos. En iOS/iPadOS, ANURA debe añadirse a la pantalla de inicio antes de solicitar permiso.

@@ -4,6 +4,7 @@ import {
   Activity,
   Apple,
   BarChart3,
+  Check,
   ChevronDown,
   Copy,
   Download,
@@ -134,9 +135,10 @@ export function App() {
     const mealsDone=todayMeals.length>0&&todayMeals.every(meal=>meal.status!=="PENDING");
     const workoutDone=!todayWorkout||todayWorkoutDone;
     const complete=mealsDone&&workoutDone&&!!todaySleep;
-    if(complete&&!wasDayComplete.current){setDayCelebration(true);const timer=window.setTimeout(()=>setDayCelebration(false),5200);wasDayComplete.current=true;return()=>window.clearTimeout(timer)}
+    if(complete&&!wasDayComplete.current){setDayCelebration(true);const timer=window.setTimeout(()=>setDayCelebration(false),4400);wasDayComplete.current=true;return()=>window.clearTimeout(timer)}
     if(!complete)wasDayComplete.current=false;
   },[todayMeals,todayWorkout,todayWorkoutDone,todaySleep,user]);
+  useEffect(()=>{if(!user||!("serviceWorker" in navigator))return;const open=(action:string)=>{setTab("HOME");if(action==="SHOPPING"){setNutritionInitialSection("shopping");setNutritionOpen(true)}else if(action==="DIET"){setNutritionInitialSection("home");setNutritionOpen(true)}else if(action==="WORKOUT")setWorkoutOpen(true);else if(action==="WEIGHT")setTab("WEIGHT");else if(action==="REMINDERS"){setAccountInitialTab("reminders");setAccountOpen(true)}};const message=(event:MessageEvent<{type?:string;action?:string}>)=>{if(event.data?.type==="ANURA_PUSH_ACTION")open(event.data.action||"HOME")};navigator.serviceWorker.addEventListener("message",message);const url=new URL(window.location.href),action=url.searchParams.get("anuraAction");if(action){open(action);url.searchParams.delete("anuraAction");history.replaceState(null,"",url.pathname+url.search+url.hash)}return()=>navigator.serviceWorker.removeEventListener("message",message)},[user]);
   useEffect(() => {
     if (!user) return;
     void Promise.all([nutritionApi.today().catch(() => []), workoutApi.today().catch(() => ({ workout: null, adjustment: null })), workoutApi.history().catch(() => []),sleepApi.today(localDate()).catch(()=>null)]).then(([meals, status, sessions,sleep]) => {
@@ -152,10 +154,7 @@ export function App() {
     void api.profilePreferences().then(setProfilePreferences).catch(()=>setProfilePreferences({}));
   }, [user]);
   function logout() {
-    localStorage.removeItem("anura-token");
-    localStorage.removeItem("anura-user");
-    void clearWorkoutOffline();
-    setUser(null);
+    void (async()=>{try{if("serviceWorker" in navigator&&"PushManager" in window){const registration=await navigator.serviceWorker.ready,subscription=await registration.pushManager.getSubscription();if(subscription){await api.deletePushSubscription(subscription.endpoint).catch(()=>undefined);await subscription.unsubscribe()}}}finally{localStorage.removeItem("anura-token");localStorage.removeItem("anura-user");void clearWorkoutOffline();setUser(null)}})();
   }
   if(launchSplash)return <div className="anura-launch" role="status" aria-label="Abriendo ANURA"><div><img src="/assets/anura-frog-lifting.png" alt="Rana levantando una barra"/><span>ANURA</span></div></div>;
   if (!user)
@@ -390,7 +389,7 @@ export function App() {
       {importOpen && <TrainingImport onClose={() => setImportOpen(false)} />}
       {accountOpen && <AccountModal initialTab={accountInitialTab} user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} />}
       {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} initialMealId={selectedPlannedMeal} onClose={() => {setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onBackToMeals={()=>{setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);setSelectedPlannedMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
-      {dayCelebration&&<div className="day-celebration" role="status" aria-live="polite" onClick={()=>setDayCelebration(false)}><div className="celebration-glow"/><div className="celebration-confetti">{Array.from({length:28},(_,i)=><i key={i} style={{"--i":i} as CSSProperties}/>)}</div><div className="celebration-card"><span>✦</span><small>DÍA COMPLETADO</small><h2>Hoy has cumplido contigo.</h2><p>Entrenamiento, comidas y constancia. Quédate con este impulso.</p><b>Toca para continuar</b></div></div>}
+      {dayCelebration&&<aside className="day-celebration" role="status" aria-live="polite"><div className="celebration-card"><button className="celebration-close" type="button" onClick={()=>setDayCelebration(false)} aria-label="Cerrar celebración"><X/></button><div className="celebration-copy"><span><Sparkles/> DÍA COMPLETADO</span><h2>Todo hecho.<br/><em>Bien jugado.</em></h2><p>Entreno, comidas y descanso registrados. El día ya es tuyo.</p><div className="celebration-score"><i><Check/>100%</i><small>OBJETIVOS DE HOY</small></div></div><div className="celebration-frog"><div className="celebration-orbit"><i/><i/><i/><i/><i/><i/></div><img src="/assets/anura-frog-celebrating.png" alt="Rana de ANURA celebrando el día completado"/></div><div className="celebration-timer"/></div></aside>}
     </main>
   );
 }

@@ -363,6 +363,23 @@ public class NutritionController {
     return db.queryForList("SELECT s.ingredient_id,i.name,i.category,s.unit,s.quantity,s.updated_at FROM household_pantry_stock s JOIN ingredient i ON i.id=s.ingredient_id JOIN household_member m ON m.household_id=s.household_id WHERE m.user_id=? AND s.quantity>0 ORDER BY i.category,i.name",CurrentUser.id());
   }
 
+  @GetMapping("/ingredient-suggestions")
+  List<Map<String,Object>> ingredientSuggestions(@RequestParam String q){
+    String query=normalizedText(q);if(query.length()<2)return List.of();
+    UUID household=db.query("SELECT household_id FROM household_member WHERE user_id=? ORDER BY joined_at LIMIT 1",(r,n)->r.getObject(1,UUID.class),CurrentUser.id()).stream().findFirst().orElse(null);
+    if(household==null)return List.of();
+    LinkedHashMap<String,Map<String,Object>> suggestions=new LinkedHashMap<>();
+    for(Map<String,Object> row:db.queryForList("SELECT DISTINCT name,category,base_unit unit FROM ingredient WHERE household_id=? AND active=TRUE ORDER BY name",household)){
+      if(normalizedText(row.get("name")).contains(query))suggestions.putIfAbsent(normalizedText(row.get("name"))+"|"+row.get("unit"),Map.of("name",row.get("name"),"category",row.get("category"),"unit",row.get("unit"),"source","CATALOG"));
+      if(suggestions.size()>=8)break;
+    }
+    Map<String,String[]> stateful=Map.of("pollo",new String[]{"Pollo crudo","Pollo cocido"},"pavo",new String[]{"Pavo crudo","Pavo cocido"},"arroz",new String[]{"Arroz crudo","Arroz cocido"},"pasta",new String[]{"Pasta cruda","Pasta cocida"},"garbanzos",new String[]{"Garbanzos secos","Garbanzos cocidos"},"lentejas",new String[]{"Lentejas secas","Lentejas cocidas"});
+    stateful.entrySet().stream().filter(entry->entry.getKey().contains(query)).limit(3).forEach(entry->{
+      for(String name:entry.getValue())suggestions.putIfAbsent(normalizedText(name)+"|g",Map.of("name",name,"category",entry.getKey().matches("pollo|pavo")?"MEAT_FISH":"CEREALS_LEGUMES","unit","g","source","SUGGESTED"));
+    });
+    return suggestions.values().stream().limit(10).toList();
+  }
+
   @PostMapping("/pantry")
   @Transactional
   Map<String,Object> addPantry(@RequestBody PantryItem body){
@@ -640,15 +657,19 @@ public class NutritionController {
   }
 
   static String pantryKey(Object value) {
-    String normalized=Normalizer.normalize(String.valueOf(value),Normalizer.Form.NFD)
-        .replaceAll("\\p{M}+","").toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+"," ").trim();
+    String normalized=normalizedText(value);
     boolean preserved=normalized.matches(".*\\b(al natural|en conserva|envasad[oa]s?|escurrid[oa]s?|latas?)\\b.*");
     boolean fresh=normalized.matches(".*\\b(filetes?|lomos?|fresc[oa]s?|congelad[oa]s?)\\b.*");
+    boolean egg=normalized.matches(".*\\bhuevos?\\b.*");
     String base=normalized
         .replaceAll("\\b(al natural|en conserva|envasad[oa]s?|escurrid[oa]s?|latas?|filetes?|lomos?|fresc[oa]s?|congelad[oa]s?)\\b"," ")
         .replaceAll("\\b(de|del|en|al)\\b"," ").replaceAll("\\s+"," ").trim();
+    if(egg)base=base.replaceAll("\\benter[oa]s?\\b"," ").replaceAll("\\bhuevos?\\b","huevo").replaceAll("\\s+"," ").trim();
+    base=base.replaceAll("\\b(tortitas?|tortillas?)\\b","tortita");
     return base+"|"+(preserved?"conserva":fresh?"fresco":"base");
   }
+
+  static String normalizedText(Object value){return Normalizer.normalize(String.valueOf(value),Normalizer.Form.NFD).replaceAll("\\p{M}+","").toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+"," ").trim();}
 }
 
 record Item(String name, String category, java.math.BigDecimal quantity, String unit) {}
