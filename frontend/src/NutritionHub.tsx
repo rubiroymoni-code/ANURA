@@ -35,7 +35,7 @@ import { TravelModePanel } from "./TravelModePanel";
 
 const nutritionPlanStatusLabel:Record<string,string>={ACTIVE:"Activo",SUPERSEDED:"Archivado",DRAFT:"Borrador"};
 type NutritionSection="home"|"cook"|"preferences"|"household"|"import"|"shopping"|"supplements"|"travel"|"plan"|"recipe";
-export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="home" }: { onClose: () => void;onRegisterMeal?:(meal:TodayMeal)=>void;onAddMeal?:()=>void;initialSection?:NutritionSection }) {
+export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="home",initialRecipeMeal,onInitialRecipeOpened }: { onClose: () => void;onRegisterMeal?:(meal:TodayMeal)=>void;onAddMeal?:()=>void;initialSection?:NutritionSection;initialRecipeMeal?:TodayMeal|null;onInitialRecipeOpened?:()=>void }) {
   const [section, setSection] = useState<NutritionSection>(initialSection);
   const [sectionHistory,setSectionHistory]=useState<NutritionSection[]>([]);
   const navigate=(next:NutritionSection)=>{if(next===section)return;setSectionHistory(history=>[...history,section]);setSection(next)};
@@ -76,6 +76,17 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
   const reloadMeals=async(date=mealDate)=>setTodayMeals((await nutritionApi.today(date)).map(localizeMeal));
   useEffect(()=>{const refresh=()=>{void reloadMeals(mealDate);if(mealDate===new Date().toLocaleDateString("en-CA"))void nutritionApi.dashboard().then(setDashboard)};window.addEventListener("anura:nutrition-changed",refresh);return()=>window.removeEventListener("anura:nutrition-changed",refresh)},[mealDate]);
   useEffect(()=>{if(todayMeals.some(meal=>/^[A-Z_]+$/.test(meal.meal_type)))setTodayMeals(rows=>rows.map(localizeMeal))},[todayMeals]);
+  useEffect(()=>{
+    if(!initialRecipeMeal||!recipes.length)return;
+    const recipeName=initialRecipeMeal.recipe.trim().toLocaleLowerCase("es");
+    const recipe=recipes.find(item=>item.name.trim().toLocaleLowerCase("es")===recipeName);
+    if(!recipe)return;
+    setSelectedRecipe(recipe.id);
+    setSelectedMeal(initialRecipeMeal.planned_meal_id);
+    setSectionHistory(["home","cook"]);
+    setSection("recipe");
+    onInitialRecipeOpened?.();
+  },[initialRecipeMeal,recipes,onInitialRecipeOpened]);
   return (
     <div className="overlay">
       <section className="modal nutrition-hub">

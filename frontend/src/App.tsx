@@ -48,7 +48,7 @@ import { WorkoutHub } from "./WorkoutHub";
 import { clearWorkoutOffline } from "./workoutOffline";
 import { MealFlow } from "./MealFlow";
 import { CycleTracker } from "./CycleTracker";
-import { HomeNotifications, ReminderSettingsPanel } from "./ReminderCenter";
+import { HeaderNotificationBell, ReminderSettingsPanel } from "./ReminderCenter";
 import { SleepModal } from "./SleepModal";
 import { SleepDashboard } from "./SleepDashboard";
 import { WeeklySummary } from "./WeeklySummary";
@@ -108,6 +108,7 @@ export function App() {
   const [dayCelebration,setDayCelebration]=useState(false);
   const wasDayComplete=useRef(false);
   const [selectedPlannedMeal,setSelectedPlannedMeal]=useState<string|null>(null);
+  const [recipeMealToOpen,setRecipeMealToOpen]=useState<TodayMeal|null>(null);
   const [editingMeal, setEditingMeal] = useState<Entry | null>(null);
   const [progressAddSignal,setProgressAddSignal]=useState(0);
   const [heroMessageIndex,setHeroMessageIndex]=useState(0);
@@ -231,11 +232,9 @@ export function App() {
           <img src="/anura-mascot.png" alt="" /> ANURA
         </div>
         <div className="header-actions">
+          <HeaderNotificationBell openSettings={()=>{setAccountInitialTab("reminders");setAccountOpen(true)}} onAction={action=>{if(action==="WEIGHT")setTab("WEIGHT");else if(action==="WORKOUT")setWorkoutOpen(true);else if(action==="SHOPPING"){setNutritionInitialSection("shopping");setNutritionOpen(true)}else if(action==="DIET")setNutritionOpen(true);else{setAccountInitialTab("reminders");setAccountOpen(true)}}}/>
           <button className="icon-btn" onClick={() => {setAccountInitialTab("profile");setAccountOpen(true)}} aria-label="Mi perfil" title="Mi perfil">
             {profilePreferences.avatar_url?<img className="header-avatar" src={profilePreferences.avatar_url} alt={user.displayName}/>:<CircleUserRound size={19} />}
-          </button>
-          <button className="icon-btn" onClick={logout} aria-label="Cerrar sesión">
-            <LogOut size={19} />
           </button>
         </div>
       </header>
@@ -268,7 +267,6 @@ export function App() {
               {!todaySleep&&<button className="daily-focus sleep" onClick={()=>setSleepOpen(true)}><span className="daily-focus-icon">☾</span><span><small>DESCANSO</small><strong>¿Cómo has dormido?</strong><b>Registra el sueño de anoche</b></span><em>Registrar</em></button>}
             </div>
             <WeeklySummary refreshKey={`${completedToday}-${todaySleep?.id||""}-${todayTravel.id||""}`}/>
-            <HomeNotifications openSettings={()=>{setAccountInitialTab("reminders");setAccountOpen(true)}} onAction={action=>{if(action==="WEIGHT")setTab("WEIGHT");else if(action==="WORKOUT")setWorkoutOpen(true);else if(action==="SHOPPING"){setNutritionInitialSection("shopping");setNutritionOpen(true)}else if(action==="DIET")setNutritionOpen(true);else{setAccountInitialTab("reminders");setAccountOpen(true)}}}/>
             <details className="home-secondary">
               <summary><span><small>MÁS OPCIONES</small><b>Planes y actividad reciente</b></span><ChevronDown/></summary>
               <div className="plan-tools"><span><b>Gestionar planes</b><small>Plantillas, CSV y nuevas versiones</small></span><button onClick={() => setImportOpen(true)}><FileUp />Importar entreno</button><button onClick={() => setNutritionOpen(true)}><Apple />Dietas y hogar</button></div>
@@ -370,7 +368,7 @@ export function App() {
         />
       )}
       {nutritionOpen && (
-        <NutritionHub initialSection={nutritionInitialSection} onClose={() => {setNutritionOpen(false);setNutritionInitialSection("home");void nutritionApi.travelToday().then(setTodayTravel).catch(()=>setTodayTravel({}))}} onAddMeal={()=>{setSelectedPlannedMeal(null);setEditingMeal(null);setMealFlowOpen(true)}} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setEditingMeal(null);setMealFlowOpen(true)}} />
+        <NutritionHub initialSection={nutritionInitialSection} initialRecipeMeal={recipeMealToOpen} onInitialRecipeOpened={()=>setRecipeMealToOpen(null)} onClose={() => {setNutritionOpen(false);setNutritionInitialSection("home");void nutritionApi.travelToday().then(setTodayTravel).catch(()=>setTodayTravel({}))}} onAddMeal={()=>{setSelectedPlannedMeal(null);setEditingMeal(null);setMealFlowOpen(true)}} onRegisterMeal={(meal)=>{setTodayMeals(current=>current.some(item=>item.planned_meal_id===meal.planned_meal_id)?current.map(item=>item.planned_meal_id===meal.planned_meal_id?meal:item):[...current,meal]);setSelectedPlannedMeal(meal.planned_meal_id);setEditingMeal(null);setMealFlowOpen(true)}} />
       )}
       {sleepOpen&&<SleepModal value={todaySleep} close={()=>setSleepOpen(false)} saved={value=>{setTodaySleep(value);setSleepOpen(false)}} deleted={()=>{setTodaySleep(null);setSleepOpen(false);}}/>}
       {workoutOpen && (
@@ -387,8 +385,8 @@ export function App() {
         />
       )}
       {importOpen && <TrainingImport onClose={() => setImportOpen(false)} />}
-      {accountOpen && <AccountModal initialTab={accountInitialTab} user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} />}
-      {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} initialMealId={selectedPlannedMeal} onClose={() => {setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onBackToMeals={()=>{setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);setSelectedPlannedMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
+      {accountOpen && <AccountModal initialTab={accountInitialTab} user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} onLogout={logout} />}
+      {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} initialMealId={selectedPlannedMeal} onClose={() => {setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onBackToMeals={()=>{setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onOpenRecipe={(meal)=>{setRecipeMealToOpen(meal);setMealFlowOpen(false);setSelectedPlannedMeal(null);setNutritionInitialSection("home");setNutritionOpen(true)}} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);setSelectedPlannedMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
       {dayCelebration&&<aside className="day-celebration" role="status" aria-live="polite"><div className="celebration-card"><button className="celebration-close" type="button" onClick={()=>setDayCelebration(false)} aria-label="Cerrar celebración"><X/></button><div className="celebration-copy"><span><Sparkles/> DÍA COMPLETADO</span><h2>Todo hecho.<br/><em>Bien jugado.</em></h2><p>Entreno, comidas y descanso registrados. El día ya es tuyo.</p><div className="celebration-score"><i><Check/>100%</i><small>OBJETIVOS DE HOY</small></div></div><div className="celebration-frog"><div className="celebration-orbit"><i/><i/><i/><i/><i/><i/></div><img src="/assets/anura-frog-celebrating.png" alt="Rana de ANURA celebrando el día completado"/></div><div className="celebration-timer"/></div></aside>}
     </main>
   );
@@ -868,7 +866,7 @@ function Auth({ onAuth }: { onAuth: (u: User, t: string) => void }) {
   );
 }
 
-function AccountModal({ user, onClose,onAvatar,onPreferences,initialTab="profile" }: { user: User; onClose: () => void;onAvatar:(avatar:string)=>void;onPreferences:(preferences:ProfilePreferences)=>void;initialTab?:"profile"|"reminders" }) {
+function AccountModal({ user, onClose,onAvatar,onPreferences,onLogout,initialTab="profile" }: { user: User; onClose: () => void;onAvatar:(avatar:string)=>void;onPreferences:(preferences:ProfilePreferences)=>void;onLogout:()=>void;initialTab?:"profile"|"reminders" }) {
   const [result, setResult] = useState<{ code: string; expiresAt: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [tab,setProfileTab]=useState<"profile"|"initial"|"work"|"password"|"reminders">(initialTab),[message,setMessage]=useState("");
@@ -898,6 +896,7 @@ function AccountModal({ user, onClose,onAvatar,onPreferences,initialTab="profile
           try { setResult(await api.createRecoveryCode()); } finally { setBusy(false); }
         }}>{busy ? "Generando…" : result ? "Generar un código nuevo" : "Generar código de recuperación"}</button>
         {result && <div className="invite-code"><small>CÓDIGO PERSONAL</small><strong>{result.code}</strong><button type="button" onClick={() => void navigator.clipboard.writeText(result.code)}><Copy /> Copiar código</button><p>Válido hasta {new Date(result.expiresAt).toLocaleDateString("es")} y para un solo cambio de contraseña.</p></div>}
+        <button type="button" className="account-logout" onClick={onLogout}><LogOut/>Cerrar sesión</button>
         </>}
         {tab==="initial"&&<form key={`${preferences.primary_goal}-${preferences.experience_level}-${preferences.activity_level}-${preferences.biological_sex}`} className="profile-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget),optionalNumber=(name:string)=>f.get(name)?Number(f.get(name)):undefined;await api.saveProfilePreferences({primaryGoal:String(f.get("goal")),experienceLevel:String(f.get("experience")),activityLevel:String(f.get("activity")),heightCm:optionalNumber("height"),trainingDays:optionalNumber("days"),limitations:String(f.get("limitations")||""),biologicalSex:String(f.get("sex")||"UNSPECIFIED"),reminderEmailEnabled:preferences.reminder_email_enabled!==false});setPreferences(await api.profilePreferences());setMessage("Datos iniciales actualizados")}}><p>Actualiza el formulario base que ANURA usa para contextualizar tus planes e informes.</p><label>Sexo<select name="sex" defaultValue={preferences.biological_sex||"UNSPECIFIED"}><option value="UNSPECIFIED">Prefiero no indicarlo</option><option value="FEMALE">Mujer</option><option value="MALE">Hombre</option></select></label><label>Objetivo principal<select name="goal" defaultValue={preferences.primary_goal||"BODY_RECOMPOSITION"}><option value="LOSE_FAT">Bajar grasa</option><option value="GAIN_MUSCLE">Ganar músculo</option><option value="BODY_RECOMPOSITION">Bajar grasa y ganar músculo</option><option value="HEALTH">Mejorar salud y hábitos</option></select></label><label>Experiencia<select name="experience" defaultValue={preferences.experience_level||"BEGINNER"}><option value="BEGINNER">Principiante</option><option value="INTERMEDIATE">Intermedia</option><option value="ADVANCED">Avanzada</option></select></label><label>Actividad diaria<select name="activity" defaultValue={preferences.activity_level||"MODERATE"}><option value="LOW">Baja</option><option value="MODERATE">Moderada</option><option value="HIGH">Alta</option></select></label><div className="profile-form-row"><label>Altura (cm)<input name="height" type="number" min="100" max="250" step="0.1" defaultValue={preferences.height_cm}/></label><label>Días de entreno/semana<input name="days" type="number" min="0" max="7" defaultValue={preferences.training_days}/></label></div><label>Lesiones, limitaciones o contexto<textarea name="limitations" defaultValue={preferences.limitations}/></label><button className="primary">Guardar datos iniciales</button></form>}
         {tab==="password"&&<form className="profile-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);await api.changePassword({currentPassword:String(f.get("current")),newPassword:String(f.get("next"))});e.currentTarget.reset();setMessage("Contraseña cambiada correctamente")}}><label>Contraseña actual<input required name="current" type="password" autoComplete="current-password"/></label><label>Nueva contraseña<input required minLength={8} name="next" type="password" autoComplete="new-password"/></label><button className="primary">Cambiar contraseña</button></form>}
