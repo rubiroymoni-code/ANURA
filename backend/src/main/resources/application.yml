@@ -49,3 +49,8 @@ app:
       api-key: ${BREVO_API_KEY:}
       from-email: ${BREVO_FROM_EMAIL:}
       from-name: ${BREVO_FROM_NAME:ANURA}
+  push:
+    enabled: ${WEB_PUSH_ENABLED:false}
+    public-key: ${WEB_PUSH_PUBLIC_KEY:}
+    private-key: ${WEB_PUSH_PRIVATE_KEY:}
+    subject: ${WEB_PUSH_SUBJECT:mailto:soporte@anura.app}

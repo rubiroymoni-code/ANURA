@@ -30,6 +30,7 @@ export type ReminderSettings={checkin_email:boolean;nutrition_plan_email:boolean
 export type PendingReminder={type:string;title:string;message:string;action:string;priority:number;reference_id?:string};
 export type CustomReminder={id:string;title:string;details?:string;frequency:"DAILY"|"WEEKLY";reminder_time:string;day_of_week?:number;email_enabled:boolean;in_app_enabled:boolean;enabled:boolean;next_due_at:string};
 export type ReminderCenter={settings:ReminderSettings;pending:PendingReminder[];custom:CustomReminder[]};
+export type PushConfig={enabled:boolean;publicKey:string;devices:number};
 
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("anura-token");
@@ -97,6 +98,10 @@ export const api = {
   deleteReminder:(id:string)=>request<void>(`/reminders/custom/${id}`,{method:"DELETE"}),
   acknowledgeReminder:(id:string)=>request<void>(`/reminders/custom/${id}/ack`,{method:"POST"}),
   sendAnuraGuide:()=>request<void>("/reminders/guide",{method:"POST"}),
+  pushConfig:()=>request<PushConfig>("/reminders/push/config"),
+  savePushSubscription:(data:{endpoint:string;p256dh:string;auth:string;deviceName:string})=>request<{subscribed:boolean}>("/reminders/push/subscriptions",{method:"POST",body:JSON.stringify(data)}),
+  deletePushSubscription:(endpoint:string)=>request<void>("/reminders/push/subscriptions",{method:"DELETE",body:JSON.stringify({endpoint})}),
+  testPush:()=>request<void>("/reminders/push/test",{method:"POST"}),
   saveAvatar:(avatarUrl:string)=>request<void>("/profile/avatar",{method:"PATCH",body:JSON.stringify({avatarUrl})}),
 };
 export const bodyProgressApi={
@@ -336,6 +341,7 @@ export const nutritionApi = {
     request<void>(`/nutrition/shopping-items/${id}/quantity`, {method:"PATCH",body:JSON.stringify({quantity})}),
   resetShopping:(id:string)=>request<void>(`/nutrition/shopping-lists/${id}`,{method:"DELETE"}),
   pantry:()=>request<Array<{ingredient_id:string;name:string;category:string;quantity:number;unit:string}>>("/nutrition/pantry"),
+  ingredientSuggestions:(query:string)=>request<Array<{name:string;category:string;unit:string;source:"CATALOG"|"SUGGESTED"}>>(`/nutrition/ingredient-suggestions?q=${encodeURIComponent(query)}`),
   addPantry:(body:{name:string;category:string;quantity:number;unit:string})=>request<{ingredientId:string;name:string}>("/nutrition/pantry",{method:"POST",body:JSON.stringify(body)}),
   updatePantry:(ingredientId:string,quantity:number,unit:string)=>request<void>(`/nutrition/pantry/${ingredientId}`,{method:"PATCH",body:JSON.stringify({quantity,unit})}),
   deletePantry:(ingredientId:string,unit:string)=>request<void>(`/nutrition/pantry/${ingredientId}?unit=${encodeURIComponent(unit)}`,{method:"DELETE"}),

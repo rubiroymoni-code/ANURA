@@ -1,0 +1,35 @@
+package app.anura.notification;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.security.KeyFactory;
+import java.security.PublicKey;
+import java.security.Security;
+import java.util.*;
+import nl.martijndwars.webpush.Notification;
+import nl.martijndwars.webpush.PushService;
+import nl.martijndwars.webpush.Utils;
+import org.bouncycastle.jce.ECNamedCurveTable;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.bouncycastle.jce.spec.ECPublicKeySpec;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+@Service
+public class WebPushService {
+  private final JdbcTemplate db;private final ObjectMapper json;private final ReminderCenterController reminders;
+  private final boolean configured;private final String publicKey;private final PushService push;
+  WebPushService(JdbcTemplate db,ObjectMapper json,ReminderCenterController reminders,@Value("${app.push.enabled:false}") boolean enabled,@Value("${app.push.public-key:}") String publicKey,@Value("${app.push.private-key:}") String privateKey,@Value("${app.push.subject:mailto:soporte@anura.app}") String subject){
+    this.db=db;this.json=json;this.reminders=reminders;this.publicKey=publicKey.trim();this.configured=enabled&&!this.publicKey.isBlank()&&!privateKey.isBlank();PushService ready=null;
+    if(configured)try{if(Security.getProvider(BouncyCastleProvider.PROVIDER_NAME)==null)Security.addProvider(new BouncyCastleProvider());ready=new PushService();ready.setPublicKey(Utils.loadPublicKey(standardBase64(this.publicKey)));ready.setPrivateKey(Utils.loadPrivateKey(standardBase64(privateKey.trim())));ready.setSubject(subject);}catch(Exception exception){throw new IllegalStateException("Las claves VAPID de Web Push no son válidas",exception);}this.push=ready;
+  }
+  boolean enabled(){return configured;}String publicKey(){return configured?publicKey:"";}
+  void sendTest(UUID user){if(!configured)throw new app.anura.error.ApiException(HttpStatus.SERVICE_UNAVAILABLE,"WEB_PUSH_NOT_CONFIGURED","Web Push todavía no está configurado en el servidor");sendToUser(user,"ANURA ya puede avisarte","Las notificaciones están activadas correctamente.","HOME","test:"+System.currentTimeMillis(),0);}
+  @Scheduled(cron="0 */10 * * * *",zone="Europe/Madrid") void dispatchDue(){if(!configured)return;int hour=java.time.ZonedDateTime.now(java.time.ZoneId.of("Europe/Madrid")).getHour();boolean quiet=hour<8||hour>=22;for(UUID user:db.query("SELECT DISTINCT user_id FROM web_push_subscription WHERE enabled=TRUE",(row,index)->row.getObject(1,UUID.class))){try{List<Map<String,Object>> due=reminders.pushPending(user);for(Map<String,Object> reminder:due){if(quiet&&!"CUSTOM".equals(String.valueOf(reminder.get("type"))))continue;String message=String.valueOf(reminder.get("message")),action=String.valueOf(reminder.get("action"));sendToUser(user,String.valueOf(reminder.get("title")),message,action,referenceKey(user,reminder),due.size());}}catch(Exception ignored){}}}
+  private String referenceKey(UUID user,Map<String,Object> reminder){String type=String.valueOf(reminder.get("type")),fallback=String.valueOf(reminder.get("message"));Object id=reminder.get("reference_id");if("CUSTOM".equals(type)&&id!=null){Object due=db.queryForList("SELECT next_due_at FROM custom_reminder WHERE id=?",id).stream().findFirst().map(row->row.get("next_due_at")).orElse("unknown");return type+":"+id+":"+due;}if("CHECKIN".equals(type)){Object latest=db.queryForObject("SELECT COALESCE(MAX(checkin_date)::text,'none') FROM body_checkin WHERE user_id=?",Object.class,user);return type+":"+latest;}if("PANTRY".equals(type)){Object list=db.queryForList("SELECT l.id FROM shopping_list l JOIN nutrition_plan p ON p.id=l.nutrition_plan_id WHERE p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?) ORDER BY l.updated_at DESC LIMIT 1",user,user).stream().findFirst().map(row->row.get("id")).orElse("none");return type+":"+list+":"+fallback;}if("DIET".equals(type)){Object plan=db.queryForList("SELECT id FROM nutrition_plan p WHERE status='ACTIVE' AND (p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)) ORDER BY created_at DESC LIMIT 1",user,user).stream().findFirst().map(row->row.get("id")).orElse("none");return type+":"+plan+":"+fallback;}if("WORKOUT".equals(type)){Object plan=db.queryForList("SELECT id FROM workout_plan WHERE user_id=? AND status='ACTIVE' ORDER BY created_at DESC LIMIT 1",user).stream().findFirst().map(row->row.get("id")).orElse("none");return type+":"+plan+":"+fallback;}return type+":"+fallback;}
+  private void sendToUser(UUID user,String title,String body,String action,String reference,int badge){for(Map<String,Object> subscription:db.queryForList("SELECT id,endpoint,p256dh,auth FROM web_push_subscription WHERE user_id=? AND enabled=TRUE",user)){UUID id=(UUID)subscription.get("id");Boolean delivered=db.queryForObject("SELECT EXISTS(SELECT 1 FROM web_push_delivery_log WHERE subscription_id=? AND reference_key=?)",Boolean.class,id,reference);if(Boolean.TRUE.equals(delivered))continue;try{byte[] payload=json.writeValueAsBytes(Map.of("title",title,"body",body,"action",action,"url","/?anuraAction="+action,"badge",badge,"tag","anura-"+action.toLowerCase(Locale.ROOT)));Notification notification=new Notification(String.valueOf(subscription.get("endpoint")),userPublicKey(String.valueOf(subscription.get("p256dh"))),decode(String.valueOf(subscription.get("auth"))),payload,3600);var response=push.send(notification);int status=response.getStatusLine().getStatusCode();if(status>=200&&status<300){db.update("UPDATE web_push_subscription SET last_success_at=CURRENT_TIMESTAMP,last_seen_at=CURRENT_TIMESTAMP WHERE id=?",id);db.update("INSERT INTO web_push_delivery_log(subscription_id,reference_key) VALUES(?,?) ON CONFLICT DO NOTHING",id,reference);}else if(status==404||status==410)db.update("UPDATE web_push_subscription SET enabled=FALSE WHERE id=?",id);}catch(Exception ignored){}}}
+  private static PublicKey userPublicKey(String encoded)throws Exception{var spec=ECNamedCurveTable.getParameterSpec("secp256r1");return KeyFactory.getInstance("ECDH",BouncyCastleProvider.PROVIDER_NAME).generatePublic(new ECPublicKeySpec(spec.getCurve().decodePoint(decode(encoded)),spec));}
+  private static byte[] decode(String value){return Base64.getUrlDecoder().decode(pad(value));}private static String standardBase64(String value){return Base64.getEncoder().encodeToString(decode(value));}private static String pad(String value){String clean=value.replace('+','-').replace('/','_').replace("=","");return clean+"=".repeat((4-clean.length()%4)%4);}
+}

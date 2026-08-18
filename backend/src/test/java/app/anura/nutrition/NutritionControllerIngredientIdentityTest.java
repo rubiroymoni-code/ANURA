@@ -22,4 +22,20 @@ class NutritionControllerIngredientIdentityTest {
     assertThat(NutritionController.pantryKey("ATUN ENVASADO"))
         .isEqualTo(NutritionController.pantryKey("atún envasada"));
   }
+
+  @Test
+  void householdNamesMatchPlanNamesWithoutMergingDifferentFoods() {
+    assertThat(NutritionController.pantryKey("Huevos"))
+        .isEqualTo(NutritionController.pantryKey("Huevo entero"));
+    assertThat(NutritionController.pantryKey("Tortitas maíz"))
+        .isEqualTo(NutritionController.pantryKey("Tortita de maíz"));
+  }
+
+  @Test
+  void preparationAndPackagingRemainExplicitWhenTheyMatter() {
+    assertThat(NutritionController.pantryKey("Pollo crudo"))
+        .isNotEqualTo(NutritionController.pantryKey("Pollo cocido"));
+    assertThat(NutritionController.pantryKey("Hummus"))
+        .isNotEqualTo(NutritionController.pantryKey("Hummus envasado"));
+  }
 }
