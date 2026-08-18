@@ -8,7 +8,7 @@ const average=(values:number[])=>values.length?Math.round(values.reduce((sum,val
 const sleepLabel=(minutes:number|null)=>minutes==null?"Sin datos":`${Math.floor(minutes/60)} h ${minutes%60} min`;
 
 export function WeeklySummary({refreshKey=""}:{refreshKey?:string}){
-  const [data,setData]=useState<WeeklyData|null>(null),[open,setOpen]=useState(true),[failed,setFailed]=useState(false);
+  const [data,setData]=useState<WeeklyData|null>(null),[open,setOpen]=useState(false),[failed,setFailed]=useState(false);
   const dates=useMemo(()=>{const now=new Date();now.setHours(0,0,0,0);const start=new Date(now);start.setDate(start.getDate()-((start.getDay()+6)%7));const previous=new Date(start);previous.setDate(previous.getDate()-7);return{today:iso(now),start:iso(start),previous:iso(previous)}},[]);
   useEffect(()=>{let active=true;setFailed(false);void Promise.all([nutritionApi.adherence(7),sleepApi.summary(14),workoutApi.history(0,50),bodyProgressApi.list(),nutritionApi.travelCalendar(dates.previous,dates.today)]).then(([adherence,sleep,workouts,checkins,travel])=>{if(active)setData({adherence,sleep,workouts,checkins,travelDays:travel.filter(day=>day.travel_date>=dates.start).length})}).catch(()=>{if(active)setFailed(true)});return()=>{active=false}},[refreshKey,dates.previous,dates.start,dates.today]);
   if(failed)return null;
