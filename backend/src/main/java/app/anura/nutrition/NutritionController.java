@@ -123,7 +123,7 @@ public class NutritionController {
   Map<String,Object> substituteTodayMeal(@PathVariable UUID mealId,@RequestBody MealInput input) {
     if(input==null||input.name()==null||input.name().isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST,"MEAL_NAME_REQUIRED","Escribe qué has comido");
     Map<String,Object> meal=plannedMeal(mealId);
-    return savePlanned(mealId,"SUBSTITUTED",input,meal,input.name().trim());
+    return savePlanned(mealId,"SUBSTITUTED",input,meal,input.name().trim(),input.date()==null?LocalDate.now():input.date());
   }
 
   @PostMapping("/today/{mealId}/additional")
