@@ -99,19 +99,28 @@ public class WorkoutExecutionService {
         return rows.stream().findFirst().orElse(null);
     }
 
-    @Transactional public TodayWorkout rescheduleToday(LocalDate target) {
+    @Transactional public TodayWorkout rescheduleToday(LocalDate target,boolean force) {
         TodayWorkout workout=today(); if(workout==null) throw notFound();
-        rescheduleDay(workout.dayId(),LocalDate.now(),target); return workout;
+        rescheduleDay(workout.dayId(),LocalDate.now(),target,force); return workout;
     }
 
     @Transactional public void skipToday(String reason) {
         TodayWorkout workout=today(); if(workout==null) throw notFound(); skipDay(workout.dayId(),LocalDate.now(),reason);
     }
 
-    @Transactional public void rescheduleDay(UUID dayId,LocalDate original,LocalDate target) {
+    @Transactional public void rescheduleDay(UUID dayId,LocalDate original,LocalDate target,boolean force) {
         Map<String,Object> day=ownedPlanDay(dayId); LocalDate current=LocalDate.now();
         if(original==null||original.isBefore(current.minusDays(6))||original.isAfter(current.plusDays(7))||target==null||target.equals(original)||target.isBefore(current)||target.isAfter(current.plusDays(14))) throw bad("INVALID_WORKOUT_DATE","Elige un día de esta semana y una fecha de destino válida");
         UUID user=CurrentUser.id();
+        Integer targetWorkouts=db.queryForObject("""
+            SELECT COUNT(DISTINCT d.id) FROM workout_plan_day d
+            JOIN workout_plan p ON p.id=d.workout_plan_id
+            WHERE p.user_id=? AND p.status='ACTIVE' AND d.id<>? AND (
+              (CASE WHEN p.valid_from IS NOT NULL THEN p.valid_from+(((d.week_number-1)*7)+(d.day_number-1))=? ELSE d.day_number=EXTRACT(ISODOW FROM ?::date)::int END
+               AND NOT EXISTS(SELECT 1 FROM workout_day_adjustment away WHERE away.user_id=p.user_id AND away.workout_plan_day_id=d.id AND away.original_date=?))
+              OR EXISTS(SELECT 1 FROM workout_day_adjustment moved WHERE moved.user_id=p.user_id AND moved.workout_plan_day_id=d.id AND moved.status='MOVED' AND moved.scheduled_date=?))
+            """,Integer.class,user,dayId,target,target,target,target);
+        if(!force&&targetWorkouts!=null&&targetWorkouts>0) throw conflict("WORKOUT_DATE_OCCUPIED","Ya tienes otro entrenamiento previsto ese día. Puedes confirmar el movimiento igualmente o elegir otra fecha");
         int chained=db.update("UPDATE workout_day_adjustment SET scheduled_date=?,status='MOVED',reason=NULL,updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND workout_plan_day_id=? AND scheduled_date=? AND status='MOVED'",target,user,dayId,original);
         if(chained==0) db.update("INSERT INTO workout_day_adjustment(id,user_id,workout_plan_id,workout_plan_day_id,original_date,scheduled_date,status) VALUES(?,?,?,?,?,?,'MOVED') ON CONFLICT(user_id,workout_plan_day_id,original_date) DO UPDATE SET scheduled_date=EXCLUDED.scheduled_date,status='MOVED',reason=NULL,updated_at=CURRENT_TIMESTAMP",UUID.randomUUID(),user,day.get("plan_id"),dayId,original,target);
         else db.update("DELETE FROM workout_day_adjustment WHERE user_id=? AND workout_plan_day_id=? AND original_date=?",user,dayId,original);

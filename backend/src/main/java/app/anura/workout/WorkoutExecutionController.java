@@ -12,9 +12,9 @@ public class WorkoutExecutionController {
  private final WorkoutExecutionService service; WorkoutExecutionController(WorkoutExecutionService service){this.service=service;}
  @GetMapping("/api/v1/workouts/today") TodayWorkoutStatus today(){return service.todayStatus();}
  @GetMapping("/api/v1/workout-plans/{planId}/adjustments") List<WorkoutDayAdjustment> adjustments(@PathVariable UUID planId){return service.planAdjustments(planId);}
- @PostMapping("/api/v1/workouts/today/reschedule") TodayWorkout rescheduleToday(@RequestBody RescheduleRequest body){return service.rescheduleToday(body.date());}
+ @PostMapping("/api/v1/workouts/today/reschedule") TodayWorkout rescheduleToday(@RequestBody RescheduleRequest body){return service.rescheduleToday(body.date(),Boolean.TRUE.equals(body.force()));}
  @PostMapping("/api/v1/workouts/today/skip") @ResponseStatus(HttpStatus.NO_CONTENT) void skipToday(@RequestBody(required=false) SkipRequest body){service.skipToday(body==null?null:body.reason());}
- @PostMapping("/api/v1/workout-plan-days/{dayId}/reschedule") @ResponseStatus(HttpStatus.NO_CONTENT) void rescheduleDay(@PathVariable UUID dayId,@RequestBody DayAdjustmentRequest body){service.rescheduleDay(dayId,body.originalDate(),body.targetDate());}
+ @PostMapping("/api/v1/workout-plan-days/{dayId}/reschedule") @ResponseStatus(HttpStatus.NO_CONTENT) void rescheduleDay(@PathVariable UUID dayId,@RequestBody DayAdjustmentRequest body){service.rescheduleDay(dayId,body.originalDate(),body.targetDate(),Boolean.TRUE.equals(body.force()));}
  @PostMapping("/api/v1/workout-plan-days/{dayId}/skip") @ResponseStatus(HttpStatus.NO_CONTENT) void skipDay(@PathVariable UUID dayId,@RequestBody DayAdjustmentRequest body){service.skipDay(dayId,body.originalDate(),body.reason());}
  @GetMapping("/api/v1/workout-sessions/active") SessionView active(){return service.active();}
  @PostMapping("/api/v1/workout-sessions") @ResponseStatus(HttpStatus.CREATED) SessionView start(@Valid @RequestBody StartRequest r){return service.start(r);}
@@ -40,6 +40,6 @@ public class WorkoutExecutionController {
  @GetMapping("/api/v1/workout-sessions/{id}/metrics") Metrics metrics(@PathVariable UUID id){return service.metrics(id);}
  @GetMapping("/api/v1/training/summary") List<SessionSummary> summary(){return service.history(0,20);}
  @PostMapping("/api/v1/workout-sessions/{id}/sync") List<SyncResult> sync(@PathVariable UUID id,@RequestBody List<SyncOperation> operations){return service.sync(id,operations);}
- record RescheduleRequest(java.time.LocalDate date){} record SkipRequest(String reason){} record DayAdjustmentRequest(java.time.LocalDate originalDate,java.time.LocalDate targetDate,String reason){}
+ record RescheduleRequest(java.time.LocalDate date,Boolean force){} record SkipRequest(String reason){} record DayAdjustmentRequest(java.time.LocalDate originalDate,java.time.LocalDate targetDate,String reason,Boolean force){}
  record DurationRequest(Integer seconds){}
 }
