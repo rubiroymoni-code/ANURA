@@ -57,7 +57,55 @@ function TodayScreen({workouts,date,active,history,busy,changeDate,onStart,onCon
  return <div className="today-workout workout-agenda">{active&&<button className="continue-workout" onClick={onContinue}><span><small>SESIÓN EN CURSO</small><b>{active.header.name}</b></span><Play/></button>}<div className="workout-date-switch"><button className={date===yesterday?"active":""} onClick={()=>void changeDate(yesterday)}>Ayer</button><button className={date===today?"active":""} onClick={()=>void changeDate(today)}>Hoy</button><input type="date" min={localDate(new Date(Date.now()-7*86400000))} max={localDate(new Date(Date.now()+14*86400000))} value={date} onChange={event=>void changeDate(event.target.value)}/></div>{workouts.length?workouts.map((workout,index)=><section className="scheduled-workout" key={`${workout.dayId}-${date}`}><div className="today-hero"><span className="day-badge">{workouts.length>1?`SESIÓN ${index+1} DE ${workouts.length}`:`DÍA ${workout.dayNumber}`}</span><p>{workout.planName} · v{workout.planVersion}</p><h1>{workout.sessionName}</h1><div className="today-meta"><span><Clock/>~{workout.estimatedMinutes||45} min</span><span><Dumbbell/>{workout.exerciseCount} ejercicios</span></div></div><details className="agenda-exercises"><summary>Ver ejercicios</summary><div className="planned-list">{workout.exercises.map((exercise,i)=><div key={exercise.exerciseId}><i>{String(i+1).padStart(2,"0")}</i><span><b>{exercise.name}</b><small>{exercise.muscleGroup||"Ejercicio"} · {exercise.sets}×{exercise.repsMin}-{exercise.repsMax}</small></span></div>)}</div></details><button className="start-workout" disabled={busy||!!active} onClick={()=>onStart(false,workout,date)}><Play/>{date<today?"Registrar entrenamiento pendiente":"Empezar entrenamiento"}</button>{date===today&&<button className="cant-train-today" disabled={!!active} onClick={()=>setUnavailable(workout)}>Cambiar este entrenamiento…</button>}</section>):<div className="workout-empty"><Dumbbell/><h3>No hay entrenamientos para este día</h3><p>Consulta ayer si se te quedó uno pendiente o abre Plan para mover una sesión.</p></div>}<button className="secondary-action free-session-action" disabled={!!active} onClick={()=>onStart(true,null,date)}><Plus/>Sesión libre</button>{history.length>0&&<button className="last-session" onClick={onHistory}><History/><span><small>ÚLTIMA SESIÓN</small><b>{history[0].name}</b></span><strong>{Math.round((history[0].durationSeconds||0)/60)} min</strong></button>}{unavailable&&<UnavailableWorkoutSheet today={unavailable} close={()=>setUnavailable(null)} saved={async()=>{setUnavailable(null);await onChanged()}}/>}</div>
 }
 
-function UnavailableWorkoutSheet({today,close,saved}:{today:TodayWorkout;close:()=>void;saved:()=>Promise<void>}){const original=localDate(new Date()),dates=Array.from({length:7},(_,index)=>{const date=new Date();date.setDate(date.getDate()+index+1);return date}),[target,setTarget]=useState(localDate(dates[0])),[busy,setBusy]=useState(false);return <div className="finish-sheet unavailable-workout"><button className="close-sheet" onClick={close}><X/></button><small>CAMBIO DE PLAN</small><h2>Cambiar entrenamiento</h2><p>Estás cambiando <b>{today.sessionName}</b>. Si hoy hay otra sesión, permanecerá intacta.</p><div className="unavailable-options"><section><CalendarDays/><span><b>Mover a otro día</b><small>La sesión aparecerá ese día con todos sus ejercicios.</small></span><select value={target} onChange={event=>setTarget(event.target.value)}>{dates.map(date=><option key={localDate(date)} value={localDate(date)}>{date.toLocaleDateString("es",{weekday:"long",day:"numeric",month:"short"})}</option>)}</select><button disabled={busy} onClick={async()=>{setBusy(true);try{await workoutApi.rescheduleDay(today.dayId,original,target);await saved()}finally{setBusy(false)}}}>Mover entrenamiento</button></section><section className="skip-workout"><X/><span><b>No lo haré esta semana</b><small>Quedará como no realizado sin afectar a las demás sesiones de hoy.</small></span><button disabled={busy} onClick={async()=>{if(confirm("¿Marcar este entrenamiento como no realizado?")){setBusy(true);try{await workoutApi.skipDay(today.dayId,original,"No disponible");await saved()}finally{setBusy(false)}}}}>Marcar como no realizado</button></section></div></div>}
+function UnavailableWorkoutSheet({today,close,saved}:{today:TodayWorkout;close:()=>void;saved:()=>Promise<void>}){
+ const now=new Date();
+ const original=localDate(now);
+ const yesterday=new Date(now);
+ yesterday.setDate(yesterday.getDate()-1);
+ const dates=Array.from({length:14},(_,index)=>{
+  const date=new Date(now);
+  date.setHours(12,0,0,0);
+  date.setDate(date.getDate()+index-6);
+  return date;
+ }).filter(date=>localDate(date)!==original);
+ const [target,setTarget]=useState(localDate(yesterday));
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState("");
+
+ return <div className="finish-sheet unavailable-workout">
+  <button className="close-sheet" onClick={close}><X/></button>
+  <small>CAMBIO DE PLAN</small>
+  <h2>Cambiar entrenamiento</h2>
+  <p>Estás cambiando <b>{today.sessionName}</b>. Si el día elegido ya tiene otra sesión, te avisaremos antes de añadir las dos.</p>
+  <div className="unavailable-options">
+   <section>
+    <CalendarDays/>
+    <span><b>Mover a otro día</b><small>Puedes corregirlo hasta seis días atrás y después registrar las métricas desde Histórico.</small></span>
+    <select value={target} onChange={event=>setTarget(event.target.value)}>
+     {dates.map(date=><option key={localDate(date)} value={localDate(date)}>{localDate(date)===localDate(yesterday)?"Ayer · ":""}{date.toLocaleDateString("es",{weekday:"long",day:"numeric",month:"short"})}</option>)}
+    </select>
+    {error&&<p className="form-error" role="alert">{error}</p>}
+    <button disabled={busy} onClick={async()=>{
+     setBusy(true);
+     setError("");
+     try{
+      await workoutApi.rescheduleDay(today.dayId,original,target);
+      await saved();
+     }catch(cause){
+      setError(cause instanceof Error?cause.message:"No se pudo mover el entrenamiento. Inténtalo de nuevo.");
+     }finally{
+      setBusy(false);
+     }
+    }}>{busy?"Moviendo…":"Mover entrenamiento"}</button>
+   </section>
+   <section className="skip-workout">
+    <X/>
+    <span><b>No lo haré esta semana</b><small>Quedará como no realizado sin afectar a las demás sesiones de hoy.</small></span>
+    <button disabled={busy} onClick={async()=>{if(confirm("¿Marcar este entrenamiento como no realizado?")){setBusy(true);try{await workoutApi.skipDay(today.dayId,original,"No disponible");await saved()}finally{setBusy(false)}}}}>Marcar como no realizado</button>
+   </section>
+  </div>
+ </div>
+}
 
 function ActiveWorkout({session,sync,setSession,onSync,onCancel,onFinish}:{session:WorkoutSession;sync:string;setSession:(s:WorkoutSession)=>void;onSync:()=>void;onCancel:()=>Promise<void>;onFinish:()=>void}){
  const sessionSeconds=(at:number)=>Math.max(0,Math.floor((at-new Date(session.header.startedAt).getTime())/1000)-(session.header.pausedSeconds||0));
