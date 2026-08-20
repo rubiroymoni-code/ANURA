@@ -115,7 +115,7 @@ public class WorkoutExecutionService {
 
     @Transactional public void rescheduleDay(UUID dayId,LocalDate original,LocalDate target,boolean force) {
         Map<String,Object> day=ownedPlanDay(dayId); LocalDate current=LocalDate.now();
-        if(original==null||original.isBefore(current.minusDays(6))||original.isAfter(current.plusDays(7))||target==null||target.equals(original)||target.isBefore(current)||target.isAfter(current.plusDays(14))) throw bad("INVALID_WORKOUT_DATE","Elige un día de esta semana y una fecha de destino válida");
+        if(original==null||original.isBefore(current.minusDays(6))||original.isAfter(current.plusDays(7))||target==null||target.equals(original)||target.isBefore(current.minusDays(6))||target.isAfter(current.plusDays(14))) throw bad("INVALID_WORKOUT_DATE","Elige una fecha entre los últimos 7 y los próximos 14 días");
         UUID user=CurrentUser.id();
         Integer targetWorkouts=db.queryForObject("""
             SELECT COUNT(DISTINCT d.id) FROM workout_plan_day d
