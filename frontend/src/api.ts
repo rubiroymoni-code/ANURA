@@ -167,7 +167,7 @@ export type WorkoutExercise = { id:string; exerciseId:string; name:string; muscl
 export type WorkoutSession = { header:{id:string;name:string;plannedDate:string;status:string;startedAt:string;completedAt?:string;durationSeconds?:number;globalRpe?:number;energyLevel?:number;pumpLevel?:number;painLevel?:number;difficultyLevel?:number;notes?:string;clientExternalId:string;workoutPlanVersion?:number;pausedAt?:string;pausedSeconds:number}; exercises:WorkoutExercise[]; metrics:{exercises:number;sets:number;repetitions:number;volume:number;maxPain:number;personalRecords:number} };
 export type TodayWorkout = { planId:string;planName:string;planVersion:number;dayId:string;sessionName:string;dayName:string;weekNumber:number;dayNumber:number;estimatedMinutes:number;exerciseCount:number;exercises:Array<{exerciseId:string;name:string;muscleGroup?:string;sets:number;repsMin:number;repsMax:number;targetRir?:number;restSeconds?:number}> };
 export type TodayWorkoutAdjustment = { status:"MOVED"|"SKIPPED";scheduledDate?:string;sessionName:string;reason?:string };
-export type TodayWorkoutStatus = { workout:TodayWorkout|null;adjustment?:TodayWorkoutAdjustment };
+export type TodayWorkoutStatus = { workout:TodayWorkout|null;adjustment?:TodayWorkoutAdjustment;workouts?:TodayWorkout[] };
 export type WorkoutDayAdjustment = { dayId:string;originalDate:string;scheduledDate?:string;status:"MOVED"|"SKIPPED";reason?:string;sessionName:string;dayNumber:number };
 export type WorkoutSummary = {id:string;name:string;date:string;status:string;durationSeconds?:number;globalRpe?:number;exercises:number;sets:number;volume:number};
 export type WorkoutPlan = {id:string;name:string;version:number;status:string;validFrom?:string;validUntil?:string};
@@ -175,6 +175,7 @@ export type PlannedWorkoutExercise = {weekNumber:number;dayNumber:number;dayName
 async function rescheduleWorkout<T>(path:string,body:Record<string,unknown>):Promise<T>{try{return await request<T>(path,{method:"POST",body:JSON.stringify(body)})}catch(error){if(error instanceof Error&&error.message.includes("otro entrenamiento previsto")&&confirm(`${error.message}\n\n¿Quieres moverlo igualmente? Tendrás dos entrenamientos asignados ese día.`))return request<T>(path,{method:"POST",body:JSON.stringify({...body,force:true})});throw error}}
 export const workoutApi = {
   today:()=>request<TodayWorkoutStatus>("/workouts/today"),
+  byDate:(date:string)=>request<TodayWorkout[]>(`/workouts?date=${date}`),
   adjustments:(planId:string)=>request<WorkoutDayAdjustment[]>(`/workout-plans/${planId}/adjustments`),
   rescheduleToday:(date:string)=>rescheduleWorkout<TodayWorkout>("/workouts/today/reschedule",{date}),
   skipToday:(reason?:string)=>request<void>("/workouts/today/skip",{method:"POST",body:JSON.stringify({reason})}),
@@ -187,7 +188,7 @@ export const workoutApi = {
   deletePlan:(id:string)=>request<void>(`/workout-plans/${id}`,{method:"DELETE"}),
   one:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}`),
   deleteSession:(id:string)=>request<void>(`/workout-sessions/${id}`,{method:"DELETE"}),
-  start:(body:{workoutPlanDayId?:string;name?:string;clientExternalId:string})=>request<WorkoutSession>("/workout-sessions",{method:"POST",body:JSON.stringify(body)}),
+  start:(body:{workoutPlanDayId?:string;name?:string;plannedDate?:string;clientExternalId:string})=>request<WorkoutSession>("/workout-sessions",{method:"POST",body:JSON.stringify(body)}),
   pause:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/pause`,{method:"POST"}),
   resume:(id:string)=>request<WorkoutSession>(`/workout-sessions/${id}/resume`,{method:"POST"}),
   complete:(id:string,body:object)=>request<WorkoutSession>(`/workout-sessions/${id}/complete`,{method:"POST",body:JSON.stringify(body)}),
