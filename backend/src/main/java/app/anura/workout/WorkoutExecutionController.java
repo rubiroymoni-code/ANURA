@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 public class WorkoutExecutionController {
  private final WorkoutExecutionService service; WorkoutExecutionController(WorkoutExecutionService service){this.service=service;}
  @GetMapping("/api/v1/workouts/today") TodayWorkoutStatus today(){return service.todayStatus();}
+ @GetMapping("/api/v1/workouts") List<TodayWorkout> workouts(@RequestParam java.time.LocalDate date){return service.workouts(date);}
  @GetMapping("/api/v1/workout-plans/{planId}/adjustments") List<WorkoutDayAdjustment> adjustments(@PathVariable UUID planId){return service.planAdjustments(planId);}
  @PostMapping("/api/v1/workouts/today/reschedule") TodayWorkout rescheduleToday(@RequestBody RescheduleRequest body){return service.rescheduleToday(body.date(),Boolean.TRUE.equals(body.force()));}
  @PostMapping("/api/v1/workouts/today/skip") @ResponseStatus(HttpStatus.NO_CONTENT) void skipToday(@RequestBody(required=false) SkipRequest body){service.skipToday(body==null?null:body.reason());}

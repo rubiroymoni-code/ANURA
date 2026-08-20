@@ -31,7 +31,8 @@ public class WorkoutExecutionService {
     }
 
     public TodayWorkoutStatus todayStatus() {
-        return new TodayWorkoutStatus(today(), todayAdjustment());
+        List<TodayWorkout> workouts=workouts(LocalDate.now());
+        return new TodayWorkoutStatus(workouts.stream().findFirst().orElse(null), todayAdjustment(),workouts);
     }
 
     public List<WorkoutDayAdjustment> planAdjustments(UUID planId) {
@@ -74,29 +75,33 @@ public class WorkoutExecutionService {
     }
 
     public TodayWorkout today() {
+        return workouts(LocalDate.now()).stream().findFirst().orElse(null);
+    }
+
+    public List<TodayWorkout> workouts(LocalDate date) {
         UUID user = CurrentUser.id();
-        List<TodayWorkout> rows = db.query("""
+        if(date==null||date.isBefore(LocalDate.now().minusDays(7))||date.isAfter(LocalDate.now().plusDays(14))) throw bad("INVALID_WORKOUT_DATE","Consulta una fecha entre los últimos 7 y los próximos 14 días");
+        return db.query("""
             SELECT p.id,p.name,p.version,d.id,d.session_name,d.day_name,d.week_number,d.day_number,
               COALESCE(SUM(COALESCE(pe.rest_seconds,0)+COALESCE(pe.sets,0)*90)/60,0),COUNT(pe.id)
             FROM workout_plan p JOIN workout_plan_day d ON d.workout_plan_id=p.id
             LEFT JOIN planned_exercise pe ON pe.workout_plan_day_id=d.id
             WHERE p.user_id=? AND p.status='ACTIVE'
-            AND NOT EXISTS(SELECT 1 FROM workout_session s WHERE s.user_id=p.user_id AND s.workout_plan_day_id=d.id AND s.planned_date=CURRENT_DATE AND s.status IN ('COMPLETED','ABANDONED') AND s.deleted_at IS NULL)
+            AND NOT EXISTS(SELECT 1 FROM workout_session s WHERE s.user_id=p.user_id AND s.workout_plan_day_id=d.id AND s.planned_date=? AND s.status IN ('COMPLETED','ABANDONED') AND s.deleted_at IS NULL)
             AND (
-              EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=CURRENT_DATE)
+              EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=?)
               OR (
                 CASE
                   WHEN p.valid_from IS NOT NULL THEN
-                    p.valid_from + (((d.week_number-1)*7)+(d.day_number-1)) = CURRENT_DATE
+                    d.day_number=? AND d.week_number=(MOD(GREATEST((?-p.valid_from)/7,0),(SELECT MAX(cycle_day.week_number) FROM workout_plan_day cycle_day WHERE cycle_day.workout_plan_id=p.id))+1)
                   ELSE d.day_number=?
                 END
-                AND NOT EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.original_date=CURRENT_DATE)
+                AND NOT EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.original_date=?)
               )
             )
             GROUP BY p.id,p.name,p.version,d.id,d.session_name,d.day_name,d.week_number,d.day_number,d.day_order
-            ORDER BY CASE WHEN EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=CURRENT_DATE) THEN 0 ELSE 1 END,d.week_number,d.day_order LIMIT 1
-            """, (r,n)->new TodayWorkout(r.getObject(1,UUID.class),r.getString(2),r.getInt(3),r.getObject(4,UUID.class),r.getString(5),r.getString(6),r.getInt(7),r.getInt(8),r.getInt(9),r.getInt(10), planned(r.getObject(4,UUID.class))), user, LocalDate.now().getDayOfWeek().getValue());
-        return rows.stream().findFirst().orElse(null);
+            ORDER BY CASE WHEN EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=?) THEN 0 ELSE 1 END,d.week_number,d.day_order
+            """, (r,n)->new TodayWorkout(r.getObject(1,UUID.class),r.getString(2),r.getInt(3),r.getObject(4,UUID.class),r.getString(5),r.getString(6),r.getInt(7),r.getInt(8),r.getInt(9),r.getInt(10), planned(r.getObject(4,UUID.class))), user,date,date,date.getDayOfWeek().getValue(),date,date.getDayOfWeek().getValue(),date,date);
     }
 
     @Transactional public TodayWorkout rescheduleToday(LocalDate target,boolean force) {
@@ -116,7 +121,7 @@ public class WorkoutExecutionService {
             SELECT COUNT(DISTINCT d.id) FROM workout_plan_day d
             JOIN workout_plan p ON p.id=d.workout_plan_id
             WHERE p.user_id=? AND p.status='ACTIVE' AND d.id<>? AND (
-              (CASE WHEN p.valid_from IS NOT NULL THEN p.valid_from+(((d.week_number-1)*7)+(d.day_number-1))=? ELSE d.day_number=EXTRACT(ISODOW FROM ?::date)::int END
+              (d.day_number=EXTRACT(ISODOW FROM ?::date)::int AND (p.valid_from IS NULL OR d.week_number=(MOD(GREATEST((?-p.valid_from)/7,0),(SELECT MAX(cycle_day.week_number) FROM workout_plan_day cycle_day WHERE cycle_day.workout_plan_id=p.id))+1))
                AND NOT EXISTS(SELECT 1 FROM workout_day_adjustment away WHERE away.user_id=p.user_id AND away.workout_plan_day_id=d.id AND away.original_date=?))
               OR EXISTS(SELECT 1 FROM workout_day_adjustment moved WHERE moved.user_id=p.user_id AND moved.workout_plan_day_id=d.id AND moved.status='MOVED' AND moved.scheduled_date=?))
             """,Integer.class,user,dayId,target,target,target,target);
@@ -344,7 +349,7 @@ public class WorkoutExecutionService {
 
     public record TodayWorkout(UUID planId,String planName,int planVersion,UUID dayId,String sessionName,String dayName,int weekNumber,int dayNumber,int estimatedMinutes,int exerciseCount,List<PlannedExerciseView> exercises){}
     public record TodayAdjustment(String status,LocalDate scheduledDate,String sessionName,String reason){}
-    public record TodayWorkoutStatus(TodayWorkout workout,TodayAdjustment adjustment){}
+    public record TodayWorkoutStatus(TodayWorkout workout,TodayAdjustment adjustment,List<TodayWorkout> workouts){}
     public record WorkoutDayAdjustment(UUID dayId,LocalDate originalDate,LocalDate scheduledDate,String status,String reason,String sessionName,int dayNumber){}
     public record PlannedExerciseView(UUID plannedExerciseId,UUID exerciseId,String name,String muscleGroup,String equipment,int order,int sets,int repsMin,int repsMax,BigDecimal targetRir,BigDecimal targetRpe,Integer restSeconds,String instructions){}
     public record StartRequest(UUID workoutPlanDayId,String name,LocalDate plannedDate,UUID clientExternalId){public StartRequest{if(clientExternalId==null)clientExternalId=UUID.randomUUID();}}
