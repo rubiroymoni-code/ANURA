@@ -176,11 +176,12 @@ public class WorkoutExecutionService {
     public List<SessionSummary> history(int page,int size) {
         int safe=Math.min(Math.max(size,1),50), offset=Math.max(page,0)*safe;
         return db.query("""
-            SELECT s.id,s.session_name,s.planned_date,s.status,s.started_at,s.completed_at,s.duration_seconds,s.global_rpe,
-              COUNT(DISTINCT ep.id),COUNT(sp.id),COALESCE(SUM(CASE WHEN sp.weight IS NOT NULL AND sp.repetitions IS NOT NULL THEN sp.weight*sp.repetitions ELSE 0 END),0)
+            SELECT s.id,s.session_name,s.planned_date,s.status,s.workout_plan_day_id,s.started_at,s.completed_at,s.duration_seconds,s.global_rpe,
+              COUNT(DISTINCT ep.id),COUNT(sp.id),COALESCE(SUM(CASE WHEN sp.weight IS NOT NULL AND sp.repetitions IS NOT NULL THEN sp.weight*sp.repetitions ELSE 0 END),0),
+              COALESCE((SELECT SUM(activity_calories) FROM exercise_performance activity WHERE activity.workout_session_id=s.id),0)
             FROM workout_session s LEFT JOIN exercise_performance ep ON ep.workout_session_id=s.id LEFT JOIN set_performance sp ON sp.exercise_performance_id=ep.id AND sp.deleted_at IS NULL AND sp.completed
             WHERE s.user_id=? AND s.deleted_at IS NULL GROUP BY s.id ORDER BY s.planned_date DESC,s.started_at DESC LIMIT ? OFFSET ?""",
-            (r,n)->new SessionSummary(r.getObject(1,UUID.class),r.getString(2),r.getObject(3,LocalDate.class),r.getString(4),r.getTimestamp(5).toInstant(),instant(r,6),integer(r,7),decimal(r,8),r.getInt(9),r.getInt(10),r.getBigDecimal(11)),CurrentUser.id(),safe,offset);
+            (r,n)->new SessionSummary(r.getObject(1,UUID.class),r.getString(2),r.getObject(3,LocalDate.class),r.getString(4),r.getObject(5,UUID.class),r.getTimestamp(6).toInstant(),instant(r,7),integer(r,8),decimal(r,9),r.getInt(10),r.getInt(11),r.getBigDecimal(12),r.getBigDecimal(13)),CurrentUser.id(),safe,offset);
     }
 
     public SessionView view(UUID id) {
@@ -236,6 +237,7 @@ public class WorkoutExecutionService {
     }
 
     @Transactional public ExerciseView completeExercise(UUID sessionId,UUID performanceId) { assertExercise(sessionId,performanceId); db.update("UPDATE exercise_performance SET completed_at=CASE WHEN completed_at IS NULL THEN CURRENT_TIMESTAMP ELSE NULL END,updated_at=CURRENT_TIMESTAMP WHERE id=?",performanceId); touch(sessionId); return exercise(performanceId); }
+    @Transactional public ExerciseView recordActivity(UUID sessionId,UUID performanceId,ActivityRequest request) {assertExercise(sessionId,performanceId);if(request==null||request.name()==null||request.name().isBlank()||request.minutes()==null||request.minutes()<1||request.calories()==null||request.calories().signum()<0)throw bad("INVALID_ACTIVITY","Indica una actividad, duración y calorías válidas");db.update("UPDATE exercise_performance SET activity_name=?,activity_minutes=?,activity_calories=?,notes=COALESCE(?,notes),completed_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?",request.name().trim(),request.minutes(),request.calories(),request.notes(),performanceId);touch(sessionId);return exercise(performanceId);}
 
     @Transactional public SetView addSet(UUID sessionId,UUID performanceId,SetRequest r) {
         assertExercise(sessionId,performanceId); validateSet(r); UUID client=r.clientExternalId()==null?UUID.randomUUID():r.clientExternalId();
@@ -355,13 +357,13 @@ public class WorkoutExecutionService {
     public record StartRequest(UUID workoutPlanDayId,String name,LocalDate plannedDate,UUID clientExternalId){public StartRequest{if(clientExternalId==null)clientExternalId=UUID.randomUUID();}}
     public record CompleteRequest(BigDecimal globalRpe,Integer energyLevel,Integer pumpLevel,Integer painLevel,Integer difficultyLevel,String notes,String adherenceReason,Integer durationSeconds){public CompleteRequest(BigDecimal globalRpe,Integer energyLevel,Integer pumpLevel,Integer painLevel,Integer difficultyLevel,String notes,String adherenceReason){this(globalRpe,energyLevel,pumpLevel,painLevel,difficultyLevel,notes,adherenceReason,null);}}
     public record AbandonRequest(String reason){}
-    public record AddExerciseRequest(UUID exerciseId,Integer order,String notes){} public record SubstituteRequest(UUID replacementExerciseId,String reason,String notes){} public record PainRequest(Integer intensity,String area,String comment){}
+    public record AddExerciseRequest(UUID exerciseId,Integer order,String notes){} public record SubstituteRequest(UUID replacementExerciseId,String reason,String notes){} public record PainRequest(Integer intensity,String area,String comment){} public record ActivityRequest(String name,Integer minutes,BigDecimal calories,String notes){}
     public record SetRequest(Integer setNumber,String setType,BigDecimal weight,Integer repetitions,BigDecimal rir,BigDecimal rpe,Integer durationSeconds,BigDecimal distanceMeters,Integer restSeconds,String tempo,Integer painLevel,boolean completed,UUID clientExternalId){}
     public record SessionHeader(UUID id,String name,LocalDate plannedDate,String status,Instant startedAt,Instant completedAt,Integer durationSeconds,BigDecimal globalRpe,Integer energyLevel,Integer pumpLevel,Integer painLevel,Integer difficultyLevel,String notes,UUID clientExternalId,long version,UUID workoutPlanId,Integer workoutPlanVersion,UUID workoutPlanDayId,Instant pausedAt,int pausedSeconds){}
     public record SessionView(SessionHeader header,List<ExerciseView> exercises,Metrics metrics){public UUID clientExternalId(){return header.clientExternalId();}}
     public record ExerciseView(UUID id,UUID exerciseId,String name,String muscleGroup,String equipment,int order,UUID originalExerciseId,String substitutionReason,boolean painReported,String painArea,Integer painIntensity,String notes,Integer targetSets,Integer targetRepsMin,Integer targetRepsMax,BigDecimal targetRir,BigDecimal targetRpe,Integer targetRestSeconds,String instructions,boolean completed,List<SetView> sets){}
     public record SetView(UUID id,int setNumber,String setType,BigDecimal weight,Integer repetitions,BigDecimal rir,BigDecimal rpe,Integer durationSeconds,BigDecimal distanceMeters,Integer restSeconds,String tempo,Integer painLevel,boolean completed,Instant performedAt,UUID clientExternalId){}
-    public record Metrics(int exercises,int sets,int repetitions,BigDecimal volume,int maxPain,int personalRecords){} public record SessionSummary(UUID id,String name,LocalDate date,String status,Instant startedAt,Instant completedAt,Integer durationSeconds,BigDecimal globalRpe,int exercises,int sets,BigDecimal volume){}
+    public record Metrics(int exercises,int sets,int repetitions,BigDecimal volume,int maxPain,int personalRecords){} public record SessionSummary(UUID id,String name,LocalDate date,String status,UUID workoutPlanDayId,Instant startedAt,Instant completedAt,Integer durationSeconds,BigDecimal globalRpe,int exercises,int sets,BigDecimal volume,BigDecimal activityCalories){}
     public record ExerciseHistory(UUID sessionId,LocalDate date,String sessionName,BigDecimal weight,Integer repetitions,BigDecimal rir,BigDecimal rpe,int setNumber){}
     public record ExerciseOption(UUID id,String name,String muscleGroup,String equipment){}
     public record CustomExerciseRequest(String name,String muscleGroup){}
