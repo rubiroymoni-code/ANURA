@@ -54,6 +54,9 @@ public class ProfileController {
     @PostMapping("/cycles")
     java.util.Map<String,Object> cycle(@RequestBody Cycle request){if(request.startDate()==null||(request.endDate()!=null&&request.endDate().isBefore(request.startDate())))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Fechas del ciclo no válidas");java.util.UUID id=java.util.UUID.randomUUID();db.update("INSERT INTO menstrual_cycle_record(id,user_id,start_date,end_date,flow_level,symptoms,notes) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id,start_date) DO UPDATE SET end_date=EXCLUDED.end_date,flow_level=EXCLUDED.flow_level,symptoms=EXCLUDED.symptoms,notes=EXCLUDED.notes",id,CurrentUser.id(),request.startDate(),request.endDate(),request.flowLevel(),request.symptoms(),request.notes());return db.queryForMap("SELECT id,start_date,end_date,flow_level,symptoms,notes FROM menstrual_cycle_record WHERE user_id=? AND start_date=?",CurrentUser.id(),request.startDate());}
 
+    @PutMapping("/cycles/{id}")
+    java.util.Map<String,Object> updateCycle(@PathVariable java.util.UUID id,@RequestBody Cycle request){if(request.startDate()==null||(request.endDate()!=null&&request.endDate().isBefore(request.startDate())))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Fechas del ciclo no válidas");int changed=db.update("UPDATE menstrual_cycle_record SET start_date=?,end_date=?,flow_level=?,symptoms=?,notes=? WHERE id=? AND user_id=?",request.startDate(),request.endDate(),request.flowLevel(),request.symptoms(),request.notes(),id,CurrentUser.id());if(changed==0)throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Periodo no encontrado");return db.queryForMap("SELECT id,start_date,end_date,flow_level,symptoms,notes FROM menstrual_cycle_record WHERE id=? AND user_id=?",id,CurrentUser.id());}
+
     @DeleteMapping("/cycles/{id}")
     void deleteCycle(@PathVariable java.util.UUID id){db.update("DELETE FROM menstrual_cycle_record WHERE id=? AND user_id=?",id,CurrentUser.id());}
 
