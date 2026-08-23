@@ -21,14 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class WorkoutExecutionService {
     private final JdbcTemplate db;
-    private final WorkoutPlanService plans;
     private final int maxSyncOperations;
     private final int maxEstimateReps;
 
-    WorkoutExecutionService(JdbcTemplate db, WorkoutPlanService plans,
+    WorkoutExecutionService(JdbcTemplate db,
         @Value("${app.workout.sync-max-operations:100}") int maxSyncOperations,
         @Value("${app.workout.estimated-1rm-max-reps:12}") int maxEstimateReps) {
-        this.db = db; this.plans = plans; this.maxSyncOperations = maxSyncOperations; this.maxEstimateReps = maxEstimateReps;
+        this.db = db; this.maxSyncOperations = maxSyncOperations; this.maxEstimateReps = maxEstimateReps;
     }
 
     public TodayWorkoutStatus todayStatus() {
@@ -81,7 +80,7 @@ public class WorkoutExecutionService {
 
     public List<TodayWorkout> workouts(LocalDate date) {
         UUID user = CurrentUser.id();
-        plans.activateDuePlan(user);
+        activateDuePlan(user);
         if(date==null||date.isBefore(LocalDate.now().minusDays(7))||date.isAfter(LocalDate.now().plusDays(14))) throw bad("INVALID_WORKOUT_DATE","Consulta una fecha entre los últimos 7 y los próximos 14 días");
         return db.query("""
             SELECT p.id,p.name,p.version,d.id,d.session_name,d.day_name,d.week_number,d.day_number,
@@ -349,6 +348,7 @@ public class WorkoutExecutionService {
     private void insertRecord(UUID session,String type,String expression,String condition){
         db.update("INSERT INTO workout_personal_record(id,user_id,exercise_id,record_type,value,source_set_performance_id,achieved_at) SELECT gen_random_uuid(),s.user_id,ep.exercise_id,?,"+expression+",sp.id,COALESCE(sp.performed_at,CURRENT_TIMESTAMP) FROM set_performance sp JOIN exercise_performance ep ON ep.id=sp.exercise_performance_id JOIN workout_session s ON s.id=ep.workout_session_id WHERE s.id=? AND sp.completed AND "+condition+" AND NOT EXISTS(SELECT 1 FROM workout_personal_record pr WHERE pr.user_id=s.user_id AND pr.exercise_id=ep.exercise_id AND pr.record_type=? AND pr.value>="+expression+") ON CONFLICT DO NOTHING",type,session,type);
     }
+    private void activateDuePlan(UUID user){UUID due=db.query("SELECT id FROM workout_plan WHERE user_id=? AND status='DRAFT' AND valid_from<=CURRENT_DATE ORDER BY valid_from DESC,created_at DESC LIMIT 1",(r,n)->r.getObject(1,UUID.class),user).stream().findFirst().orElse(null);if(due==null)return;db.update("UPDATE workout_plan SET status='SUPERSEDED',superseded_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND status='ACTIVE' AND id<>?",user,due);db.update("UPDATE workout_plan SET status='ACTIVE',activated_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=?",due,user);}
     private void audit(String action,String type,UUID id,String result){db.update("INSERT INTO audit_log(id,actor_id,action,entity_type,entity_id,result,metadata) VALUES(?,?,?,?,?,?,?)",UUID.randomUUID(),CurrentUser.id(),action,type,id,result,"workout-execution-v1");}
     public BigDecimal estimatedOneRepMax(BigDecimal weight,Integer reps){if(weight==null||reps==null||reps<=0||reps>maxEstimateReps)return null;return weight.multiply(BigDecimal.ONE.add(BigDecimal.valueOf(reps).divide(BigDecimal.valueOf(30),6,RoundingMode.HALF_UP))).setScale(2,RoundingMode.HALF_UP);}
     private static ApiException bad(String c,String m){return new ApiException(HttpStatus.BAD_REQUEST,c,m);} private static ApiException conflict(String c,String m){return new ApiException(HttpStatus.CONFLICT,c,m);} private static ApiException notFound(){return new ApiException(HttpStatus.NOT_FOUND,"WORKOUT_NOT_FOUND","Entrenamiento no encontrado");}
