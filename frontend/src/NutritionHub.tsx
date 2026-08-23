@@ -146,7 +146,8 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
                 <span>Gustos, exclusiones y planificación</span>
               </button>
               <button onClick={() => navigate("travel")}><Luggage/><b>Modo viaje</b><span>Fechas flexibles, criterios y seguimiento</span></button>
-              {plans.map(p=><button key={p.id} onClick={()=>{setSelectedPlan(p.id);navigate("plan")}}><CalendarDays/><b>{p.name}</b><span>Versión {p.version} · {nutritionPlanStatusLabel[p.status]||p.status}</span></button>)}
+              {plans.filter(p=>p.status==="ACTIVE"||p.status==="DRAFT").map(p=><button key={p.id} onClick={()=>{setSelectedPlan(p.id);navigate("plan")}}><CalendarDays/><b>{p.name}</b><span>Versión {p.version} · {p.status==="DRAFT"?"Próximo plan":nutritionPlanStatusLabel[p.status]||p.status}</span></button>)}
+              {plans.some(p=>p.status!=="ACTIVE"&&p.status!=="DRAFT")&&<details className="nutrition-plan-history"><summary>Historial de planes ({plans.filter(p=>p.status!=="ACTIVE"&&p.status!=="DRAFT").length})</summary><div>{plans.filter(p=>p.status!=="ACTIVE"&&p.status!=="DRAFT").map(p=><button key={p.id} onClick={()=>{setSelectedPlan(p.id);navigate("plan")}}><CalendarDays/><b>{p.name}</b><span>Versión {p.version} · {nutritionPlanStatusLabel[p.status]||p.status}</span></button>)}</div></details>}
             </div></details>
           </>
         )}
@@ -156,7 +157,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
             refresh={() => householdApi.list().then(setHouseholds)}
           />
         )}{" "}
-        {section === "import" && <NutritionImport />}
+        {section === "import" && <NutritionImport onImported={async()=>setPlans(await nutritionApi.plans())} />}
         {section === "shopping" && <Shopping plans={plans} />}
         {section === "preferences" && <NutritionPreferencesPanel />}
         {section === "cook" && <CookByDate planId={activePlan?.id} recipes={recipes} open={(recipeId,mealId)=>{setSelectedRecipe(recipeId);setSelectedMeal(mealId);navigate("recipe")}} />}
@@ -315,7 +316,7 @@ function LegacyHouseholdView({
     </div>
   );
 }
-function NutritionImport() {
+function NutritionImport({onImported}:{onImported:()=>Promise<void>}) {
   const currentUser=JSON.parse(localStorage.getItem("anura-user")||"{}");
   const [csvHouseholds,setCsvHouseholds]=useState<Household[]>([]);
   const [type, setType] = useState<"diet" | "shared-diet" | "recipes">(
@@ -415,6 +416,7 @@ function NutritionImport() {
             if (!p) setP(await nutritionApi.preview(type, file!));
             else {
               await nutritionApi.confirm(p.importJobId);
+              await onImported();
               setDone(true);
             }
           } catch (cause) {

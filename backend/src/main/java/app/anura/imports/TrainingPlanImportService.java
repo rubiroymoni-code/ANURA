@@ -176,20 +176,23 @@ public class TrainingPlanImportService {
       throw new ApiException(
           HttpStatus.CONFLICT, "PLAN_VERSION_EXISTS", "Ya existe esa versión del plan");
     UUID plan = UUID.randomUUID();
-    db.update(
+    boolean startsLater=parsed.validFrom!=null&&parsed.validFrom.isAfter(java.time.LocalDate.now());
+    if(!startsLater) db.update(
         "UPDATE workout_plan SET status='SUPERSEDED',superseded_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE user_id=? AND status='ACTIVE'",
         user);
     db.update(
         "INSERT INTO"
             + " workout_plan(id,user_id,external_id,name,version,status,valid_from,valid_until,activated_at)"
-            + " VALUES(?,?,?,?,?,'ACTIVE',?,?,CURRENT_TIMESTAMP)",
+            + " VALUES(?,?,?,?,?,?,?, ?,CASE WHEN ? THEN NULL ELSE CURRENT_TIMESTAMP END)",
         plan,
         user,
         parsed.externalId,
         parsed.name,
         parsed.version,
+        startsLater?"DRAFT":"ACTIVE",
         parsed.validFrom,
-        parsed.validUntil);
+        parsed.validUntil,
+        startsLater);
     Map<String, UUID> days = new LinkedHashMap<>();
     for (Row row : parsed.rows) {
       String dayKey = row.week + ":" + row.day;

@@ -21,13 +21,14 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class WorkoutExecutionService {
     private final JdbcTemplate db;
+    private final WorkoutPlanService plans;
     private final int maxSyncOperations;
     private final int maxEstimateReps;
 
-    WorkoutExecutionService(JdbcTemplate db,
+    WorkoutExecutionService(JdbcTemplate db, WorkoutPlanService plans,
         @Value("${app.workout.sync-max-operations:100}") int maxSyncOperations,
         @Value("${app.workout.estimated-1rm-max-reps:12}") int maxEstimateReps) {
-        this.db = db; this.maxSyncOperations = maxSyncOperations; this.maxEstimateReps = maxEstimateReps;
+        this.db = db; this.plans = plans; this.maxSyncOperations = maxSyncOperations; this.maxEstimateReps = maxEstimateReps;
     }
 
     public TodayWorkoutStatus todayStatus() {
@@ -80,6 +81,7 @@ public class WorkoutExecutionService {
 
     public List<TodayWorkout> workouts(LocalDate date) {
         UUID user = CurrentUser.id();
+        plans.activateDuePlan(user);
         if(date==null||date.isBefore(LocalDate.now().minusDays(7))||date.isAfter(LocalDate.now().plusDays(14))) throw bad("INVALID_WORKOUT_DATE","Consulta una fecha entre los últimos 7 y los próximos 14 días");
         return db.query("""
             SELECT p.id,p.name,p.version,d.id,d.session_name,d.day_name,d.week_number,d.day_number,
