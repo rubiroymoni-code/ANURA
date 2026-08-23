@@ -200,7 +200,7 @@ export const workoutApi = {
   updateSet:(session:string,exercise:string,set:string,body:object)=>request<WorkoutSet>(`/workout-sessions/${session}/exercises/${exercise}/sets/${set}`,{method:"PATCH",body:JSON.stringify(body)}),
   deleteSet:(session:string,exercise:string,set:string)=>request<void>(`/workout-sessions/${session}/exercises/${exercise}/sets/${set}`,{method:"DELETE"}),
   finishExercise:(session:string,exercise:string)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises/${exercise}/complete`,{method:"POST"}),
-  recordActivity:(session:string,exercise:string,body:{name:string;minutes:number;calories:number;notes?:string})=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises/${exercise}/activity`,{method:"POST",body:JSON.stringify(body)}),
+  recordActivity:async(session:string,exercise:string,body:{name:string;minutes:number;calories:number;notes?:string})=>{const activity=await request<WorkoutExercise>(`/workout-sessions/${session}/exercises/${exercise}/activity`,{method:"POST",body:JSON.stringify(body)});await request<WorkoutSession>(`/workout-sessions/${session}/complete`,{method:"POST",body:JSON.stringify({notes:`Sesión completada con ${body.name}.`})});return activity},
   pain:(session:string,exercise:string,body:object)=>request<WorkoutExercise>(`/workout-sessions/${session}/exercises/${exercise}/pain`,{method:"PATCH",body:JSON.stringify(body)}),
   exercises:()=>request<Array<{id:string;name:string;muscleGroup?:string;equipment?:string}>>("/exercises"),
   createExercise:(body:{name:string;muscleGroup:string})=>request<{id:string;name:string;muscleGroup?:string;equipment?:string}>("/exercises",{method:"POST",body:JSON.stringify(body)}),
