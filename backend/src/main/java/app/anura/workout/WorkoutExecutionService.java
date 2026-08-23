@@ -81,6 +81,7 @@ public class WorkoutExecutionService {
     public List<TodayWorkout> workouts(LocalDate date) {
         UUID user = CurrentUser.id();
         activateDuePlan(user);
+        if(date!=null) db.update("UPDATE workout_session s SET status='COMPLETED',completed_at=COALESCE(s.completed_at,CURRENT_TIMESTAMP),last_activity_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP,version=version+1,adherence_percent=(SELECT CASE WHEN COUNT(*)=0 THEN 100 ELSE ROUND(100.0*COUNT(*) FILTER(WHERE completed_at IS NOT NULL)/COUNT(*))::integer END FROM exercise_performance WHERE workout_session_id=s.id) WHERE s.user_id=? AND s.planned_date=? AND s.status IN ('IN_PROGRESS','PAUSED') AND EXISTS(SELECT 1 FROM exercise_performance ep WHERE ep.workout_session_id=s.id AND ep.activity_name IS NOT NULL AND ep.completed_at IS NOT NULL)",user,date);
         if(date==null||date.isBefore(LocalDate.now().minusDays(7))||date.isAfter(LocalDate.now().plusDays(14))) throw bad("INVALID_WORKOUT_DATE","Consulta una fecha entre los últimos 7 y los próximos 14 días");
         return db.query("""
             SELECT p.id,p.name,p.version,d.id,d.session_name,d.day_name,d.week_number,d.day_number,
@@ -326,14 +327,14 @@ public class WorkoutExecutionService {
     private void assertEditable(UUID session){
         SessionHeader header=view(session).header();
         if(List.of("IN_PROGRESS","PAUSED").contains(header.status())) return;
-        if("COMPLETED".equals(header.status())) return;
+        if(List.of("COMPLETED","ABANDONED").contains(header.status())) return;
         throw conflict("SESSION_NOT_EDITABLE","La sesión está cerrada");
     }
     private void assertExercise(UUID session,UUID exercise){assertEditable(session);if(db.queryForObject("SELECT count(*) FROM exercise_performance WHERE id=? AND workout_session_id=?",Integer.class,exercise,session)==0)throw notFound();}
     private void validateSet(SetRequest r){if(r.weight()!=null&&r.weight().signum()<0)throw bad("INVALID_WEIGHT","El peso no puede ser negativo");if(r.repetitions()!=null&&r.repetitions()<0)throw bad("INVALID_REPETITIONS","Las repeticiones no pueden ser negativas");validateDecimal(r.rir(),0,"RIR");validateDecimal(r.rpe(),1,"RPE");validateLevel(r.painLevel(),0,"dolor");}
     private void validateDecimal(BigDecimal n,int min,String field){if(n!=null&&(n.compareTo(BigDecimal.valueOf(min))<0||n.compareTo(BigDecimal.TEN)>0))throw bad("INVALID_"+field,"Valor de "+field+" fuera de rango");}
     private void validateLevel(Number n,int min,String field){if(n!=null&&(n.doubleValue()<min||n.doubleValue()>10))throw bad("INVALID_LEVEL","Valor de "+field+" fuera de rango");}
-    private void touch(UUID session){db.update("UPDATE workout_session SET last_activity_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP,version=version+1 WHERE id=?",session);}
+    private void touch(UUID session){db.update("UPDATE workout_session SET status=CASE WHEN status='ABANDONED' THEN 'COMPLETED' ELSE status END,completed_at=CASE WHEN status='ABANDONED' THEN CURRENT_TIMESTAMP ELSE completed_at END,last_activity_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP,version=version+1,adherence_percent=CASE WHEN status='ABANDONED' THEN (SELECT CASE WHEN COUNT(*)=0 THEN 100 ELSE ROUND(100.0*COUNT(*) FILTER(WHERE completed_at IS NOT NULL)/COUNT(*))::integer END FROM exercise_performance WHERE workout_session_id=?) ELSE adherence_percent END WHERE id=?",session,session);}
     private void detectRecords(UUID session){
         insertRecord(session,"MAX_WEIGHT","sp.weight","sp.weight IS NOT NULL");
         insertRecord(session,"MAX_VOLUME","sp.weight*sp.repetitions","sp.weight IS NOT NULL AND sp.repetitions IS NOT NULL");
