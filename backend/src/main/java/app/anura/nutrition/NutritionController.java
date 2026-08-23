@@ -337,7 +337,7 @@ public class NutritionController {
   List<Map<String, Object>> shopping() {
     return db.queryForList(
         "SELECT DISTINCT s.id,s.nutrition_plan_id,s.week_number,s.status,s.manually_modified,s.created_at,p.name plan_name,p.version plan_version FROM shopping_list s JOIN"
-            + " household_member m ON m.household_id=s.household_id JOIN nutrition_plan p ON p.id=s.nutrition_plan_id AND p.status='ACTIVE' WHERE m.user_id=? ORDER BY"
+            + " household_member m ON m.household_id=s.household_id JOIN nutrition_plan p ON p.id=s.nutrition_plan_id WHERE m.user_id=? ORDER BY"
             + " s.created_at DESC",
         CurrentUser.id());
   }
