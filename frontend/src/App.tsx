@@ -225,7 +225,8 @@ export function App() {
   }[heroState];
   const heroMessage=heroMessages[Math.floor(heroMessageIndex/heroStates.length)%heroMessages.length];
   const activeNutritionPlan=nutritionPlans.find(plan=>plan.status==="ACTIVE");
-  const nutritionExpiry=planExpiry(activeNutritionPlan?.valid_until);
+  const nutritionReplacementReady=Boolean(activeNutritionPlan?.valid_until&&nutritionPlans.some(plan=>plan.id!==activeNutritionPlan.id&&plan.status==="DRAFT"&&Boolean(plan.valid_from)&&new Date(`${plan.valid_from}T00:00:00`).getTime()<=new Date(`${activeNutritionPlan.valid_until}T00:00:00`).getTime()+86400000));
+  const nutritionExpiry=planExpiry(activeNutritionPlan?.valid_until,nutritionReplacementReady);
   return (
     <main className="shell">
       <header>
@@ -393,7 +394,7 @@ export function App() {
   );
 }
 
-function planExpiry(value?:string){if(!value)return{urgent:false,expired:false,message:""};const end=new Date(`${value}T23:59:59`),now=new Date(),days=Math.ceil((end.getTime()-now.getTime())/86400000);return{urgent:days<=1,expired:days<0,message:days<0?"Necesitas subir una nueva versión.":days===0?"Caduca hoy.":"Caduca mañana."}}
+function planExpiry(value?:string,replacementReady=false){if(!value||replacementReady)return{urgent:false,expired:false,message:""};const end=new Date(`${value}T23:59:59`),now=new Date(),days=Math.ceil((end.getTime()-now.getTime())/86400000);return{urgent:days<=1,expired:days<0,message:days<0?"Necesitas subir una nueva versión.":days===0?"Caduca hoy.":"Caduca mañana."}}
 
 function GoalVision({goals,onAdd}:{goals:Entry[];onAdd:()=>void}){
  const active=goals[0];
