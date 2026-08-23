@@ -28,6 +28,14 @@ public class NutritionPlanExpiryEmailService {
       LEFT JOIN nutrition_plan_expiry_notice notice ON notice.plan_id=p.id AND notice.user_id=u.id
       WHERE p.status='ACTIVE' AND p.valid_until IS NOT NULL
         AND p.valid_until<=CURRENT_DATE+1 AND notice.plan_id IS NULL
+        AND NOT EXISTS(
+          SELECT 1 FROM nutrition_plan next
+          WHERE next.id<>p.id AND next.status IN ('DRAFT','ACTIVE')
+            AND next.valid_from IS NOT NULL AND next.valid_from<=p.valid_until+1
+            AND (next.valid_until IS NULL OR next.valid_until>=p.valid_until+1)
+            AND ((p.household_id IS NOT NULL AND next.household_id=p.household_id)
+              OR (p.household_id IS NULL AND next.owner_id=p.owner_id))
+        )
         AND COALESCE(pref.reminder_email_enabled,TRUE)=TRUE
         AND COALESCE(reminder_settings.nutrition_plan_email,TRUE)=TRUE
       """;
