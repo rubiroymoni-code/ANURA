@@ -89,7 +89,7 @@ public class WorkoutExecutionService {
             FROM workout_plan p JOIN workout_plan_day d ON d.workout_plan_id=p.id
             LEFT JOIN planned_exercise pe ON pe.workout_plan_day_id=d.id
             WHERE p.user_id=? AND p.status='ACTIVE'
-            AND NOT EXISTS(SELECT 1 FROM workout_session s WHERE s.user_id=p.user_id AND s.workout_plan_day_id=d.id AND s.planned_date=? AND s.status IN ('COMPLETED','ABANDONED') AND s.deleted_at IS NULL)
+            AND NOT EXISTS(SELECT 1 FROM workout_session s WHERE s.user_id=p.user_id AND s.planned_date=? AND s.status IN ('COMPLETED','ABANDONED') AND s.deleted_at IS NULL AND (s.workout_plan_day_id=d.id OR (s.session_name=d.session_name AND EXISTS(SELECT 1 FROM exercise_performance activity WHERE activity.workout_session_id=s.id AND activity.activity_name IS NOT NULL AND activity.completed_at IS NOT NULL))))
             AND (
               EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=?)
               OR (
