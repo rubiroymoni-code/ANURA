@@ -168,10 +168,19 @@ function WorkoutManagement({plans,onImport,refresh,onOpenPlan}:{plans:WorkoutPla
  const active=plans.find(plan=>plan.status==="ACTIVE"),drafts=plans.filter(plan=>plan.status==="DRAFT"),past=plans.filter(plan=>plan.status!=="ACTIVE"&&plan.status!=="DRAFT");
  const status=(plan:WorkoutPlan)=>plan.status==="ACTIVE"?"Plan actual":plan.status==="DRAFT"?"Próximo plan":"Plan archivado";
  const PlanCard=({plan}:{plan:WorkoutPlan})=>{
+  const activate=async()=>{await workoutApi.activate(plan.id);await refresh()};
   const remove=async()=>{if(!confirm("¿Eliminar este plan de entrenamiento? Las sesiones realizadas conservarán su histórico."))return;await workoutApi.deletePlan(plan.id);await refresh()};
-  return <article><button className="managed-plan-open" onClick={()=>void onOpenPlan(plan.id)}><span><small>{status(plan)}</small><b>{plan.name}</b><em>Versión {plan.version}{plan.validFrom?` · Desde ${plan.validFrom}`:""}{plan.validUntil?` · Hasta ${plan.validUntil}`:""}</em></span></button><div className="managed-plan-actions">{plan.status!=="ACTIVE"&&<button className="managed-plan-activate" onClick={async()=>{await workoutApi.activate(plan.id);await refresh()}}>Activar</button>}<button className="managed-plan-delete" aria-label={`Eliminar ${plan.name}`} onClick={()=>void remove()}><Trash2/><span>Eliminar</span></button></div></article>
+  return <article><button className="managed-plan-open" onClick={()=>void onOpenPlan(plan.id)}><span><small>{status(plan)}</small><b>{plan.name}</b><em>Versión {plan.version}{plan.validFrom?` · Desde ${plan.validFrom}`:""}{plan.validUntil?` · Hasta ${plan.validUntil}`:""}</em></span></button><div className="managed-plan-actions">{plan.status!=="ACTIVE"?<button className="managed-plan-activate" onClick={()=>void activate()}>Activar</button>:null}<button className="managed-plan-delete" aria-label={`Eliminar ${plan.name}`} onClick={()=>void remove()}><Trash2/><span>Eliminar</span></button></div></article>
  };
  return <div className="workout-management plan-management"><button className="workout-import-action" onClick={onImport}><FileUp/><span><b>Importar entrenamiento</b><small>Sube una nueva planificación o versión</small></span></button><section className="managed-plan-section"><header><small>PLAN ACTUAL</small><b>Lo que se aplica hoy</b></header>{active?<PlanCard plan={active}/>:<p className="managed-plan-empty">No hay un plan activo.</p>}</section>{drafts.length>0&&<section className="managed-plan-section"><header><small>PRÓXIMO PLAN</small><b>Preparado para activarse</b></header>{drafts.map(plan=><PlanCard key={plan.id} plan={plan}/>)}</section>}{past.length>0&&<details className="managed-plan-history"><summary>Historial de planes ({past.length})</summary><div>{past.map(plan=><PlanCard key={plan.id} plan={plan}/>)}</div></details>}</div>
 }
-function DurationEditor({session,onSaved}:{session:WorkoutSession;onSaved:(session:WorkoutSession)=>void}){const minutes=Math.round((session.header.durationSeconds||45*60)/60);return <button className="secondary-action duration-editor" onClick={async()=>{const input=prompt("Duración real en minutos",String(minutes));const value=Number(input);if(Number.isFinite(value)&&value>0)onSaved(await workoutApi.updateDuration(session.header.id,Math.round(value*60))}}>Editar duración ({minutes} min)</button>}
+function DurationEditor({session,onSaved}:{session:WorkoutSession;onSaved:(session:WorkoutSession)=>void}){
+ const minutes=Math.round((session.header.durationSeconds||45*60)/60);
+ const edit=async()=>{
+  const input=prompt("Duración real en minutos",String(minutes));
+  const value=Number(input);
+  if(Number.isFinite(value)&&value>0)onSaved(await workoutApi.updateDuration(session.header.id,Math.round(value*60)));
+ };
+ return <button className="secondary-action duration-editor" onClick={()=>void edit()}>Editar duración ({minutes} min)</button>
+}
 const formatTime=(seconds:number)=>`${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`;
