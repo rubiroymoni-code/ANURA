@@ -34,13 +34,13 @@ import { NutritionPreferencesPanel } from "./NutritionPreferencesPanel";
 import { TravelModePanel } from "./TravelModePanel";
 
 const nutritionPlanStatusLabel:Record<string,string>={ACTIVE:"Activo",SUPERSEDED:"Archivado",DRAFT:"Borrador"};
-type NutritionSection="home"|"cook"|"preferences"|"household"|"import"|"shopping"|"supplements"|"travel"|"plan"|"recipe";
+type NutritionSection="home"|"cook"|"preferences"|"household"|"import"|"shopping"|"supplements"|"travel"|"plan"|"recipe"|"manage";
 export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="home",initialRecipeMeal,onInitialRecipeOpened }: { onClose: () => void;onRegisterMeal?:(meal:TodayMeal)=>void;onAddMeal?:()=>void;initialSection?:NutritionSection;initialRecipeMeal?:TodayMeal|null;onInitialRecipeOpened?:()=>void }) {
   const [section, setSection] = useState<NutritionSection>(initialSection);
   const [sectionHistory,setSectionHistory]=useState<NutritionSection[]>([]);
   const navigate=(next:NutritionSection)=>{if(next===section)return;setSectionHistory(history=>[...history,section]);setSection(next)};
   const goBack=()=>{const previous=sectionHistory.at(-1)||"home";setSectionHistory(history=>history.slice(0,-1));setSection(previous)};
-  const previousSection=sectionHistory.at(-1),sectionName=(value?:NutritionSection)=>({home:"Hoy",cook:"Cocina",preferences:"Preferencias",household:"Unidad doméstica",import:"Importación",shopping:"Compra",supplements:"Suplementos",travel:"Modo viaje",plan:"Plan",recipe:"Receta"} as Record<NutritionSection,string>)[value||"home"];
+  const previousSection=sectionHistory.at(-1),sectionName=(value?:NutritionSection)=>({home:"Hoy",cook:"Cocina",preferences:"Preferencias",household:"Unidad doméstica",import:"Importación",shopping:"Compra",supplements:"Suplementos",travel:"Modo viaje",plan:"Plan",recipe:"Receta",manage:"Planes y gestión"} as Record<NutritionSection,string>)[value||"home"];
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<string | null>(null);
   const [selectedMeal,setSelectedMeal]=useState<string|null>(null);
@@ -113,14 +113,16 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
                     ? "Modo viaje"
                       : section === "plan"
                         ? "Plan nutricional"
-                        : "Receta"}
+                        : section === "manage"
+                          ? "Planes y gestión"
+                          : "Receta"}
             </h2>
           </div>
           <button onClick={onClose}>
             <X />
           </button>
         </div>
-        <nav className="nutrition-primary-nav nutrition-primary-nav-four"><button className={section==="home"?"active":""} onClick={()=>navigate("home")}><Utensils/>Hoy</button><button className={section==="cook"||section==="recipe"?"active":""} onClick={()=>navigate("cook")}><ChefHat/>Cocina</button><button className={section==="shopping"?"active":""} onClick={()=>navigate("shopping")}><ShoppingBasket/>Compra</button><button className={section==="supplements"?"active":""} onClick={()=>navigate("supplements")}><Pill/>Suplementos</button></nav>
+        <nav className="nutrition-primary-nav"><button className={section==="home"?"active":""} onClick={()=>navigate("home")}><Utensils/>Hoy</button><button className={section==="cook"||section==="recipe"?"active":""} onClick={()=>navigate("cook")}><ChefHat/>Cocina</button><button className={section==="shopping"?"active":""} onClick={()=>navigate("shopping")}><ShoppingBasket/>Compra</button><button className={section==="supplements"?"active":""} onClick={()=>navigate("supplements")}><Pill/>Suplementos</button><button className={section==="manage"?"active":""} onClick={()=>navigate("manage")}><FileUp/>Gestión</button></nav>
         <div className="nutrition-hub-content" onClickCapture={(event)=>{const target=(event.target as HTMLElement).closest(".nutrition-today .today-recipe-link");if(!target||!onRegisterMeal)return;event.preventDefault();event.stopPropagation();const buttons=Array.from(event.currentTarget.querySelectorAll(".nutrition-today .today-recipe-link"));const meal=todayMeals[buttons.indexOf(target as HTMLButtonElement)];if(meal)onRegisterMeal({...meal,meal_date:mealDate})}}>
         {loadError && <div className="error" role="alert">{loadError}</div>}
         {expiry.urgent&&<section className="nutrition-expiry-warning" role="alert"><CalendarDays/><span><b>{expiry.expired?"Plan caducado":"Actualiza tu plan"}</b><small>{expiry.message} Genera el prompt con tu progreso e importa la siguiente versión para mantener comidas, macros y compra al día.</small></span></section>}
@@ -128,30 +130,17 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
           <>
             {dashboard&&<section className={`nutrition-overview ${balanceExpanded?"expanded":""}`}><button className="nutrition-overview-summary" onClick={()=>setBalanceExpanded(value=>!value)}><span><small>BALANCE DE HOY</small><b>{Number(dashboard.consumed.calories||0).toFixed(0)} / {Number(dashboard.target.calories||dashboard.planned.calories||0).toFixed(0)} kcal</b><em>{activePlan?`${activePlan.name} · versión ${activePlan.version}`:"Sin plan activo"}</em></span><strong>{Math.round(Number(dashboard.target.calories||dashboard.planned.calories||0)?Number(dashboard.consumed.calories||0)/Number(dashboard.target.calories||dashboard.planned.calories||1)*100:0)}%</strong><ChevronDown/></button>{balanceExpanded&&<div className="nutrition-overview-detail"><NutritionBalance data={dashboard}/></div>}</section>}
             <section className="nutrition-today"><div><small>{mealDate===new Date().toLocaleDateString("en-CA")?"HOY":"OTRO DÍA"}</small><h3>Lo que te toca comer</h3><p>También puedes completar una comida pendiente de un día anterior.</p><label className="meal-day-picker">Ver día<input type="date" value={mealDate} max={new Date().toLocaleDateString("en-CA")} onChange={event=>{setMealDate(event.target.value);void reloadMeals(event.target.value);void nutritionApi.travelToday(event.target.value).then(setTravelToday)}}/></label></div>{travelToday.id&&<article className="travel-today-card"><Luggage/><span><small>{travelToday.title} · {travelToday.plan_label||"Día flexible"}</small><b>{travelToday.guidance||"Come con flexibilidad y registra solo lo que te resulte útil."}</b><em>No genera compra ni penaliza la adherencia.</em></span></article>}{todayMeals.length?todayMeals.map(meal=><TodayNutritionCard key={meal.planned_meal_id} meal={meal} open={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);navigate("recipe")}}} toggle={async()=>{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id,mealDate);else await nutritionApi.undoToday(meal.planned_meal_id,mealDate);await reloadMeals();if(mealDate===new Date().toLocaleDateString("en-CA"))setDashboard(await nutritionApi.dashboard())}}/>):!travelToday.id&&<p>No hay comidas asignadas para ese día en el plan activo.</p>}{onAddMeal&&<button className="nutrition-add-meal" onClick={onAddMeal}><Plus/>Registrar otra comida</button>}</section>
-            <details className="nutrition-tools"><summary>Gestión y configuración</summary><div className="nutrition-menu">
-              <button onClick={() => navigate("household")}>
-                <Users />
-                <b>Mi unidad doméstica</b>
-                <span>
-                  {households[0]?.name || "Crear o aceptar invitación"}
-                </span>
-              </button>
-              <button onClick={() => navigate("import")}>
-                <FileUp />
-                <b>Importar dieta</b>
-                <span>Individual, compartida o recetas</span>
-              </button>
-              <button onClick={() => navigate("preferences")}>
-                <SlidersHorizontal />
-                <b>Preferencias alimentarias</b>
-                <span>Gustos, exclusiones y planificación</span>
-              </button>
-              <button onClick={() => navigate("travel")}><Luggage/><b>Modo viaje</b><span>Fechas flexibles, criterios y seguimiento</span></button>
-              {plans.filter(p=>p.status==="ACTIVE"||p.status==="DRAFT").map(p=><button key={p.id} onClick={()=>{setSelectedPlan(p.id);navigate("plan")}}><CalendarDays/><b>{p.name}</b><span>Versión {p.version} · {p.status==="DRAFT"?"Próximo plan":nutritionPlanStatusLabel[p.status]||p.status}</span></button>)}
-              {plans.some(p=>p.status!=="ACTIVE"&&p.status!=="DRAFT")&&<details className="nutrition-plan-history"><summary>Historial de planes ({plans.filter(p=>p.status!=="ACTIVE"&&p.status!=="DRAFT").length})</summary><div>{plans.filter(p=>p.status!=="ACTIVE"&&p.status!=="DRAFT").map(p=><button key={p.id} onClick={()=>{setSelectedPlan(p.id);navigate("plan")}}><CalendarDays/><b>{p.name}</b><span>Versión {p.version} · {nutritionPlanStatusLabel[p.status]||p.status}</span></button>)}</div></details>}
-            </div></details>
           </>
         )}
+        {section === "manage" && <div className="nutrition-tools plan-management"><div className="nutrition-menu">
+          <button className="workout-import-action" onClick={() => navigate("import")}><FileUp/><span><b>Importar dieta</b><small>Sube una nueva planificación o versión</small></span></button>
+          <NutritionPlanManagement plans={plans} open={id=>{setSelectedPlan(id);navigate("plan")}} refresh={async()=>setPlans(await nutritionApi.plans())}/>
+          <section className="managed-plan-section managed-settings-section"><header><small>CONFIGURACIÓN</small><b>Preferencias y hogar</b></header><div className="nutrition-menu">
+            <button onClick={() => navigate("household")}><Users/><b>Mi unidad doméstica</b><span>{households[0]?.name || "Crear o aceptar invitación"}</span></button>
+            <button onClick={() => navigate("preferences")}><SlidersHorizontal/><b>Preferencias alimentarias</b><span>Gustos, exclusiones y planificación</span></button>
+            <button onClick={() => navigate("travel")}><Luggage/><b>Modo viaje</b><span>Fechas flexibles, criterios y seguimiento</span></button>
+          </div></section>
+        </div></div>}
         {section === "household" && (
           <HouseholdView
             households={households}
@@ -180,6 +169,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
 }
 
 function nutritionPlanExpiry(value?:string,replacementReady=false){if(!value||replacementReady)return{urgent:false,expired:false,message:""};const days=Math.ceil((new Date(`${value}T23:59:59`).getTime()-Date.now())/86400000);return{urgent:days<=1,expired:days<0,message:days<0?"El plan ya ha terminado.":days===0?"El plan termina hoy.":"Al plan le queda un día."}}
+function NutritionPlanManagement({plans,open,refresh}:{plans:Array<{id:string;name:string;version:number;status:string;valid_from?:string;valid_until?:string}>;open:(id:string)=>void;refresh:()=>Promise<void>}){const active=plans.find(plan=>plan.status==="ACTIVE"),drafts=plans.filter(plan=>plan.status==="DRAFT"),past=plans.filter(plan=>plan.status!=="ACTIVE"&&plan.status!=="DRAFT");const PlanCard=({plan}:{plan:(typeof plans)[number]})=><article><button className="managed-plan-open" onClick={()=>open(plan.id)}><span><small>{plan.status==="ACTIVE"?"Plan actual":plan.status==="DRAFT"?"Próximo plan":"Plan archivado"}</small><b>{plan.name}</b><em>Versión {plan.version}{plan.valid_from?` · Desde ${plan.valid_from}`:""}{plan.valid_until?` · Hasta ${plan.valid_until}`:""}</em></span></button><div className="managed-plan-actions">{plan.status!=="ACTIVE"&&<button className="managed-plan-activate" onClick={async()=>{await nutritionApi.activate(plan.id);await refresh()}}>Activar</button>}<button className="managed-plan-delete" aria-label={`Eliminar ${plan.name}`} onClick={async()=>{if(confirm("¿Eliminar este plan nutricional? Se borrarán sus días y comidas planificadas. Esta acción no se puede deshacer.")){await nutritionApi.deletePlan(plan.id);await refresh()}}><Trash2/><span>Eliminar</span></button></div></article>;return <><section className="managed-plan-section"><header><small>PLAN ACTUAL</small><b>Lo que se aplica hoy</b></header>{active?<PlanCard plan={active}/>:<p className="managed-plan-empty">No hay un plan activo.</p>}</section>{drafts.length>0&&<section className="managed-plan-section"><header><small>PRÓXIMO PLAN</small><b>Preparado para activarse</b></header>{drafts.map(plan=><PlanCard key={plan.id} plan={plan}/>)}</section>}{past.length>0&&<details className="managed-plan-history"><summary>Historial de planes ({past.length})</summary><div>{past.map(plan=><PlanCard key={plan.id} plan={plan}/>)}</div></details>}</>}
 function TodayNutritionCard({meal,open,toggle}:{meal:TodayMeal;open:()=>void;toggle:()=>Promise<void>}){const substituted=meal.status==="SUBSTITUTED",plannedCalories=Number(meal.planned_calories??0),fit=substituted?substitutionFit(meal):"";return <article className={`${meal.status!=="PENDING"?"completed":""} ${substituted?`substituted substitution-${fit}`:""}`}><button className="today-recipe-link" onClick={open}><small>{meal.meal_type}{substituted?` · HECHA · ${fit==="aligned"?"MUY AJUSTADA":fit==="close"?"AJUSTADA":"DIFERENTE AL PLAN"}`:""}</small>{substituted?<><b>Sustituido por {meal.custom_name||"otra comida"}</b><em className="actual-meal-macros">Real: {Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}{meal.actual_portion?` · ${meal.actual_portion}`:""}</em><span className="planned-meal-reference">Previsto: {meal.recipe||meal.meal_name} · {plannedCalories.toFixed(0)} kcal · diferencia {signedCalories(Number(meal.calories||0)-plannedCalories)}</span></>:<><b>{meal.recipe||meal.meal_name}</b><em>{Number(meal.calories||0).toFixed(0)} kcal · P {Number(meal.protein||0).toFixed(0)} · C {Number(meal.carbohydrates||0).toFixed(0)} · G {Number(meal.fat||0).toFixed(0)}</em></>}</button><button aria-label={meal.status==="PENDING"?`Completar ${meal.meal_name}`:`Deshacer ${meal.meal_name}`} title={meal.status==="PENDING"?"Marcar como hecha":"Deshacer registro"} onClick={()=>void toggle()}>{meal.status!=="PENDING"?"✓":"○"}</button></article>}
 function substitutionFit(meal:TodayMeal){const deviation=(actual:number,planned:number)=>planned>0?Math.abs(actual-planned)/planned:actual>0?1:0,kcal=deviation(Number(meal.calories||0),Number(meal.planned_calories||0)),macros=[deviation(Number(meal.protein||0),Number(meal.planned_protein||0)),deviation(Number(meal.carbohydrates||0),Number(meal.planned_carbohydrates||0)),deviation(Number(meal.fat||0),Number(meal.planned_fat||0))],macro=Math.max(...macros);if(kcal<=.15&&macro<=.25)return"aligned";if(kcal<=.3&&macro<=.45)return"close";return"different"}
 function signedCalories(value:number){return `${value>0?"+":""}${value.toFixed(0)} kcal`}

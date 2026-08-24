@@ -103,7 +103,7 @@ export const api = {
   savePushSubscription:(data:{endpoint:string;p256dh:string;auth:string;deviceName:string})=>request<{subscribed:boolean}>("/reminders/push/subscriptions",{method:"POST",body:JSON.stringify(data)}),
   deletePushSubscription:(endpoint:string)=>request<void>("/reminders/push/subscriptions",{method:"DELETE",body:JSON.stringify({endpoint})}),
   testPush:()=>request<void>("/reminders/push/test",{method:"POST"}),
-  scheduleRestPush:(timerId:string,endAt:string)=>request<void>("/reminders/push/rest-timers",{method:"POST",body:JSON.stringify({timerId,endAt})}),
+  scheduleRestPush:(timerId:string,endAt:string,sessionId:string)=>request<void>("/reminders/push/rest-timers",{method:"POST",body:JSON.stringify({timerId,endAt,sessionId})}),
   cancelRestPush:(timerId:string)=>request<void>(`/reminders/push/rest-timers/${timerId}`,{method:"DELETE"}),
   saveAvatar:(avatarUrl:string)=>request<void>("/profile/avatar",{method:"PATCH",body:JSON.stringify({avatarUrl})}),
 };
