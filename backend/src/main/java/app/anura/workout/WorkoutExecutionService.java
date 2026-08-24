@@ -181,7 +181,7 @@ public class WorkoutExecutionService {
     public List<SessionSummary> history(int page,int size) {
         int safe=Math.min(Math.max(size,1),50), offset=Math.max(page,0)*safe;
         return db.query("""
-            SELECT s.id,s.session_name,s.planned_date,s.status,s.workout_plan_day_id,s.started_at,s.completed_at,s.duration_seconds,s.global_rpe,
+            SELECT s.id,s.session_name,s.planned_date,s.status,s.workout_plan_day_id,s.started_at,s.completed_at,COALESCE(s.duration_seconds,2700) duration_seconds,s.global_rpe,
               COUNT(DISTINCT ep.id),COUNT(sp.id),COALESCE(SUM(CASE WHEN sp.weight IS NOT NULL AND sp.repetitions IS NOT NULL THEN sp.weight*sp.repetitions ELSE 0 END),0),
               COALESCE((SELECT SUM(activity_calories) FROM exercise_performance activity WHERE activity.workout_session_id=s.id),0)
             FROM workout_session s LEFT JOIN exercise_performance ep ON ep.workout_session_id=s.id LEFT JOIN set_performance sp ON sp.exercise_performance_id=ep.id AND sp.deleted_at IS NULL AND sp.completed
