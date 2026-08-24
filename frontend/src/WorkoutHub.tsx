@@ -1,7 +1,7 @@
 import { useEffect,useMemo,useRef,useState } from "react";
 import { createPortal } from "react-dom";
 import { Activity,ArrowLeft,CalendarDays,Check,ChevronDown,Clock,Copy,Dumbbell,FileUp,History,Pause,Play,Plus,RotateCcw,Search,Signal,SignalZero,Trash2,X } from "lucide-react";
-import { api,bodyProgressApi,workoutApi,type PlannedWorkoutExercise,type TodayWorkout,type WorkoutDayAdjustment,type WorkoutExercise,type WorkoutPlan,type WorkoutSession,type WorkoutSet,type WorkoutSummary } from "./api";
+import { api,bodyProgressApi,trainingApi,workoutApi,type PlannedWorkoutExercise,type TodayWorkout,type WorkoutDayAdjustment,type WorkoutExercise,type WorkoutPlan,type WorkoutSession,type WorkoutSet,type WorkoutSummary } from "./api";
 import { pendingOperations,queueOperation,removeOperations,type OfflineOperation } from "./workoutOffline";
 
 export function WorkoutHub({onClose,onImport,onWorkoutChanged}:{onClose:()=>void;onImport:()=>void;onWorkoutChanged?:()=>void}){
@@ -168,7 +168,7 @@ function WorkoutManagement({plans,onImport,refresh,onOpenPlan}:{plans:WorkoutPla
  const active=plans.find(plan=>plan.status==="ACTIVE"),drafts=plans.filter(plan=>plan.status==="DRAFT"),past=plans.filter(plan=>plan.status!=="ACTIVE"&&plan.status!=="DRAFT");
  const status=(plan:WorkoutPlan)=>plan.status==="ACTIVE"?"Plan actual":plan.status==="DRAFT"?"Próximo plan":"Plan archivado";
  const PlanCard=({plan}:{plan:WorkoutPlan})=>{
-  const activate=async()=>{await workoutApi.activate(plan.id);await refresh()};
+  const activate=async()=>{await trainingApi.activate(plan.id);await refresh()};
   const remove=async()=>{if(!confirm("¿Eliminar este plan de entrenamiento? Las sesiones realizadas conservarán su histórico."))return;await workoutApi.deletePlan(plan.id);await refresh()};
   return <article><button className="managed-plan-open" onClick={()=>void onOpenPlan(plan.id)}><span><small>{status(plan)}</small><b>{plan.name}</b><em>Versión {plan.version}{plan.validFrom?` · Desde ${plan.validFrom}`:""}{plan.validUntil?` · Hasta ${plan.validUntil}`:""}</em></span></button><div className="managed-plan-actions">{plan.status!=="ACTIVE"?<button className="managed-plan-activate" onClick={()=>void activate()}>Activar</button>:null}<button className="managed-plan-delete" aria-label={`Eliminar ${plan.name}`} onClick={()=>void remove()}><Trash2/><span>Eliminar</span></button></div></article>
  };
