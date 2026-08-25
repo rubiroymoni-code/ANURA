@@ -127,7 +127,7 @@ export function App() {
     void Promise.all([workoutApi.today().catch(() => ({ workout: null, adjustment: null })), workoutApi.history().catch(() => [])]).then(([status, sessions]) => {
       setTodayWorkout(status.workout ?? null);
       setTodayWorkoutAdjustment(status.adjustment ?? null);
-      setTodayWorkoutDone(sessions.some((session) => session.date === localDate() && session.status === "COMPLETED"));
+      setTodayWorkoutDone(sessions.some((session) => session.date === localDate() && session.status === "COMPLETED" && !!session.workoutPlanDayId));
     });
   useEffect(() => {
     load();
@@ -147,7 +147,7 @@ export function App() {
       setTodayMeals(meals);
       setTodayWorkout(status.workout ?? null);
       setTodayWorkoutAdjustment(status.adjustment ?? null);
-      setTodayWorkoutDone(sessions.some((session) => session.date === localDate() && session.status === "COMPLETED"));
+      setTodayWorkoutDone(sessions.some((session) => session.date === localDate() && session.status === "COMPLETED" && !!session.workoutPlanDayId));
       setTodaySleep(sleep);
     });
     void nutritionApi.dashboard().then(setNutritionDashboard).catch(()=>setNutritionDashboard(null));
@@ -173,14 +173,15 @@ export function App() {
     tab === "HOME" ? entries : entries.filter((e) => e.type === tab);
   const today = localDate();
   const todayItems = entries.filter((e) => e.entryDate === today);
-  const plannedToday=todayMeals.length+(todayWorkout?1:0)+1;
-  const completedToday=todayMeals.filter(meal=>meal.status!=="PENDING").length+(todayWorkout&&(todayWorkoutDone||todayItems.some(item=>item.type==="WORKOUT"))?1:0)+(todaySleep?1:0);
-  const workoutStatusLabel=todayWorkout?(todayWorkoutDone||todayItems.some(e=>e.type==="WORKOUT")?"Hecho":"Pendiente"):todayWorkoutAdjustment?.status==="MOVED"?`Movido al ${new Date(`${todayWorkoutAdjustment.scheduledDate}T12:00:00`).toLocaleDateString("es",{weekday:"long"})}`:todayWorkoutAdjustment?.status==="SKIPPED"?"No realizado":"Sin plan hoy";
-  const workoutTitle=todayWorkout?.sessionName||todayWorkoutAdjustment?.sessionName||"Sesión libre";
-  const workoutDetail=todayWorkout?`${todayWorkout.exerciseCount} ejercicios · ~${todayWorkout.estimatedMinutes||45} min`:todayWorkoutAdjustment?.status==="MOVED"?"Ya no cuenta en las acciones de hoy":todayWorkoutAdjustment?.status==="SKIPPED"?"Marcado como no realizado hoy":"No hay plan asignado hoy";
+  const recordedWorkout=todayWorkoutDone||(!todayWorkout&&todayItems.some(item=>item.type==="WORKOUT"));
+  const plannedToday=todayMeals.length+(todayWorkout||todayWorkoutDone?1:0)+1;
+  const completedToday=todayMeals.filter(meal=>meal.status!=="PENDING").length+(recordedWorkout?1:0)+(todaySleep?1:0);
+  const workoutStatusLabel=recordedWorkout?"Hecho":todayWorkout?"Pendiente":todayWorkoutAdjustment?.status==="MOVED"?`Movido al ${new Date(`${todayWorkoutAdjustment.scheduledDate}T12:00:00`).toLocaleDateString("es",{weekday:"long"})}`:todayWorkoutAdjustment?.status==="SKIPPED"?"No realizado":"Sin plan hoy";
+  const workoutTitle=todayWorkout?.sessionName||todayWorkoutAdjustment?.sessionName||(todayWorkoutDone?"Entreno realizado":"Sesión libre");
+  const workoutDetail=todayWorkout?`${todayWorkout.exerciseCount} ejercicios · ~${todayWorkout.estimatedMinutes||45} min`:todayWorkoutDone?"Sesión registrada hoy":todayWorkoutAdjustment?.status==="MOVED"?"Ya no cuenta en las acciones de hoy":todayWorkoutAdjustment?.status==="SKIPPED"?"Marcado como no realizado hoy":"No hay plan asignado hoy";
   const dailyPercent=plannedToday?Math.round(completedToday/plannedToday*100):0;
   const firstName=user.displayName.trim().split(/\s+/)[0]||"";
-  const workoutComplete=Boolean(todayWorkout&&(todayWorkoutDone||todayItems.some(item=>item.type==="WORKOUT")));
+  const workoutComplete=recordedWorkout;
   const pendingMeals=todayMeals.filter(meal=>meal.status==="PENDING").length;
   const currentHour=new Date().getHours();
   const mealMoment=(currentHour>=12&&currentHour<16)||(currentHour>=19&&currentHour<23);
@@ -252,7 +253,7 @@ export function App() {
             <div className="daily-plan-grid">
               <div className={`daily-focus workout ${workoutExpanded?"expanded":""}`}>
                 <button className="daily-focus-main" onClick={()=>setWorkoutExpanded(value=>!value)} aria-expanded={workoutExpanded}><span className="daily-focus-icon"><Dumbbell /></span><span><small>ENTRENAMIENTO</small><strong>{workoutTitle}</strong><b>{workoutDetail}</b></span><ChevronDown className={`daily-expand-icon ${workoutExpanded?"open":""}`}/></button>
-                <div className="daily-workout-actions"><button onClick={()=>setWorkoutExpanded(value=>!value)}>{workoutExpanded?"Ocultar entreno":"Desplegar entreno"}<ChevronDown className={workoutExpanded?"open":""}/></button><button onClick={()=>setWorkoutOpen(true)}>{todayWorkoutDone?"Ver sesión":"Entrenar"}</button></div>
+                <div className="daily-workout-actions"><button onClick={()=>setWorkoutExpanded(value=>!value)}>{workoutExpanded?"Ocultar entreno":"Desplegar entreno"}<ChevronDown className={workoutExpanded?"open":""}/></button><button onClick={()=>setWorkoutOpen(true)}>{recordedWorkout?"Ver sesión":"Entrenar"}</button></div>
                 {workoutExpanded&&todayWorkout&&<div className="today-workout-mini">{todayWorkout.exercises.map((exercise,index)=><div key={`${exercise.exerciseId}-${index}`}><i>{index+1}</i><span><b>{exercise.name}</b><small>{exercise.muscleGroup||"Ejercicio"} · {exercise.sets}×{exercise.repsMin}-{exercise.repsMax}{exercise.targetRir!=null?` · RIR ${exercise.targetRir}`:""}</small></span></div>)}</div>}
                 {workoutExpanded&&!todayWorkout&&<p className="daily-workout-empty">{workoutDetail}</p>}
               </div>
@@ -386,7 +387,7 @@ export function App() {
           }}
         />
       )}
-      {importOpen && <TrainingImport onClose={() => setImportOpen(false)} />}
+      {importOpen && <TrainingImport onClose={() => setImportOpen(false)} onImported={refreshWorkoutStatus} />}
       {accountOpen && <AccountModal initialTab={accountInitialTab} user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} onLogout={logout} />}
       {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} initialMealId={selectedPlannedMeal} onClose={() => {setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onBackToMeals={()=>{setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onOpenRecipe={(meal)=>{setRecipeMealToOpen(meal);setMealFlowOpen(false);setSelectedPlannedMeal(null);setNutritionInitialSection("home");setNutritionOpen(true)}} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);setSelectedPlannedMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
       {dayCelebration&&<aside className="day-celebration" role="status" aria-live="polite"><div className="celebration-card"><button className="celebration-close" type="button" onClick={()=>setDayCelebration(false)} aria-label="Cerrar celebración"><X/></button><div className="celebration-copy"><span><Sparkles/> DÍA COMPLETADO</span><h2>Todo hecho.<br/><em>Bien jugado.</em></h2><p>Entreno, comidas y descanso registrados. El día ya es tuyo.</p><div className="celebration-score"><i><Check/>100%</i><small>OBJETIVOS DE HOY</small></div></div><div className="celebration-frog"><div className="celebration-orbit"><i/><i/><i/><i/><i/><i/></div><img src="/assets/anura-frog-celebrating.png" alt="Rana de ANURA celebrando el día completado"/></div><div className="celebration-timer"/></div></aside>}
@@ -402,7 +403,7 @@ function GoalVision({goals,onAdd}:{goals:Entry[];onAdd:()=>void}){
 }
 function goalLabel(value?:string){return ({LOSE_FAT:"Objetivo · Bajar grasa",GAIN_MUSCLE:"Objetivo · Ganar músculo",BODY_RECOMPOSITION:"Objetivo · Recomposición corporal",HEALTH:"Objetivo · Salud y hábitos"} as Record<string,string>)[value||""]||"Completa tus datos iniciales"}
 
-function TrainingImport({ onClose }: { onClose: () => void }) {
+function TrainingImport({ onClose,onImported }: { onClose: () => void;onImported:()=>void }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -515,6 +516,8 @@ function TrainingImport({ onClose }: { onClose: () => void }) {
                   try {
                     const imported = await trainingApi.confirm(preview.importJobId);
                     await trainingApi.activate(imported.planId);
+                    onImported();
+                    window.dispatchEvent(new Event("anura:workout-plan-changed"));
                     setDone(true);
                   } catch (cause) {
                     setError(cause instanceof Error ? cause.message : "No se pudo confirmar la importación");
