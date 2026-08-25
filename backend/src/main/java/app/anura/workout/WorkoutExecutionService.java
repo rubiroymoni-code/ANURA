@@ -89,6 +89,8 @@ public class WorkoutExecutionService {
             FROM workout_plan p JOIN workout_plan_day d ON d.workout_plan_id=p.id
             LEFT JOIN planned_exercise pe ON pe.workout_plan_day_id=d.id
             WHERE p.user_id=? AND p.status='ACTIVE'
+            AND ? >= COALESCE(p.valid_from,p.activated_at::date,p.created_at::date)
+            AND (p.valid_until IS NULL OR ? <= p.valid_until)
             AND NOT EXISTS(SELECT 1 FROM workout_session s WHERE s.user_id=p.user_id AND s.planned_date=? AND s.status IN ('COMPLETED','ABANDONED') AND s.deleted_at IS NULL AND (s.workout_plan_day_id=d.id OR (s.session_name=d.session_name AND EXISTS(SELECT 1 FROM exercise_performance activity WHERE activity.workout_session_id=s.id AND activity.activity_name IS NOT NULL AND activity.completed_at IS NOT NULL))))
             AND (
               EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=?)
@@ -103,7 +105,7 @@ public class WorkoutExecutionService {
             )
             GROUP BY p.id,p.name,p.version,d.id,d.session_name,d.day_name,d.week_number,d.day_number,d.day_order
             ORDER BY CASE WHEN EXISTS(SELECT 1 FROM workout_day_adjustment a WHERE a.user_id=p.user_id AND a.workout_plan_day_id=d.id AND a.status='MOVED' AND a.scheduled_date=?) THEN 0 ELSE 1 END,d.week_number,d.day_order
-            """, (r,n)->new TodayWorkout(r.getObject(1,UUID.class),r.getString(2),r.getInt(3),r.getObject(4,UUID.class),r.getString(5),r.getString(6),r.getInt(7),r.getInt(8),r.getInt(9),r.getInt(10), planned(r.getObject(4,UUID.class))), user,date,date,date.getDayOfWeek().getValue(),date,date.getDayOfWeek().getValue(),date,date);
+            """, (r,n)->new TodayWorkout(r.getObject(1,UUID.class),r.getString(2),r.getInt(3),r.getObject(4,UUID.class),r.getString(5),r.getString(6),r.getInt(7),r.getInt(8),r.getInt(9),r.getInt(10), planned(r.getObject(4,UUID.class))), user,date,date,date,date,date.getDayOfWeek().getValue(),date,date.getDayOfWeek().getValue(),date,date);
     }
 
     @Transactional public TodayWorkout rescheduleToday(LocalDate target,boolean force) {
