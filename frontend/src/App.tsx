@@ -387,7 +387,7 @@ export function App() {
           }}
         />
       )}
-      {importOpen && <TrainingImport onClose={() => setImportOpen(false)} />}
+      {importOpen && <TrainingImport onClose={() => setImportOpen(false)} onImported={refreshWorkoutStatus} />}
       {accountOpen && <AccountModal initialTab={accountInitialTab} user={user} onPreferences={preferences=>{setProfilePreferences(preferences);if(preferences.biological_sex!=="FEMALE"&&tab==="CYCLE")setTab("HOME")}} onAvatar={avatar_url=>setProfilePreferences(current=>({...current,avatar_url}))} onClose={() => setAccountOpen(false)} onLogout={logout} />}
       {mealFlowOpen && <MealFlow meals={todayMeals} editing={editingMeal} initialMealId={selectedPlannedMeal} onClose={() => {setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onBackToMeals={()=>{setMealFlowOpen(false);setSelectedPlannedMeal(null)}} onOpenRecipe={(meal)=>{setRecipeMealToOpen(meal);setMealFlowOpen(false);setSelectedPlannedMeal(null);setNutritionInitialSection("home");setNutritionOpen(true)}} onDone={() => {setMealFlowOpen(false);setEditingMeal(null);setSelectedPlannedMeal(null);load();void nutritionApi.today().then(setTodayMeals)}}/>}
       {dayCelebration&&<aside className="day-celebration" role="status" aria-live="polite"><div className="celebration-card"><button className="celebration-close" type="button" onClick={()=>setDayCelebration(false)} aria-label="Cerrar celebración"><X/></button><div className="celebration-copy"><span><Sparkles/> DÍA COMPLETADO</span><h2>Todo hecho.<br/><em>Bien jugado.</em></h2><p>Entreno, comidas y descanso registrados. El día ya es tuyo.</p><div className="celebration-score"><i><Check/>100%</i><small>OBJETIVOS DE HOY</small></div></div><div className="celebration-frog"><div className="celebration-orbit"><i/><i/><i/><i/><i/><i/></div><img src="/assets/anura-frog-celebrating.png" alt="Rana de ANURA celebrando el día completado"/></div><div className="celebration-timer"/></div></aside>}
@@ -403,7 +403,7 @@ function GoalVision({goals,onAdd}:{goals:Entry[];onAdd:()=>void}){
 }
 function goalLabel(value?:string){return ({LOSE_FAT:"Objetivo · Bajar grasa",GAIN_MUSCLE:"Objetivo · Ganar músculo",BODY_RECOMPOSITION:"Objetivo · Recomposición corporal",HEALTH:"Objetivo · Salud y hábitos"} as Record<string,string>)[value||""]||"Completa tus datos iniciales"}
 
-function TrainingImport({ onClose }: { onClose: () => void }) {
+function TrainingImport({ onClose,onImported }: { onClose: () => void;onImported:()=>void }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -516,6 +516,8 @@ function TrainingImport({ onClose }: { onClose: () => void }) {
                   try {
                     const imported = await trainingApi.confirm(preview.importJobId);
                     await trainingApi.activate(imported.planId);
+                    onImported();
+                    window.dispatchEvent(new Event("anura:workout-plan-changed"));
                     setDone(true);
                   } catch (cause) {
                     setError(cause instanceof Error ? cause.message : "No se pudo confirmar la importación");
