@@ -87,14 +87,14 @@ public class NutritionController {
             + " CASE WHEN cm.status='SKIPPED' THEN 0 ELSE COALESCE(cm.carbohydrates,ump.carbohydrates) END carbohydrates,"
             + " CASE WHEN cm.status='SKIPPED' THEN 0 ELSE COALESCE(cm.fat,ump.fat) END fat,ump.portion_multiplier,"
             + " ump.calories planned_calories,ump.protein planned_protein,ump.carbohydrates planned_carbohydrates,ump.fat planned_fat,"
-            + " COALESCE(cm.status,'PENDING') status,cm.id consumed_meal_id,cm.custom_name,cm.portion actual_portion,cm.notes,cm.completed_at"
+            + " COALESCE(cm.status,'PENDING') status,?::date meal_date,cm.id consumed_meal_id,cm.custom_name,cm.portion actual_portion,cm.notes,cm.adherence_percent,cm.completed_at"
             + " FROM nutrition_plan p LEFT JOIN household_member access ON access.household_id=p.household_id"
             + " JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id"
             + " JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=?"
             + " LEFT JOIN consumed_meal cm ON cm.planned_meal_id=pm.id AND cm.user_id=? AND cm.meal_date=?"
             + " WHERE p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?) AND d.day_number=EXTRACT(ISODOW FROM ?::date)::int AND NOT EXISTS(SELECT 1 FROM nutrition_travel_mode t JOIN household_member tm ON tm.household_id=t.household_id WHERE tm.user_id=? AND t.status='ACTIVE' AND ? BETWEEN t.start_date AND t.end_date)"
             + " ORDER BY pm.meal_order",
-        CurrentUser.id(),CurrentUser.id(),selected,CurrentUser.id(),CurrentUser.id(),selected,CurrentUser.id(),selected);
+        selected,CurrentUser.id(),CurrentUser.id(),selected,CurrentUser.id(),CurrentUser.id(),selected,CurrentUser.id(),selected);
   }
 
   @PostMapping("/today/{mealId}/complete")
@@ -115,7 +115,7 @@ public class NutritionController {
   @Transactional
   Map<String,Object> skipTodayMeal(@PathVariable UUID mealId,@RequestBody(required=false) MealInput input) {
     Map<String,Object> meal=plannedMeal(mealId);
-    return savePlanned(mealId,"SKIPPED",input,meal,null);
+    return savePlanned(mealId,"SKIPPED",input,meal,null,input==null||input.date()==null?LocalDate.now():input.date());
   }
 
   @PostMapping("/today/{mealId}/substitute")
@@ -133,8 +133,8 @@ public class NutritionController {
     validateMealType(input==null?null:input.mealType());
     if(input.name()==null||input.name().isBlank()) throw new ApiException(HttpStatus.BAD_REQUEST,"MEAL_NAME_REQUIRED","Escribe lo que has comido ademas");
     Map<String,Object> meal=plannedMeal(mealId);
-    savePlanned(mealId,"COMPLETED",null,meal,null);
     UUID id=UUID.randomUUID();LocalDate date=input.date()==null?LocalDate.now():input.date();
+    savePlanned(mealId,"COMPLETED",null,meal,null,date);
     db.update("INSERT INTO consumed_meal(id,user_id,meal_date,meal_type,status,custom_name,portion,calories,protein,carbohydrates,fat,notes,completed_at) VALUES(?,?,?,?, 'COMPLETED',?,?,?,?,?,?,?,CURRENT_TIMESTAMP)",id,CurrentUser.id(),date,input.mealType(),input.name().trim(),clean(input.portion()),input.calories(),input.protein(),input.carbohydrates(),input.fat(),clean(input.notes()));
     return consumed(id);
   }
@@ -144,8 +144,9 @@ public class NutritionController {
   Map<String,Object> partialTodayMeal(@PathVariable UUID mealId,@RequestBody PartialMeal input) {
     if(input==null||input.percent()==null||input.percent()<1||input.percent()>99) throw new ApiException(HttpStatus.BAD_REQUEST,"INVALID_ADHERENCE","Indica un porcentaje entre 1 y 99");
     Map<String,Object> meal=plannedMeal(mealId);
-    Map<String,Object> saved=savePlanned(mealId,"PARTIAL",new MealInput(null,null,null,input.portion(),null,null,null,null,input.notes()),meal,null);
-    db.update("UPDATE consumed_meal SET adherence_percent=?,deviation_reason=?,calories=calories*?/100,protein=protein*?/100,carbohydrates=carbohydrates*?/100,fat=fat*?/100 WHERE user_id=? AND planned_meal_id=? AND meal_date=CURRENT_DATE",input.percent(),clean(input.reason()),input.percent(),input.percent(),input.percent(),input.percent(),CurrentUser.id(),mealId);
+    LocalDate date=input.date()==null?LocalDate.now():input.date();
+    Map<String,Object> saved=savePlanned(mealId,"PARTIAL",new MealInput(null,null,null,input.portion(),null,null,null,null,input.notes()),meal,null,date);
+    db.update("UPDATE consumed_meal SET adherence_percent=?,deviation_reason=?,calories=calories*?/100,protein=protein*?/100,carbohydrates=carbohydrates*?/100,fat=fat*?/100 WHERE user_id=? AND planned_meal_id=? AND meal_date=?",input.percent(),clean(input.reason()),input.percent(),input.percent(),input.percent(),input.percent(),CurrentUser.id(),mealId,date);
     return consumed((UUID)saved.get("id"));
   }
 
@@ -224,7 +225,7 @@ public class NutritionController {
   private static String clean(String value){return value==null||value.isBlank()?null:value.trim();}
   record NutritionPreference(String likedFoods,String dislikedFoods,String exclusions,String usualDrinks,String pantryStaples,String cookingNotes,String planningNotes,boolean minimizeWaste,boolean practicalPortions){}
   record MealInput(String mealType,String name,LocalDate date,String portion,java.math.BigDecimal calories,java.math.BigDecimal protein,java.math.BigDecimal carbohydrates,java.math.BigDecimal fat,String notes){}
-  record PartialMeal(Integer percent,String reason,String portion,String notes){}
+  record PartialMeal(Integer percent,String reason,String portion,String notes,LocalDate date){}
 
   @GetMapping("/plans/{id}/week")
   List<Map<String, Object>> week(
