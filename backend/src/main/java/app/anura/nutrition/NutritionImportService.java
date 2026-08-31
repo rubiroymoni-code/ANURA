@@ -206,7 +206,7 @@ public class NutritionImportService {
                     days.size() + 1);
                 return x;
               });
-      String mk = dk + ":" + r.mealOrder;
+      String mk = dk + ":" + r.mealOrder + ":" + r.optionCode;
       UUID meal =
           meals.computeIfAbsent(
               mk,
@@ -215,14 +215,18 @@ public class NutritionImportService {
                 UUID x = UUID.randomUUID();
                 db.update(
                     "INSERT INTO"
-                        + " planned_meal(id,nutrition_plan_day_id,recipe_id,meal_type,meal_name,meal_order)"
-                        + " VALUES(?,?,?,?,?,?)",
+                        + " planned_meal(id,nutrition_plan_day_id,recipe_id,meal_type,meal_name,meal_order,option_group,option_code,option_label,is_default_option)"
+                        + " VALUES(?,?,?,?,?,?,?,?,?,?)",
                     x,
                     day,
                     recipe,
                     r.mealType,
                     r.mealName,
-                    r.mealOrder);
+                    r.mealOrder,
+                    r.optionGroup == null ? "MEAL_" + r.mealOrder : r.optionGroup,
+                    r.optionCode,
+                    r.optionLabel,
+                    r.defaultOption);
                 return x;
               });
       for (var portion : r.portions.entrySet()) {
@@ -456,6 +460,10 @@ public class NutritionImportService {
       int day,
       String dayName,
       int mealOrder,
+      String optionGroup,
+      String optionCode,
+      String optionLabel,
+      boolean defaultOption,
       String mealType,
       String mealName,
       String recipeCode,
@@ -495,6 +503,10 @@ public class NutritionImportService {
           "RECIPES".equals(type) ? 1 : pos(r, "day_number"),
           opt(r, "day_name"),
           "RECIPES".equals(type) ? 1 : pos(r, "meal_order"),
+          opt(r, "option_group"),
+          Optional.ofNullable(opt(r, "option_code")).orElse("DEFAULT"),
+          opt(r, "option_label"),
+          !"false".equalsIgnoreCase(Optional.ofNullable(opt(r, "default_option")).orElse("true")),
           opt(r, "meal_type"),
           opt(r, "meal_name"),
           req(r, "recipe_code"),

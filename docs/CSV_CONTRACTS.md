@@ -31,3 +31,5 @@ Límites configurables: `IMPORT_MAX_FILE_SIZE`, `IMPORT_MAX_ROWS` e `IMPORT_JOB_
 ## Nutrición
 
 Los contratos `dieta_plan_v1`, `dieta_compartida_plan_v1` y `recetas_v1` usan UTF-8 y `;`. Todos siguen preview y confirmación. El compartido acepta dos usuarios en CSV por comodidad, pero se normaliza a una fila por usuario y comida. Los decimales aceptan coma o punto.
+
+Para alternativas opcionales de una misma comida, usa `option_group`, `option_code`, `option_label` y `default_option`. Todas las filas de una receta alternativa comparten grupo y código; por ejemplo `JOSE_COMIDA;HOME;En casa;true` y `JOSE_COMIDA;OUT;Fuera / oficina;false`. ANURA muestra una sola comida y permite escoger la alternativa para esa fecha. Sin estas columnas, el comportamiento es idéntico al contrato anterior.
