@@ -106,17 +106,21 @@ public class NutritionController {
   void selectMealOption(@PathVariable UUID mealId,@RequestBody MealOptionSelection input){
     if(input==null||input.optionCode()==null||input.optionCode().isBlank())throw new ApiException(HttpStatus.BAD_REQUEST,"OPTION_REQUIRED","Selecciona una opción");
     LocalDate date=input.date()==null?LocalDate.now():input.date();
+    UUID selectedUser=input.userId()==null?CurrentUser.id():input.userId();
     Map<String,Object> meal=plannedMeal(mealId);
+    Integer member=db.queryForObject("SELECT COUNT(*) FROM nutrition_plan p JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id WHERE pm.id=? AND (p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?))",Integer.class,mealId,selectedUser,selectedUser);
+    if(member==null||member==0)throw new ApiException(HttpStatus.BAD_REQUEST,"OPTION_USER_NOT_IN_PLAN","Esa persona no forma parte de este plan");
     String group=(String)db.queryForObject("SELECT option_group FROM planned_meal WHERE id=?",String.class,mealId);
-    Integer available=db.queryForObject("SELECT COUNT(*) FROM planned_meal pm JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id WHERE pm.nutrition_plan_day_id=(SELECT nutrition_plan_day_id FROM planned_meal WHERE id=?) AND pm.option_group=? AND pm.option_code=? AND ump.user_id=? AND COALESCE(ump.calories,0)>0",Integer.class,mealId,group,input.optionCode(),CurrentUser.id());
+    Integer available=db.queryForObject("SELECT COUNT(*) FROM planned_meal pm JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id WHERE pm.nutrition_plan_day_id=(SELECT nutrition_plan_day_id FROM planned_meal WHERE id=?) AND pm.option_group=? AND pm.option_code=? AND ump.user_id=? AND COALESCE(ump.calories,0)>0",Integer.class,mealId,group,input.optionCode(),selectedUser);
     if(available==null||available==0)throw new ApiException(HttpStatus.BAD_REQUEST,"OPTION_NOT_AVAILABLE","Esa opción no está disponible para ti");
-    db.update("INSERT INTO meal_option_selection(user_id,meal_date,option_group,option_code) VALUES(?,?,?,?) ON CONFLICT(user_id,meal_date,option_group) DO UPDATE SET option_code=EXCLUDED.option_code",CurrentUser.id(),date,group,input.optionCode());
+    db.update("INSERT INTO meal_option_selection(user_id,meal_date,option_group,option_code) VALUES(?,?,?,?) ON CONFLICT(user_id,meal_date,option_group) DO UPDATE SET option_code=EXCLUDED.option_code",selectedUser,date,group,input.optionCode());
   }
 
   @GetMapping("/today/{mealId}/options")
-  List<Map<String,Object>> mealOptions(@PathVariable UUID mealId){
+  List<Map<String,Object>> mealOptions(@PathVariable UUID mealId,@RequestParam(required=false) UUID userId){
     plannedMeal(mealId);
-    return db.queryForList("SELECT pm.id planned_meal_id,pm.option_code,COALESCE(pm.option_label,pm.option_code) option_label,r.name recipe,ump.calories,ump.protein,ump.carbohydrates,ump.fat FROM planned_meal pm JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? AND COALESCE(ump.calories,0)>0 WHERE pm.nutrition_plan_day_id=(SELECT nutrition_plan_day_id FROM planned_meal WHERE id=?) AND pm.option_group=(SELECT option_group FROM planned_meal WHERE id=?) ORDER BY pm.is_default_option DESC,pm.option_code",CurrentUser.id(),mealId,mealId);
+    UUID selectedUser=userId==null?CurrentUser.id():userId;
+    return db.queryForList("SELECT pm.id planned_meal_id,pm.option_code,COALESCE(pm.option_label,pm.option_code) option_label,r.name recipe,ump.calories,ump.protein,ump.carbohydrates,ump.fat FROM planned_meal pm JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? AND COALESCE(ump.calories,0)>0 WHERE pm.nutrition_plan_day_id=(SELECT nutrition_plan_day_id FROM planned_meal WHERE id=?) AND pm.option_group=(SELECT option_group FROM planned_meal WHERE id=?) ORDER BY pm.is_default_option DESC,pm.option_code",selectedUser,mealId,mealId);
   }
 
   @PostMapping("/today/{mealId}/complete")
@@ -248,19 +252,19 @@ public class NutritionController {
   record NutritionPreference(String likedFoods,String dislikedFoods,String exclusions,String usualDrinks,String pantryStaples,String cookingNotes,String planningNotes,boolean minimizeWaste,boolean practicalPortions){}
   record MealInput(String mealType,String name,LocalDate date,String portion,java.math.BigDecimal calories,java.math.BigDecimal protein,java.math.BigDecimal carbohydrates,java.math.BigDecimal fat,String notes){}
   record PartialMeal(Integer percent,String reason,String portion,String notes,LocalDate date){}
-  record MealOptionSelection(String optionCode,LocalDate date){}
+  record MealOptionSelection(String optionCode,LocalDate date,UUID userId){}
 
   @GetMapping("/plans/{id}/week")
   List<Map<String, Object>> week(
       @PathVariable UUID id, @RequestParam(required=false) Integer week) {
     return db.queryForList(
-        "SELECT pm.id planned_meal_id,d.day_number,d.day_name,pm.meal_type,pm.meal_name,r.name recipe,u.id user_id,u.display_name,"
+        "SELECT pm.id planned_meal_id,d.day_number,d.day_name,(COALESCE(p.valid_from,p.created_at::date)+((d.week_number-1)*7)+(d.day_number-1)) meal_date,pm.meal_type,pm.meal_name,r.name recipe,u.id user_id,u.display_name,pm.option_group,pm.option_code,COALESCE(pm.option_label,pm.option_code) option_label,"
             + " ump.portion_multiplier,COALESCE(ump.quantity,(SELECT SUM(ri.quantity*ump.portion_multiplier) FROM recipe_ingredient ri WHERE ri.recipe_id=r.id)) quantity,ump.calories,ump.protein,ump.carbohydrates,ump.fat,"
             + " CAST(COALESCE((SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',x.quantity,'unit',x.unit) ORDER BY i.name) FROM user_meal_ingredient_portion x JOIN ingredient i ON i.id=x.ingredient_id WHERE x.planned_meal_id=pm.id AND x.user_id=u.id),(SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',ri.quantity*ump.portion_multiplier,'unit',ri.unit) ORDER BY ri.ingredient_order) FROM recipe_ingredient ri JOIN ingredient i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id)) AS TEXT) ingredients FROM"
             + " nutrition_plan_day d JOIN nutrition_plan p ON p.id=d.nutrition_plan_id JOIN planned_meal pm ON"
             + " pm.nutrition_plan_day_id=d.id JOIN recipe r ON r.id=pm.recipe_id JOIN"
             + " user_meal_portion ump ON ump.planned_meal_id=pm.id JOIN app_user u ON"
-            + " u.id=ump.user_id WHERE p.id=? AND d.week_number=COALESCE(?,(SELECT MIN(dx.week_number) FROM nutrition_plan_day dx WHERE dx.nutrition_plan_id=p.id)) AND (p.owner_id=? OR"
+            + " u.id=ump.user_id LEFT JOIN meal_option_selection choice ON choice.user_id=u.id AND choice.meal_date=(COALESCE(p.valid_from,p.created_at::date)+((d.week_number-1)*7)+(d.day_number-1)) AND choice.option_group=pm.option_group WHERE p.id=? AND d.week_number=COALESCE(?,(SELECT MIN(dx.week_number) FROM nutrition_plan_day dx WHERE dx.nutrition_plan_id=p.id)) AND COALESCE(ump.calories,0)>0 AND pm.option_code=COALESCE(choice.option_code,(SELECT fallback.option_code FROM planned_meal fallback WHERE fallback.nutrition_plan_day_id=pm.nutrition_plan_day_id AND fallback.meal_order=pm.meal_order AND fallback.option_group=pm.option_group AND fallback.is_default_option ORDER BY fallback.option_code LIMIT 1)) AND (p.owner_id=? OR"
             + " EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)) ORDER BY d.day_order,pm.meal_order,u.display_name",
         id,
         week,
@@ -499,19 +503,23 @@ public class NutritionController {
             WITH portions AS (
               SELECT i.id,i.name,i.category,uip.unit,uip.quantity
               FROM nutrition_plan_day d
+              JOIN nutrition_plan p ON p.id=d.nutrition_plan_id
               JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id
               JOIN user_meal_ingredient_portion uip ON uip.planned_meal_id=pm.id
               JOIN ingredient i ON i.id=uip.ingredient_id
-              WHERE d.nutrition_plan_id=? AND d.week_number=? AND pm.is_default_option
+              LEFT JOIN meal_option_selection choice ON choice.user_id=uip.user_id AND choice.meal_date=(COALESCE(p.valid_from,p.created_at::date)+((d.week_number-1)*7)+(d.day_number-1)) AND choice.option_group=pm.option_group
+              WHERE d.nutrition_plan_id=? AND d.week_number=? AND pm.option_code=COALESCE(choice.option_code,(SELECT fallback.option_code FROM planned_meal fallback WHERE fallback.nutrition_plan_day_id=pm.nutrition_plan_day_id AND fallback.meal_order=pm.meal_order AND fallback.option_group=pm.option_group AND fallback.is_default_option ORDER BY fallback.option_code LIMIT 1))
                 AND NOT EXISTS (SELECT 1 FROM nutrition_travel_mode t WHERE t.household_id=? AND t.status='ACTIVE' AND t.exclude_from_shopping AND (date_trunc('week',CURRENT_DATE)::date+d.day_number-1) BETWEEN t.start_date AND t.end_date)
               UNION ALL
               SELECT i.id,i.name,i.category,ri.unit,ri.quantity*ump.portion_multiplier
               FROM nutrition_plan_day d
+              JOIN nutrition_plan p ON p.id=d.nutrition_plan_id
               JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id
               JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id
               JOIN recipe_ingredient ri ON ri.recipe_id=pm.recipe_id
               JOIN ingredient i ON i.id=ri.ingredient_id
-              WHERE d.nutrition_plan_id=? AND d.week_number=? AND pm.is_default_option
+              LEFT JOIN meal_option_selection choice ON choice.user_id=ump.user_id AND choice.meal_date=(COALESCE(p.valid_from,p.created_at::date)+((d.week_number-1)*7)+(d.day_number-1)) AND choice.option_group=pm.option_group
+              WHERE d.nutrition_plan_id=? AND d.week_number=? AND pm.option_code=COALESCE(choice.option_code,(SELECT fallback.option_code FROM planned_meal fallback WHERE fallback.nutrition_plan_day_id=pm.nutrition_plan_day_id AND fallback.meal_order=pm.meal_order AND fallback.option_group=pm.option_group AND fallback.is_default_option ORDER BY fallback.option_code LIMIT 1))
                 AND NOT EXISTS (SELECT 1 FROM nutrition_travel_mode t WHERE t.household_id=? AND t.status='ACTIVE' AND t.exclude_from_shopping AND (date_trunc('week',CURRENT_DATE)::date+d.day_number-1) BETWEEN t.start_date AND t.end_date)
                 AND NOT EXISTS (
                   SELECT 1 FROM user_meal_ingredient_portion exact
