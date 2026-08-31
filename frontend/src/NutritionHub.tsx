@@ -341,7 +341,7 @@ function NutritionImport({onImported}:{onImported:()=>Promise<Array<{id:string;n
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
-  const activateImported=async()=>{const next=await onImported(),imported=next.find(plan=>plan.version===p?.version&&(plan.status==="DRAFT"||plan.status==="ACTIVE"));if(!imported)throw new Error("La dieta se importó, pero no se ha encontrado el plan creado");if(imported.status!=="ACTIVE")await nutritionApi.activate(imported.id);await onImported();setDone(true)};
+  const activateImported=async(planId?:string)=>{const next=await onImported(),imported=next.find(plan=>plan.id===planId)||next.find(plan=>plan.version===p?.version&&(plan.status==="DRAFT"||plan.status==="ACTIVE"));if(!imported)throw new Error("La dieta se importó, pero no se ha encontrado el plan creado");if(imported.status!=="ACTIVE")await nutritionApi.activate(imported.id);await onImported();setDone(true)};
   useEffect(()=>{void householdApi.list().then(setCsvHouseholds)},[]);
   if (done)
     return (
@@ -430,8 +430,8 @@ function NutritionImport({onImported}:{onImported:()=>Promise<Array<{id:string;n
           try {
             if (!p) setP(await nutritionApi.preview(type, file!));
             else {
-              await nutritionApi.confirm(p.importJobId);
-              await activateImported();
+              const confirmed=await nutritionApi.confirm(p.importJobId);
+              await activateImported(confirmed.planId);
             }
           } catch (cause) {
             if(p&&cause instanceof Error&&cause.message.includes("Ya existe esa versión")){try{await activateImported()}catch(activationError){setError(activationError instanceof Error?activationError.message:"No se pudo activar la dieta")}}else setError(cause instanceof Error?cause.message:"No se pudo completar la importación");
