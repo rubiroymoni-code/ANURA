@@ -341,7 +341,9 @@ function NutritionImport({onImported}:{onImported:()=>Promise<Array<{id:string;n
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const [stage,setStage]=useState("");
   const activateImported=async(planId?:string)=>{const next=await onImported(),imported=next.find(plan=>plan.id===planId)||next.find(plan=>plan.version===p?.version&&(plan.status==="DRAFT"||plan.status==="ACTIVE"));if(!imported)throw new Error("La dieta se importó, pero no se ha encontrado el plan creado");if(imported.status!=="ACTIVE")await nutritionApi.activate(imported.id);await onImported();setDone(true)};
+  const previewFile=async(selected:File)=>{setFile(selected);setP(null);setError("");setBusy(true);setStage("Validando el CSV...");try{const preview=await nutritionApi.preview(type,selected);setP(preview);setStage(preview.confirmable?`Versión ${preview.version} válida y preparada para importar`:"El archivo contiene errores")}catch(cause){setError(cause instanceof Error?cause.message:"No se pudo validar el CSV");setStage("")}finally{setBusy(false)}};
   useEffect(()=>{void householdApi.list().then(setCsvHouseholds)},[]);
   if (done)
     return (
@@ -386,11 +388,12 @@ function NutritionImport({onImported}:{onImported:()=>Promise<Array<{id:string;n
           type="file"
           accept=".csv"
           onChange={(e) => {
-            setFile(e.target.files?.[0] || null);
-            setP(null);
+            const selected=e.target.files?.[0];
+            if(selected)void previewFile(selected);else{setFile(null);setP(null);setStage("")}
           }}
         />
       </label>
+      {stage&&<p className="form-note" role="status">{stage}</p>}
       {p && (
         <div className="preview-card">
           <span className={p.confirmable ? "valid" : "invalid"}>
@@ -423,18 +426,17 @@ function NutritionImport({onImported}:{onImported:()=>Promise<Array<{id:string;n
       {error && <div className="error">{error}</div>}
       <button
         className="primary"
-        disabled={!file || busy || (!!p && !p.confirmable)}
+        disabled={!file || busy || !p?.confirmable}
         onClick={async () => {
           setBusy(true);
           setError("");
+          setStage(`Importando y activando la versión ${p?.version}...`);
           try {
-            if (!p) setP(await nutritionApi.preview(type, file!));
-            else {
-              const confirmed=await nutritionApi.confirm(p.importJobId);
-              await activateImported(confirmed.planId);
-            }
+            const confirmed=await nutritionApi.confirm(p!.importJobId);
+            await activateImported(confirmed.planId);
           } catch (cause) {
             if(p&&cause instanceof Error&&cause.message.includes("Ya existe esa versión")){try{await activateImported()}catch(activationError){setError(activationError instanceof Error?activationError.message:"No se pudo activar la dieta")}}else setError(cause instanceof Error?cause.message:"No se pudo completar la importación");
+            setStage("La dieta no se ha activado");
           } finally {
             setBusy(false);
           }
@@ -442,9 +444,7 @@ function NutritionImport({onImported}:{onImported:()=>Promise<Array<{id:string;n
       >
         {busy
           ? "Procesando..."
-          : p
-            ? "Confirmar importación"
-            : "Validar y previsualizar"}
+          : `Importar y activar${p?.version?` v${p.version}`:" dieta"}`}
       </button>
     </div>
   );
