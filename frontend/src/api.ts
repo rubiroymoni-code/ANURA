@@ -369,7 +369,7 @@ export const nutritionApi = {
     );
   },
   confirm: (id: string) =>
-    request<{ status: string }>(`/imports/nutrition/${id}/confirm`, {
+    request<{ status: string;planId?:string }>(`/imports/nutrition/${id}/confirm`, {
       method: "POST",
     }),
 };

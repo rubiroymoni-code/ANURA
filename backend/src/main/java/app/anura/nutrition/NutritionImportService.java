@@ -107,8 +107,20 @@ public class NutritionImportService {
                 () ->
                     new ApiException(
                         HttpStatus.NOT_FOUND, "IMPORT_NOT_FOUND", "Importación no encontrada"));
-    if ("CONFIRMED".equals(job.get("status")))
-      return Map.of("importJobId", id, "status", "CONFIRMED");
+    if ("CONFIRMED".equals(job.get("status"))) {
+      Parsed confirmed=parseUnchecked((String)job.get("import_type"),(String)job.get("content"));
+      if("RECIPES".equals(job.get("import_type")))return Map.of("importJobId",id,"status","CONFIRMED");
+      UUID existing=findPlan(user,confirmed.external,confirmed.version);
+      if(existing!=null){
+        long expected=confirmed.rows.stream().map(r->r.week+":"+r.day+":"+r.mealOrder+":"+(r.optionGroup==null?"MEAL_"+r.mealOrder:r.optionGroup)+":"+r.optionCode).distinct().count();
+        Integer actual=db.queryForObject("SELECT COUNT(*) FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id WHERE d.nutrition_plan_id=?",Integer.class,existing);
+        if(actual!=null&&actual==expected)return Map.of("importJobId",id,"planId",existing,"status","CONFIRMED");
+        db.update("UPDATE tracker_entry SET planned_meal_id=NULL WHERE planned_meal_id IN (SELECT pm.id FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id WHERE d.nutrition_plan_id=?)",existing);
+        db.update("DELETE FROM nutrition_plan WHERE id=?",existing);
+      }
+      UUID recreated=persistPlan(confirmed,user);
+      return Map.of("importJobId",id,"planId",recreated,"status","CONFIRMED");
+    }
     if (!"VALID".equals(job.get("status")))
       throw new ApiException(
           HttpStatus.CONFLICT, "IMPORT_INVALID", "La importación contiene errores");
@@ -116,15 +128,16 @@ public class NutritionImportService {
     if (!p.errors.isEmpty())
       throw new ApiException(
           HttpStatus.CONFLICT, "IMPORT_CHANGED", "La importación dejó de ser válida");
+    UUID planId=null;
     if ("RECIPES".equals(job.get("import_type"))) persistRecipes(p, user, null, null);
-    else persistPlan(p, user);
+    else planId=persistPlan(p, user);
     db.update(
         "UPDATE import_job SET status='CONFIRMED',confirmed_at=CURRENT_TIMESTAMP WHERE id=?", id);
     audit("NUTRITION_IMPORT_CONFIRM", "IMPORT_JOB", id, "SUCCESS");
-    return Map.of("importJobId", id, "status", "CONFIRMED");
+    Map<String,Object> result=new LinkedHashMap<>();result.put("importJobId",id);result.put("status","CONFIRMED");if(planId!=null)result.put("planId",planId);return result;
   }
 
-  private void persistPlan(Parsed p, UUID user) {
+  private UUID persistPlan(Parsed p, UUID user) {
     if ("INDIVIDUAL_DIET".equals(p.type)) {
       String email = db.queryForObject("SELECT email FROM app_user WHERE id=?", String.class, user);
       if (email == null || p.scope == null || !email.equalsIgnoreCase(p.scope))
@@ -206,7 +219,7 @@ public class NutritionImportService {
                     days.size() + 1);
                 return x;
               });
-      String mk = dk + ":" + r.mealOrder + ":" + r.optionCode;
+      String mk = dk + ":" + r.mealOrder + ":" + (r.optionGroup == null ? "MEAL_" + r.mealOrder : r.optionGroup) + ":" + r.optionCode;
       UUID meal =
           meals.computeIfAbsent(
               mk,
@@ -256,6 +269,11 @@ public class NutritionImportService {
         db.update("INSERT INTO user_meal_ingredient_portion(planned_meal_id,user_id,ingredient_id,quantity,unit) VALUES(?,?,?,?,?) ON CONFLICT(planned_meal_id,user_id,ingredient_id) DO UPDATE SET quantity=EXCLUDED.quantity,unit=EXCLUDED.unit",meal,uid,ingredientId,individualQuantity,r.unit);
       }
     }
+    return plan;
+  }
+
+  private UUID findPlan(UUID user,String external,int version){
+    return db.query("SELECT DISTINCT p.id FROM nutrition_plan p LEFT JOIN household_member hm ON hm.household_id=p.household_id AND hm.user_id=? WHERE p.external_id=? AND p.version=? AND (p.owner_id=? OR hm.user_id=?) ORDER BY p.id LIMIT 1",(r,n)->r.getObject(1,UUID.class),user,external,version,user,user).stream().findFirst().orElse(null);
   }
 
   private Map<String,UUID> persistRecipes(Parsed p, UUID user, UUID household,UUID planSnapshot) {
