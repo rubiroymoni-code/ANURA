@@ -258,7 +258,7 @@ public class NutritionController {
   List<Map<String, Object>> week(
       @PathVariable UUID id, @RequestParam(required=false) Integer week) {
     return db.queryForList(
-        "SELECT pm.id planned_meal_id,d.day_number,d.day_name,(COALESCE(p.valid_from,p.created_at::date)+((d.week_number-1)*7)+(d.day_number-1)) meal_date,pm.meal_type,pm.meal_name,r.name recipe,u.id user_id,u.display_name,pm.option_group,pm.option_code,COALESCE(pm.option_label,pm.option_code) option_label,"
+        "SELECT pm.id planned_meal_id,d.day_number,d.day_name,(COALESCE(p.valid_from,p.created_at::date)+((d.week_number-1)*7)+(d.day_number-1)) meal_date,pm.meal_order,pm.meal_type,pm.meal_name,r.name recipe,u.id user_id,u.display_name,pm.option_group,pm.option_code,COALESCE(pm.option_label,pm.option_code) option_label,"
             + " ump.portion_multiplier,COALESCE(ump.quantity,(SELECT SUM(ri.quantity*ump.portion_multiplier) FROM recipe_ingredient ri WHERE ri.recipe_id=r.id)) quantity,ump.calories,ump.protein,ump.carbohydrates,ump.fat,"
             + " CAST(COALESCE((SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',x.quantity,'unit',x.unit) ORDER BY i.name) FROM user_meal_ingredient_portion x JOIN ingredient i ON i.id=x.ingredient_id WHERE x.planned_meal_id=pm.id AND x.user_id=u.id),(SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',ri.quantity*ump.portion_multiplier,'unit',ri.unit) ORDER BY ri.ingredient_order) FROM recipe_ingredient ri JOIN ingredient i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id)) AS TEXT) ingredients FROM"
             + " nutrition_plan_day d JOIN nutrition_plan p ON p.id=d.nutrition_plan_id JOIN planned_meal pm ON"
@@ -270,6 +270,16 @@ public class NutritionController {
         week,
         CurrentUser.id(),
         CurrentUser.id());
+  }
+
+  @GetMapping("/plans/{id}/meal-options")
+  List<Map<String,Object>> planMealOptions(@PathVariable UUID id){
+    UUID user=CurrentUser.id();
+    return db.queryForList(
+        "SELECT d.week_number,d.day_number,d.day_name,(COALESCE(p.valid_from,p.created_at::date)+((d.week_number-1)*7)+(d.day_number-1)) meal_date,pm.id planned_meal_id,pm.meal_order,pm.meal_type,pm.option_group,pm.option_code,COALESCE(pm.option_label,pm.option_code) option_label,r.name recipe,u.id user_id,u.display_name,ump.calories,(pm.option_code=COALESCE(choice.option_code,(SELECT fallback.option_code FROM planned_meal fallback WHERE fallback.nutrition_plan_day_id=pm.nutrition_plan_day_id AND fallback.meal_order=pm.meal_order AND fallback.option_group=pm.option_group AND fallback.is_default_option ORDER BY fallback.option_code LIMIT 1))) selected"
+            + " FROM nutrition_plan p JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND COALESCE(ump.calories,0)>0 JOIN app_user u ON u.id=ump.user_id LEFT JOIN meal_option_selection choice ON choice.user_id=u.id AND choice.meal_date=(COALESCE(p.valid_from,p.created_at::date)+((d.week_number-1)*7)+(d.day_number-1)) AND choice.option_group=pm.option_group"
+            + " WHERE p.id=? AND (p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)) ORDER BY d.week_number,d.day_order,pm.meal_order,u.display_name,pm.is_default_option DESC,pm.option_code",
+        id,user,user);
   }
 
   @GetMapping("/meals/{id}/portions")
