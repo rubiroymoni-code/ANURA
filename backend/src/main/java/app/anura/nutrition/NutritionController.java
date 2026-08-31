@@ -90,7 +90,7 @@ public class NutritionController {
             + " COALESCE(cm.status,'PENDING') status,?::date meal_date,cm.id consumed_meal_id,cm.custom_name,cm.portion actual_portion,cm.notes,cm.adherence_percent,cm.completed_at,pm.option_group,pm.option_code,pm.option_label"
             + " FROM nutrition_plan p LEFT JOIN household_member access ON access.household_id=p.household_id"
             + " JOIN nutrition_plan_day d ON d.nutrition_plan_id=p.id JOIN planned_meal pm ON pm.nutrition_plan_day_id=d.id"
-            + " JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=?"
+            + " JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? AND COALESCE(ump.calories,0)>0"
             + " LEFT JOIN meal_option_selection choice ON choice.user_id=? AND choice.meal_date=? AND choice.option_group=pm.option_group"
             + " LEFT JOIN consumed_meal cm ON cm.planned_meal_id=pm.id AND cm.user_id=? AND cm.meal_date=?"
             + " WHERE p.status='ACTIVE' AND (p.owner_id=? OR access.user_id=?) AND pm.option_code=COALESCE(choice.option_code,(SELECT fallback.option_code FROM planned_meal fallback WHERE fallback.nutrition_plan_day_id=pm.nutrition_plan_day_id AND fallback.meal_order=pm.meal_order AND fallback.option_group=pm.option_group AND fallback.is_default_option ORDER BY fallback.option_code LIMIT 1)) AND d.day_number=EXTRACT(ISODOW FROM ?::date)::int AND d.week_number=(MOD(GREATEST((?::date-COALESCE(p.valid_from,p.created_at::date))/7,0),(SELECT MAX(cycle_day.week_number) FROM nutrition_plan_day cycle_day WHERE cycle_day.nutrition_plan_id=p.id))+1) AND NOT EXISTS(SELECT 1 FROM nutrition_travel_mode t JOIN household_member tm ON tm.household_id=t.household_id WHERE tm.user_id=? AND t.status='ACTIVE' AND ? BETWEEN t.start_date AND t.end_date)"
@@ -105,7 +105,7 @@ public class NutritionController {
     LocalDate date=input.date()==null?LocalDate.now():input.date();
     Map<String,Object> meal=plannedMeal(mealId);
     String group=(String)db.queryForObject("SELECT option_group FROM planned_meal WHERE id=?",String.class,mealId);
-    Integer available=db.queryForObject("SELECT COUNT(*) FROM planned_meal pm JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id WHERE pm.nutrition_plan_day_id=(SELECT nutrition_plan_day_id FROM planned_meal WHERE id=?) AND pm.option_group=? AND pm.option_code=? AND ump.user_id=?",Integer.class,mealId,group,input.optionCode(),CurrentUser.id());
+    Integer available=db.queryForObject("SELECT COUNT(*) FROM planned_meal pm JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id WHERE pm.nutrition_plan_day_id=(SELECT nutrition_plan_day_id FROM planned_meal WHERE id=?) AND pm.option_group=? AND pm.option_code=? AND ump.user_id=? AND COALESCE(ump.calories,0)>0",Integer.class,mealId,group,input.optionCode(),CurrentUser.id());
     if(available==null||available==0)throw new ApiException(HttpStatus.BAD_REQUEST,"OPTION_NOT_AVAILABLE","Esa opción no está disponible para ti");
     db.update("INSERT INTO meal_option_selection(user_id,meal_date,option_group,option_code) VALUES(?,?,?,?) ON CONFLICT(user_id,meal_date,option_group) DO UPDATE SET option_code=EXCLUDED.option_code",CurrentUser.id(),date,group,input.optionCode());
   }
@@ -113,7 +113,7 @@ public class NutritionController {
   @GetMapping("/today/{mealId}/options")
   List<Map<String,Object>> mealOptions(@PathVariable UUID mealId){
     plannedMeal(mealId);
-    return db.queryForList("SELECT pm.id planned_meal_id,pm.option_code,COALESCE(pm.option_label,pm.option_code) option_label,r.name recipe,ump.calories,ump.protein,ump.carbohydrates,ump.fat FROM planned_meal pm JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? WHERE pm.nutrition_plan_day_id=(SELECT nutrition_plan_day_id FROM planned_meal WHERE id=?) AND pm.option_group=(SELECT option_group FROM planned_meal WHERE id=?) ORDER BY pm.is_default_option DESC,pm.option_code",CurrentUser.id(),mealId,mealId);
+    return db.queryForList("SELECT pm.id planned_meal_id,pm.option_code,COALESCE(pm.option_label,pm.option_code) option_label,r.name recipe,ump.calories,ump.protein,ump.carbohydrates,ump.fat FROM planned_meal pm JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND ump.user_id=? AND COALESCE(ump.calories,0)>0 WHERE pm.nutrition_plan_day_id=(SELECT nutrition_plan_day_id FROM planned_meal WHERE id=?) AND pm.option_group=(SELECT option_group FROM planned_meal WHERE id=?) ORDER BY pm.is_default_option DESC,pm.option_code",CurrentUser.id(),mealId,mealId);
   }
 
   @PostMapping("/today/{mealId}/complete")
