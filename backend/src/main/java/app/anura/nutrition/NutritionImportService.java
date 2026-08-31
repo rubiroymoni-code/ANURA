@@ -503,14 +503,14 @@ public class NutritionImportService {
           "RECIPES".equals(type) ? 1 : pos(r, "day_number"),
           opt(r, "day_name"),
           "RECIPES".equals(type) ? 1 : pos(r, "meal_order"),
-          opt(r, "option_group"),
-          Optional.ofNullable(opt(r, "option_code")).orElse("DEFAULT"),
-          opt(r, "option_label"),
+          max(opt(r, "option_group"), "option_group", 120),
+          max(Optional.ofNullable(opt(r, "option_code")).orElse("DEFAULT"), "option_code", 40),
+          max(opt(r, "option_label"), "option_label", 80),
           !"false".equalsIgnoreCase(Optional.ofNullable(opt(r, "default_option")).orElse("true")),
           opt(r, "meal_type"),
-          opt(r, "meal_name"),
-          req(r, "recipe_code"),
-          req(r, "recipe_name"),
+          max(opt(r, "meal_name"), "meal_name", 160),
+          max(req(r, "recipe_code"), "recipe_code", 100),
+          max(req(r, "recipe_name"), "recipe_name", 180),
           req(r, "ingredient_code"),
           req(r, "ingredient_name"),
           opt(r, "category"),
@@ -536,6 +536,8 @@ public class NutritionImportService {
       if (v == null) throw new IllegalArgumentException(c + " obligatorio");
       return v;
     }
+
+    static String max(String value,String column,int limit){if(value!=null&&value.length()>limit)throw new IllegalArgumentException(column+" supera el máximo de "+limit+" caracteres");return value;}
 
     static String opt(CSVRecord r, String c) {
       if (!r.isMapped(c)) return null;
