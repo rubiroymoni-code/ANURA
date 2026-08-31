@@ -305,6 +305,7 @@ export const nutritionApi = {
     >("/nutrition/plans"),
   week: (id: string) =>
     request<Array<Record<string, unknown>>>(`/nutrition/plans/${id}/week`),
+  planMealOptions:(id:string)=>request<Array<Record<string,unknown>>>(`/nutrition/plans/${id}/meal-options`),
   planDetails: (id:string) => request<Array<Record<string,unknown>>>(`/nutrition/plans/${id}/details`),
   summary: (id: string) =>
     request<Array<Record<string, unknown>>>(`/nutrition/plans/${id}/summary`),
