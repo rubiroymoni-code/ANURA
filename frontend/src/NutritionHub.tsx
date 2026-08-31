@@ -149,7 +149,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
             refresh={() => householdApi.list().then(setHouseholds)}
           />
         )}{" "}
-        {section === "import" && <NutritionImport onImported={async()=>setPlans(await nutritionApi.plans())} />}
+        {section === "import" && <NutritionImport onImported={async()=>{const next=await nutritionApi.plans();setPlans(next);return next}} />}
         {section === "shopping" && <Shopping plans={plans} />}
         {section === "meal-locations" && <MealLocationPlanner plan={activePlan} />}
         {section === "preferences" && <NutritionPreferencesPanel />}
@@ -330,7 +330,7 @@ function LegacyHouseholdView({
     </div>
   );
 }
-function NutritionImport({onImported}:{onImported:()=>Promise<void>}) {
+function NutritionImport({onImported}:{onImported:()=>Promise<Array<{id:string;name:string;version:number;status:string;valid_from?:string;valid_until?:string}>>}) {
   const currentUser=JSON.parse(localStorage.getItem("anura-user")||"{}");
   const [csvHouseholds,setCsvHouseholds]=useState<Household[]>([]);
   const [type, setType] = useState<"diet" | "shared-diet" | "recipes">(
@@ -341,6 +341,7 @@ function NutritionImport({onImported}:{onImported:()=>Promise<void>}) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
+  const activateImported=async()=>{const next=await onImported(),imported=next.find(plan=>plan.version===p?.version&&(plan.status==="DRAFT"||plan.status==="ACTIVE"));if(!imported)throw new Error("La dieta se importó, pero no se ha encontrado el plan creado");if(imported.status!=="ACTIVE")await nutritionApi.activate(imported.id);await onImported();setDone(true)};
   useEffect(()=>{void householdApi.list().then(setCsvHouseholds)},[]);
   if (done)
     return (
@@ -430,15 +431,10 @@ function NutritionImport({onImported}:{onImported:()=>Promise<void>}) {
             if (!p) setP(await nutritionApi.preview(type, file!));
             else {
               await nutritionApi.confirm(p.importJobId);
-              await onImported();
-              setDone(true);
+              await activateImported();
             }
           } catch (cause) {
-            setError(
-              cause instanceof Error
-                ? cause.message
-                : "No se pudo completar la importación",
-            );
+            if(p&&cause instanceof Error&&cause.message.includes("Ya existe esa versión")){try{await activateImported()}catch(activationError){setError(activationError instanceof Error?activationError.message:"No se pudo activar la dieta")}}else setError(cause instanceof Error?cause.message:"No se pudo completar la importación");
           } finally {
             setBusy(false);
           }
@@ -484,7 +480,7 @@ function CookByDate({planId,recipes,open}:{planId?:string;recipes:Array<{id:stri
 function CookMealGroup({meals,recipes,open,reload}:{meals:Array<Record<string,unknown>>;recipes:Array<{id:string;name:string}>;open:(recipeId:string,mealId:string)=>void;reload:()=>Promise<void>}){
   const first=meals[0];
   const preparations=[...new Map(meals.map(meal=>[String(meal.recipe).trim().toLocaleLowerCase("es"),meals.filter(item=>String(item.recipe).trim().toLocaleLowerCase("es")===String(meal.recipe).trim().toLocaleLowerCase("es"))])).values()];
-  return <article className="cook-meal-group"><header><small>{mealTypeLabel(String(first.meal_type))}</small><b>{preparations.length===1?"1 preparación conjunta":`${preparations.length} preparaciones`}</b></header><div>{preparations.map(group=>{const meal=group[0],recipe=recipes.find(item=>item.name.trim().toLocaleLowerCase("es")===String(meal.recipe).trim().toLocaleLowerCase("es"));return <button key={String(meal.recipe)} disabled={!recipe} onClick={()=>recipe&&open(recipe.id,String(meal.planned_meal_id))}><span><b>{String(meal.recipe)}</b><small>Para {group.map(item=>String(item.display_name)).join(" y ")}</small><em>{group.map(item=>`${String(item.display_name)} ${Number(item.calories||0).toFixed(0)} kcal`).join(" · ")}</em></span><strong>Ver receta</strong></button>})}</div></article>;
+  return <article className="cook-meal-group"><header><small>{mealTypeLabel(String(first.meal_type))}</small><b>{preparations.length===1?"1 preparación conjunta":`${preparations.length} preparaciones`}</b></header><div>{preparations.map(group=>{const meal=group[0];return <button key={String(meal.recipe)} onClick={()=>open(String(meal.recipe_id),String(meal.planned_meal_id))}><span><b>{String(meal.recipe)}</b><small>Para {group.map(item=>String(item.display_name)).join(" y ")}</small><em>{group.map(item=>`${String(item.display_name)} ${Number(item.calories||0).toFixed(0)} kcal`).join(" · ")}</em></span><strong>Ver receta</strong></button>})}</div></article>;
 }
 function normalizeWeekday(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLocaleLowerCase("es")}
 
