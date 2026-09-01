@@ -44,6 +44,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [selectedRecipe, setSelectedRecipe] = useState<string | null>(null);
   const [selectedMeal,setSelectedMeal]=useState<string|null>(null);
+  const [selectedPreparation,setSelectedPreparation]=useState<Array<Record<string,unknown>>>([]);
   const [households, setHouseholds] = useState<Household[]>([]);
   const [recipes, setRecipes] = useState<Array<{ id: string; name: string }>>(
     [],
@@ -85,6 +86,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
     if(!recipe)return;
     setSelectedRecipe(recipe.id);
     setSelectedMeal(initialRecipeMeal.planned_meal_id);
+    setSelectedPreparation([]);
     setSectionHistory(["home","cook"]);
     setSection("recipe");
     onInitialRecipeOpened?.();
@@ -116,7 +118,9 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
                         ? "Plan nutricional"
                         : section === "manage"
                           ? "Planes y gestión"
-                          : "Receta"}
+                          : section === "recipe"&&selectedPreparation.length
+                            ? "Preparación familiar"
+                            : "Receta"}
             </h2>
           </div>
           <button onClick={onClose}>
@@ -130,7 +134,7 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
         {section === "home" && (
           <>
             {dashboard&&<section className={`nutrition-overview ${balanceExpanded?"expanded":""}`}><button className="nutrition-overview-summary" onClick={()=>setBalanceExpanded(value=>!value)}><span><small>BALANCE DE HOY</small><b>{Number(dashboard.consumed.calories||0).toFixed(0)} / {Number(dashboard.target.calories||dashboard.planned.calories||0).toFixed(0)} kcal</b><em>{activePlan?`${activePlan.name} · versión ${activePlan.version}`:"Sin plan activo"}</em></span><strong>{Math.round(Number(dashboard.target.calories||dashboard.planned.calories||0)?Number(dashboard.consumed.calories||0)/Number(dashboard.target.calories||dashboard.planned.calories||1)*100:0)}%</strong><ChevronDown/></button>{balanceExpanded&&<div className="nutrition-overview-detail"><NutritionBalance data={dashboard}/></div>}</section>}
-            <section className="nutrition-today"><div><small>{mealDate===new Date().toLocaleDateString("en-CA")?"HOY":"OTRO DÍA"}</small><h3>Lo que te toca comer</h3><p>También puedes completar una comida pendiente de un día anterior.</p><label className="meal-day-picker">Ver día<input type="date" value={mealDate} max={new Date().toLocaleDateString("en-CA")} onChange={event=>{setMealDate(event.target.value);void reloadMeals(event.target.value);void nutritionApi.travelToday(event.target.value).then(setTravelToday)}}/></label></div>{travelToday.id&&<article className="travel-today-card"><Luggage/><span><small>{travelToday.title} · {travelToday.plan_label||"Día flexible"}</small><b>{travelToday.guidance||"Come con flexibilidad y registra solo lo que te resulte útil."}</b><em>No genera compra ni penaliza la adherencia.</em></span></article>}{todayMeals.length?todayMeals.map(meal=><TodayNutritionCard key={meal.planned_meal_id} meal={meal} date={mealDate} refresh={()=>reloadMeals()} open={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);navigate("recipe")}}} toggle={async()=>{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id,mealDate);else await nutritionApi.undoToday(meal.planned_meal_id,mealDate);await reloadMeals();if(mealDate===new Date().toLocaleDateString("en-CA"))setDashboard(await nutritionApi.dashboard())}}/>):!travelToday.id&&<p>No hay comidas asignadas para ese día en el plan activo.</p>}{onAddMeal&&<button className="nutrition-add-meal" onClick={onAddMeal}><Plus/>Registrar otra comida</button>}</section>
+            <section className="nutrition-today"><div><small>{mealDate===new Date().toLocaleDateString("en-CA")?"HOY":"OTRO DÍA"}</small><h3>Lo que te toca comer</h3><p>También puedes completar una comida pendiente de un día anterior.</p><label className="meal-day-picker">Ver día<input type="date" value={mealDate} max={new Date().toLocaleDateString("en-CA")} onChange={event=>{setMealDate(event.target.value);void reloadMeals(event.target.value);void nutritionApi.travelToday(event.target.value).then(setTravelToday)}}/></label></div>{travelToday.id&&<article className="travel-today-card"><Luggage/><span><small>{travelToday.title} · {travelToday.plan_label||"Día flexible"}</small><b>{travelToday.guidance||"Come con flexibilidad y registra solo lo que te resulte útil."}</b><em>No genera compra ni penaliza la adherencia.</em></span></article>}{todayMeals.length?todayMeals.map(meal=><TodayNutritionCard key={meal.planned_meal_id} meal={meal} date={mealDate} refresh={()=>reloadMeals()} open={()=>{const recipe=recipes.find(r=>r.name.trim().toLowerCase()===meal.recipe.trim().toLowerCase());if(recipe){setSelectedPreparation([]);setSelectedRecipe(recipe.id);setSelectedMeal(meal.planned_meal_id);navigate("recipe")}}} toggle={async()=>{if(meal.status==="PENDING")await nutritionApi.completeToday(meal.planned_meal_id,mealDate);else await nutritionApi.undoToday(meal.planned_meal_id,mealDate);await reloadMeals();if(mealDate===new Date().toLocaleDateString("en-CA"))setDashboard(await nutritionApi.dashboard())}}/>):!travelToday.id&&<p>No hay comidas asignadas para ese día en el plan activo.</p>}{onAddMeal&&<button className="nutrition-add-meal" onClick={onAddMeal}><Plus/>Registrar otra comida</button>}</section>
           </>
         )}
         {section === "manage" && <div className="nutrition-tools plan-management"><div className="nutrition-menu">
@@ -153,13 +157,11 @@ export function NutritionHub({ onClose,onRegisterMeal,onAddMeal,initialSection="
         {section === "shopping" && <Shopping plans={plans} />}
         {section === "meal-locations" && <MealLocationPlanner plan={planningPlan} />}
         {section === "preferences" && <NutritionPreferencesPanel />}
-        {section === "cook" && <CookByDate planId={activePlan?.id} recipes={recipes} open={(recipeId,mealId)=>{setSelectedRecipe(recipeId);setSelectedMeal(mealId);navigate("recipe")}} />}
+        {section === "cook" && <CookByDate planId={activePlan?.id} open={meals=>{setSelectedPreparation(meals);setSelectedRecipe(null);setSelectedMeal(null);navigate("recipe")}} />}
         {section === "supplements" && <SupplementsPanel />}
         {section === "travel" && <TravelModePanel onChanged={()=>void nutritionApi.travelToday(mealDate).then(setTravelToday)}/>}
         {section === "plan" && selectedPlan && <PlanView id={selectedPlan} status={plans.find(plan=>plan.id===selectedPlan)?.status||""} onDeleted={async()=>{setPlans(await nutritionApi.plans());setSelectedPlan(null);setSectionHistory([]);setSection("home")}} />}
-        {section === "recipe" && selectedRecipe && (
-          <RecipeView id={selectedRecipe} mealId={selectedMeal} />
-        )}
+        {section === "recipe" && (selectedPreparation.length?<CookPreparationView meals={selectedPreparation}/>:selectedRecipe&&<RecipeView id={selectedRecipe} mealId={selectedMeal}/>) }
         {section !== "home" && (
           <button className="text-btn" onClick={goBack}>
             ← Volver a {sectionName(previousSection)}
@@ -457,7 +459,7 @@ function MealLocationPlanner({plan}:{plan?:{id:string;name:string;version:number
   return <section className="meal-location-planner"><header><CalendarDays/><span><small>PLANIFICACIÓN FAMILIAR · VERSIÓN {plan.version}</small><h3>Dónde comemos</h3><p>{plan.name}</p></span>{plan.status!=="ACTIVE"&&<button className="primary" onClick={async()=>{await nutritionApi.activate(plan.id);location.reload()}}>Activar esta dieta</button>}</header><div className="location-week-tabs">{weeks.map(value=><button key={value} className={week===value?"active":""} onClick={()=>setWeek(value)}>Semana {value}</button>)}</div><div className="plan-day-tabs">{days.map(([value,name])=><button key={value} className={day===value?"active":""} onClick={()=>setDay(value)}><b>{name.slice(0,3)}</b><small>Día {value}</small></button>)}</div>{message&&<p className="form-note">{message}</p>}<div className="location-people">{people.map(([userId,name])=><article key={userId}><header><Users/><b>{name}</b></header><div>{[...new Map(visible.filter(row=>String(row.user_id)===userId).map(row=>[Number(row.meal_order),visible.filter(item=>String(item.user_id)===userId&&Number(item.meal_order)===Number(row.meal_order))])).values()].map(options=>{const selected=options.find(row=>Boolean(row.selected))||options[0],key=`${userId}-${selected.option_group}`;return <section key={Number(selected.meal_order)}><span><small>{mealTypeLabel(String(selected.meal_type))}</small><b>{String(selected.recipe)}</b></span>{options.length>1?<div>{options.map(option=><button key={String(option.option_code)} className={Boolean(option.selected)?"active":""} disabled={saving===key} onClick={()=>void choose(option)}>{String(option.option_label)}</button>)}</div>:<em>Comida fija</em>}</section>})}</div></article>)}</div></section>;
 }
 
-function CookByDate({planId,recipes,open}:{planId?:string;recipes:Array<{id:string;name:string}>;open:(recipeId:string,mealId:string)=>void}) {
+function CookByDate({planId,open}:{planId?:string;open:(meals:Array<Record<string,unknown>>)=>void}) {
   const [rows,setRows]=useState<Array<Record<string,unknown>>>([]);
   const [selectedDay,setSelectedDay]=useState<number|null>(null);
   const [loading,setLoading]=useState(false);
@@ -468,12 +470,12 @@ function CookByDate({planId,recipes,open}:{planId?:string;recipes:Array<{id:stri
   const visibleDay=selectedDay??todayDay;
   const dayMeals=rows.filter(row=>Number(row.day_number)===visibleDay).sort((a,b)=>Number(a.meal_order||0)-Number(b.meal_order||0));
   const mealGroups=[...new Map(dayMeals.map(row=>[Number(row.meal_order),dayMeals.filter(item=>Number(item.meal_order)===Number(row.meal_order))])).values()];
-  return <div className="cook-workspace"><BatchCooking planId={planId}/><section className="cook-today"><div className="food-pref-hero"><ChefHat/><span><small>{"COCINA DEL D\u00cdA"}</small><h3>{visibleDay===todayDay?"Preparaciones de hoy":`Preparaciones del ${days.find(([day])=>day===visibleDay)?.[1]?.toLowerCase()||`d\u00eda ${visibleDay}`}`}</h3><p>Cuatro comidas, con la preparaci\u00f3n de cada persona dentro.</p></span></div>{days.length>0&&<div className="plan-day-tabs">{days.map(([day,name])=><button key={day} className={visibleDay===day?"active":""} onClick={()=>setSelectedDay(day)}><b>{day===todayDay?"Hoy":name.slice(0,3)}</b><small>{"D\u00eda "}{day}</small></button>)}</div>}{loading?<div className="empty">Cargando comidas...</div>:mealGroups.length?mealGroups.map(group=><CookMealGroup key={Number(group[0]?.meal_order)} meals={group} recipes={recipes} open={open} reload={reload}/>):<div className="empty">{"No hay comidas asignadas para este d\u00eda."}</div>}</section></div>;
+  return <div className="cook-workspace"><BatchCooking planId={planId}/><section className="cook-today"><div className="food-pref-hero"><ChefHat/><span><small>{"COCINA DEL D\u00cdA"}</small><h3>{visibleDay===todayDay?"Preparaciones de hoy":`Preparaciones del ${days.find(([day])=>day===visibleDay)?.[1]?.toLowerCase()||`d\u00eda ${visibleDay}`}`}</h3><p>Cuatro comidas, con la preparaci\u00f3n de cada persona dentro.</p></span></div>{days.length>0&&<div className="plan-day-tabs">{days.map(([day,name])=><button key={day} className={visibleDay===day?"active":""} onClick={()=>setSelectedDay(day)}><b>{day===todayDay?"Hoy":name.slice(0,3)}</b><small>{"D\u00eda "}{day}</small></button>)}</div>}{loading?<div className="empty">Cargando comidas...</div>:mealGroups.length?mealGroups.map(group=><CookMealGroup key={Number(group[0]?.meal_order)} meals={group} open={open}/>):<div className="empty">{"No hay comidas asignadas para este d\u00eda."}</div>}</section></div>;
 }
-function CookMealGroup({meals,recipes,open,reload}:{meals:Array<Record<string,unknown>>;recipes:Array<{id:string;name:string}>;open:(recipeId:string,mealId:string)=>void;reload:()=>Promise<void>}){
+function CookMealGroup({meals,open}:{meals:Array<Record<string,unknown>>;open:(meals:Array<Record<string,unknown>>)=>void}){
   const first=meals[0];
   const preparations=[...new Map(meals.map(meal=>[String(meal.recipe).trim().toLocaleLowerCase("es"),meals.filter(item=>String(item.recipe).trim().toLocaleLowerCase("es")===String(meal.recipe).trim().toLocaleLowerCase("es"))])).values()];
-  return <article className="cook-meal-group"><header><small>{mealTypeLabel(String(first.meal_type))}</small><b>{preparations.length===1?"1 preparación conjunta":`${preparations.length} preparaciones`}</b></header><div>{preparations.map(group=>{const meal=group[0];return <button key={String(meal.recipe)} onClick={()=>open(String(meal.recipe_id),String(meal.planned_meal_id))}><span><b>{String(meal.recipe)}</b><small>Para {group.map(item=>String(item.display_name)).join(" y ")}</small><em>{group.map(item=>`${String(item.display_name)} ${Number(item.calories||0).toFixed(0)} kcal`).join(" · ")}</em></span><strong>Ver receta</strong></button>})}</div></article>;
+  return <article className="cook-meal-group"><header><small>{mealTypeLabel(String(first.meal_type))}</small><b>{preparations.length===1?"1 preparación conjunta":`${preparations.length} preparaciones`}</b></header><button className="cook-family-open" onClick={()=>open(meals)}><span className="cook-preparation-list">{preparations.map(group=>{const meal=group[0];return <span key={String(meal.recipe)}><b>{String(meal.recipe)}</b><small>Para {group.map(item=>String(item.display_name)).join(" y ")}</small><em>{group.map(item=>`${String(item.display_name)} ${Number(item.calories||0).toFixed(0)} kcal`).join(" · ")}</em></span>})}</span><strong>Preparar todo</strong></button></article>;
 }
 function normalizeWeekday(value:string){return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLocaleLowerCase("es")}
 
@@ -486,6 +488,12 @@ function batchIngredientName(name:string){return name.replace(/\s+(crudo|cruda|c
 function batchPeople(rows:PrepRow[],target:PrepIngredient){const people=new Map<string,number>();rows.forEach(row=>ingredientRows(row.ingredients).forEach(item=>{if(batchIngredientName(item.name).toLocaleLowerCase("es")===target.name.toLocaleLowerCase("es")&&item.unit===target.unit)people.set(row.display_name,(people.get(row.display_name)||0)+item.quantity)}));return[...people].map(([name,quantity])=>({name,quantity}))}
 function batchContainers(rows:PrepRow[]){return rows.map(row=>({key:`${row.planned_meal_id}-${row.user_id}`,person:row.display_name,day:row.day_name,mealType:row.meal_type,recipe:row.recipe,ingredients:ingredientRows(row.ingredients).map(item=>({...item,name:batchIngredientName(item.name)})).filter(item=>cookingFactor(item.name,item.unit)!=null)})).filter(row=>row.ingredients.length>0)}
 function batchQuantity(quantity:number,unit:string){if(/^g/i.test(unit)&&quantity>=1000)return`${(quantity/1000).toLocaleString("es",{maximumFractionDigits:2})} kg`;if(/^ml/i.test(unit)&&quantity>=1000)return`${(quantity/1000).toLocaleString("es",{maximumFractionDigits:2})} l`;return`${Math.round(quantity)} ${unit}`}
+
+function CookPreparationView({meals}:{meals:Array<Record<string,unknown>>}){
+  const preparations=[...new Map(meals.map(meal=>[String(meal.recipe_id),meals.filter(item=>String(item.recipe_id)===String(meal.recipe_id))])).values()];
+  const familyIngredients=combinedIngredients(meals);
+  return <section className="family-preparation-view"><header><ChefHat/><span><small>{mealTypeLabel(String(meals[0]?.meal_type))} · UNIDAD DOMÉSTICA</small><h3>{preparations.length===1?"Preparación conjunta":`${preparations.length} recetas en una preparación`}</h3><p>Todo lo necesario para cocinar y repartir esta comida sin cambiar de pantalla.</p></span></header>{preparations.length>1&&<article className="family-ingredient-total"><header><b>Total entre las dos recetas</b><small>Ingredientes coincidentes ya aparecen sumados</small></header><div className="portion-ingredients combined">{familyIngredients.map((ingredient,index)=><span key={`${ingredient.name}-${ingredient.unit}-${index}`}><b>{ingredient.name}</b><em>{ingredientQuantityLabel(ingredient.name,ingredient.quantity,ingredient.unit)}</em></span>)}</div></article>}{preparations.map((group,index)=><article className="family-preparation-recipe" key={String(group[0].recipe_id)}><div className="family-preparation-number"><span>{index+1}</span><b>{String(group[0].recipe)}</b><small>Para {group.map(meal=>String(meal.display_name)).join(" y ")}</small></div><RecipeView id={String(group[0].recipe_id)} mealId={String(group[0].planned_meal_id)}/></article>)}</section>;
+}
 
 function RecipeView({ id,mealId }: { id: string;mealId:string|null }) {
   const [rows, setRows] = useState<Array<Record<string, unknown>>>([]);

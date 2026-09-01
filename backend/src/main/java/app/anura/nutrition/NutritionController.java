@@ -283,7 +283,43 @@ public class NutritionController {
   }
 
   @GetMapping("/meals/{id}/portions")
-  List<Map<String,Object>> mealPortions(@PathVariable UUID id){UUID user=CurrentUser.id();return db.queryForList("SELECT u.id user_id,u.display_name,COALESCE(ump.quantity,(SELECT SUM(ri.quantity*ump.portion_multiplier) FROM recipe_ingredient ri WHERE ri.recipe_id=r.id)) quantity,ump.calories,ump.protein,ump.carbohydrates,ump.fat,CAST(COALESCE((SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',x.quantity,'unit',x.unit) ORDER BY i.name) FROM user_meal_ingredient_portion x JOIN ingredient i ON i.id=x.ingredient_id WHERE x.planned_meal_id=pm.id AND x.user_id=u.id),(SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',ri.quantity*ump.portion_multiplier,'unit',ri.unit) ORDER BY ri.ingredient_order) FROM recipe_ingredient ri JOIN ingredient i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id)) AS TEXT) ingredients FROM planned_meal pm JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id JOIN nutrition_plan p ON p.id=d.nutrition_plan_id JOIN recipe r ON r.id=pm.recipe_id JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id JOIN app_user u ON u.id=ump.user_id WHERE pm.id=? AND (p.owner_id=? OR EXISTS(SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?)) ORDER BY u.display_name",id,user,user);}
+  List<Map<String,Object>> mealPortions(@PathVariable UUID id){
+    UUID user=CurrentUser.id();
+    return db.queryForList("""
+        WITH target AS (
+          SELECT pm.nutrition_plan_day_id,pm.meal_order,pm.recipe_id,
+                 COALESCE(p.valid_from,p.created_at::date)+((d.week_number-1)*7)+(d.day_number-1) meal_date
+          FROM planned_meal pm
+          JOIN nutrition_plan_day d ON d.id=pm.nutrition_plan_day_id
+          JOIN nutrition_plan p ON p.id=d.nutrition_plan_id
+          WHERE pm.id=? AND (p.owner_id=? OR EXISTS(
+            SELECT 1 FROM household_member hm WHERE hm.household_id=p.household_id AND hm.user_id=?))
+        )
+        SELECT u.id user_id,u.display_name,
+               COALESCE(ump.quantity,(SELECT SUM(ri.quantity*ump.portion_multiplier) FROM recipe_ingredient ri WHERE ri.recipe_id=r.id)) quantity,
+               ump.calories,ump.protein,ump.carbohydrates,ump.fat,
+               CAST(COALESCE(
+                 (SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',x.quantity,'unit',x.unit) ORDER BY i.name)
+                    FROM user_meal_ingredient_portion x JOIN ingredient i ON i.id=x.ingredient_id
+                   WHERE x.planned_meal_id=pm.id AND x.user_id=u.id),
+                 (SELECT jsonb_agg(jsonb_build_object('name',i.name,'quantity',ri.quantity*ump.portion_multiplier,'unit',ri.unit) ORDER BY ri.ingredient_order)
+                    FROM recipe_ingredient ri JOIN ingredient i ON i.id=ri.ingredient_id WHERE ri.recipe_id=r.id)
+               ) AS TEXT) ingredients
+          FROM target t
+          JOIN planned_meal pm ON pm.nutrition_plan_day_id=t.nutrition_plan_day_id
+                              AND pm.meal_order=t.meal_order AND pm.recipe_id=t.recipe_id
+          JOIN recipe r ON r.id=pm.recipe_id
+          JOIN user_meal_portion ump ON ump.planned_meal_id=pm.id AND COALESCE(ump.calories,0)>0
+          JOIN app_user u ON u.id=ump.user_id
+          LEFT JOIN meal_option_selection choice ON choice.user_id=u.id AND choice.meal_date=t.meal_date AND choice.option_group=pm.option_group
+         WHERE pm.option_code=COALESCE(choice.option_code,(
+           SELECT fallback.option_code FROM planned_meal fallback
+            WHERE fallback.nutrition_plan_day_id=pm.nutrition_plan_day_id
+              AND fallback.meal_order=pm.meal_order AND fallback.option_group=pm.option_group
+              AND fallback.is_default_option ORDER BY fallback.option_code LIMIT 1))
+         ORDER BY u.display_name
+        """,id,user,user);
+  }
 
   @GetMapping("/plans/{id}/details")
   List<Map<String,Object>> planDetails(@PathVariable UUID id) {
