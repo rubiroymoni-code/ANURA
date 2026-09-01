@@ -243,6 +243,7 @@ public class NutritionImportService {
                 return x;
               });
       for (var portion : r.portions.entrySet()) {
+        if (portion.getValue().signum() <= 0) continue;
         UUID uid = userByEmail(portion.getKey(), householdScope, user);
         var factor =
             r.quantity.divide(java.math.BigDecimal.valueOf(100)).multiply(portion.getValue());
